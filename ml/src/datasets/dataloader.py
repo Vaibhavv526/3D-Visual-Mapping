@@ -12,12 +12,18 @@ from configs import (
 )
 
 from src.datasets.mesh_dataset import MeshDataset
+
 from src.datasets.transforms import (
     get_train_transforms,
     get_val_transforms,
 )
+
+
 def get_dataloaders():
-    train_df = pd.read_csv(TRAIN_CSV)
+
+    train_df = pd.read_csv(
+        TRAIN_CSV
+    )
 
     train_dataframe, val_dataframe = train_test_split(
         train_df,
@@ -39,6 +45,7 @@ def get_dataloaders():
         image_transform=get_val_transforms(),
         mode="image",
     )
+
     train_loader = DataLoader(
         train_dataset,
         batch_size=BATCH_SIZE,
@@ -54,6 +61,5 @@ def get_dataloaders():
         num_workers=NUM_WORKERS,
         pin_memory=True,
     )
-
 
     return train_loader, val_loader
