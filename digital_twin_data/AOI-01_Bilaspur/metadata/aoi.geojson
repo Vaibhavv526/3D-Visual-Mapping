@@ -1,0 +1,22 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "AOI-01 Bilaspur",
+        "description": "Initial urban Digital Twin pilot area"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [82.1242, 22.1273],
+          [82.1338, 22.1273],
+          [82.1338, 22.1363],
+          [82.1242, 22.1363],
+          [82.1242, 22.1273]
+        ]]
+      }
+    }
+  ]
+}
