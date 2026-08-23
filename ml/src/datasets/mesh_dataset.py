@@ -128,10 +128,24 @@ class MeshDataset(Dataset):
         if self.mode in ["mesh", "multimodal"]:
             vertices, faces = self._load_mesh(mesh_path)
 
-        labels, quality = self._load_labels(row)
+        if "quality" in row.index:
 
-        labels = torch.tensor(labels, dtype=torch.float32)
-        quality = torch.tensor(quality, dtype=torch.float32)
+            labels, quality = self._load_labels(row)
+
+            labels = torch.tensor(
+                labels,
+                dtype=torch.float32,
+            )
+
+            quality = torch.tensor(
+                quality,
+                dtype=torch.float32,
+            )
+
+        else:
+
+            labels = None
+            quality = None
 
         sample = {
             "item_id": item_id,
