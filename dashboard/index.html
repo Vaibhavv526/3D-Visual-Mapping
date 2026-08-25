@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>Bilaspur Digital Twin</title>
+
+    <style>
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #111827;
+            color: white;
+        }
+
+        header {
+            padding: 20px 30px;
+            background: #1f2937;
+            border-bottom: 1px solid #374151;
+        }
+
+        header h1 {
+            margin: 0;
+        }
+
+        header p {
+            margin: 6px 0 0;
+            color: #9ca3af;
+        }
+
+        .dashboard {
+            padding: 25px;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns:
+                repeat(4, 1fr);
+
+            gap: 18px;
+        }
+
+        .card {
+            background: #1f2937;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #374151;
+        }
+
+        .card h3 {
+            margin-top: 0;
+            color: #9ca3af;
+            font-size: 14px;
+        }
+
+        .value {
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .unit {
+            color: #9ca3af;
+            font-size: 14px;
+        }
+
+        .section {
+            margin-top: 25px;
+            background: #1f2937;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #374151;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns:
+                repeat(3, 1fr);
+
+            gap: 15px;
+        }
+
+        .stat {
+            padding: 15px;
+            background: #111827;
+            border-radius: 8px;
+        }
+
+        .bar {
+            height: 18px;
+            background: #374151;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .bar-fill {
+            height: 100%;
+            background: #22c55e;
+        }
+
+        @media (max-width: 900px) {
+
+            .cards {
+                grid-template-columns:
+                    repeat(2, 1fr);
+            }
+
+            .stats {
+                grid-template-columns:
+                    1fr;
+            }
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+<header>
+
+    <h1>
+        Bilaspur Digital Twin
+    </h1>
+
+    <p>
+        3D Terrain & Environmental Analytics
+    </p>
+
+</header>
+
+
+<div class="dashboard">
+
+
+    <!-- MAIN CARDS -->
+
+    <div class="cards">
+
+
+        <div class="card">
+
+            <h3>
+                MEAN ELEVATION
+            </h3>
+
+            <div class="value"
+                 id="meanElevation">
+                --
+            </div>
+
+            <span class="unit">
+                meters
+            </span>
+
+        </div>
+
+
+        <div class="card">
+
+            <h3>
+                MEAN SLOPE
+            </h3>
+
+            <div class="value"
+                 id="meanSlope">
+                --
+            </div>
+
+            <span class="unit">
+                degrees
+            </span>
+
+        </div>
+
+
+        <div class="card">
+
+            <h3>
+                MEAN NDVI
+            </h3>
+
+            <div class="value"
+                 id="meanNDVI">
+                --
+            </div>
+
+            <span class="unit">
+                vegetation index
+            </span>
+
+        </div>
+
+
+        <div class="card">
+
+            <h3>
+                TERRAIN AREA
+            </h3>
+
+            <div class="value"
+                 id="terrainArea">
+                --
+            </div>
+
+            <span class="unit">
+                m²
+            </span>
+
+        </div>
+
+
+    </div>
+
+
+    <!-- TERRAIN -->
+
+    <div class="section">
+
+        <h2>
+            Terrain
+        </h2>
+
+        <div class="stats">
+
+
+            <div class="stat">
+
+                <strong>
+                    Elevation Range
+                </strong>
+
+                <p id="elevationRange">
+                    --
+                </p>
+
+            </div>
+
+
+            <div class="stat">
+
+                <strong>
+                    Slope Range
+                </strong>
+
+                <p id="slopeRange">
+                    --
+                </p>
+
+            </div>
+
+
+            <div class="stat">
+
+                <strong>
+                    Surface Area
+                </strong>
+
+                <p id="surfaceArea">
+                    --
+                </p>
+
+            </div>
+
+
+        </div>
+
+    </div>
+
+
+    <!-- VEGETATION -->
+
+    <div class="section">
+
+        <h2>
+            Vegetation Distribution
+        </h2>
+
+
+        <p>
+            Very Low
+            <span id="veryLow">
+                --
+            </span>%
+        </p>
+
+        <div class="bar">
+            <div class="bar-fill"
+                 id="veryLowBar">
+            </div>
+        </div>
+
+
+        <p>
+            Low
+            <span id="low">
+                --
+            </span>%
+        </p>
+
+        <div class="bar">
+            <div class="bar-fill"
+                 id="lowBar">
+            </div>
+        </div>
+
+
+        <p>
+            Moderate
+            <span id="moderate">
+                --
+            </span>%
+        </p>
+
+        <div class="bar">
+            <div class="bar-fill"
+                 id="moderateBar">
+            </div>
+        </div>
+
+
+        <p>
+            High
+            <span id="high">
+                --
+            </span>%
+        </p>
+
+        <div class="bar">
+            <div class="bar-fill"
+                 id="highBar">
+            </div>
+        </div>
+
+
+    </div>
+
+
+</div>
+
+
+<script>
+
+async function loadAnalytics() {
+
+    try {
+
+        const response =
+            await fetch(
+                "/api/analytics"
+            );
+
+        const data =
+            await response.json();
+
+
+        const terrain =
+            data.terrain;
+
+        const slope =
+            data.slope;
+
+        const ndvi =
+            data.ndvi;
+
+
+        document.getElementById(
+            "meanElevation"
+        ).textContent =
+            terrain.elevation_mean_m.toFixed(2);
+
+
+        document.getElementById(
+            "meanSlope"
+        ).textContent =
+            slope.mean_degrees.toFixed(2);
+
+
+        document.getElementById(
+            "meanNDVI"
+        ).textContent =
+            ndvi.mean.toFixed(3);
+
+
+        document.getElementById(
+            "terrainArea"
+        ).textContent =
+            terrain.planar_area_m2.toLocaleString();
+
+
+        document.getElementById(
+            "elevationRange"
+        ).textContent =
+            `${terrain.elevation_min_m.toFixed(2)}
+             - ${terrain.elevation_max_m.toFixed(2)} m`;
+
+
+        document.getElementById(
+            "slopeRange"
+        ).textContent =
+            `${slope.minimum_degrees.toFixed(2)}
+             - ${slope.maximum_degrees.toFixed(2)}°`;
+
+
+        document.getElementById(
+            "surfaceArea"
+        ).textContent =
+            `${terrain.surface_area_m2.toLocaleString()}
+             m²`;
+
+
+        const vegetation = [
+            ["veryLow", ndvi.very_low_percent],
+            ["low", ndvi.low_percent],
+            ["moderate", ndvi.moderate_percent],
+            ["high", ndvi.high_percent]
+        ];
+
+
+        vegetation.forEach(
+            ([name, value]) => {
+
+                document.getElementById(
+                    name
+                ).textContent =
+                    value.toFixed(2);
+
+                document.getElementById(
+                    name + "Bar"
+                ).style.width =
+                    value + "%";
+
+            }
+        );
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "Failed to load analytics:",
+            error
+        );
+
+    }
+
+}
+
+
+loadAnalytics();
+
+</script>
+
+
+</body>
+
+</html>

@@ -1,0 +1,15 @@
+{
+    "source": "digital_twin_data/AOI-01_Bilaspur/processed/terrain_analysis/lidar_dtm_1m.tif",
+    "mesh": "lidar_data/bilaspur_lidar_mesh.ply",
+    "vertices": 1000000,
+    "faces": 1996002,
+    "resolution_m": 1.0,
+    "crs": "EPSG:3301",
+    "original_origin_x": 539000.0,
+    "original_origin_y": 6569000.0,
+    "render_center_x": 539499.4375,
+    "render_center_y": 6568501.0,
+    "elevation_min_m": 44.459999084472656,
+    "elevation_max_m": 53.029998779296875,
+    "elevation_mean_m": 47.94334411621094
+}
