@@ -146,7 +146,41 @@ header p {
     flex-wrap: wrap;
     z-index: 10;
 }
+.measure-inspector {
+    position: absolute;
+    left: 20px;
+    top: 75px;
+    width: 220px;
+    padding: 12px;
+    background: rgba(2, 6, 23, 0.94);
+    border: 1px solid #374151;
+    border-radius: 8px;
+    z-index: 10;
+    display: none;
+}
 
+.measure-inspector-title {
+    font-size: 12px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    color: #22c55e;
+}
+
+.measure-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 6px 0;
+    font-size: 11px;
+}
+
+.measure-row span {
+    color: #9ca3af;
+}
+
+.measure-row strong {
+    color: white;
+}
 .controls button {
     border: 1px solid #4b5563;
     background: #1f2937;
@@ -211,6 +245,41 @@ header p {
     border-radius: 10px;
     overflow: hidden;
     margin-top: 6px;
+}
+.point-inspector {
+    position: absolute;
+    right: 20px;
+    bottom: 20px;
+    width: 190px;
+    padding: 12px;
+    background: rgba(2, 6, 23, 0.92);
+    border: 1px solid #374151;
+    border-radius: 8px;
+    z-index: 10;
+    display: none;
+}
+
+.point-inspector-title {
+    font-size: 12px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    color: #60a5fa;
+}
+
+.point-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 6px 0;
+    font-size: 11px;
+}
+
+.point-row span {
+    color: #9ca3af;
+}
+
+.point-row strong {
+    color: white;
 }
 
 .bar-fill {
@@ -301,12 +370,84 @@ header p {
                     NDVI
                 </button>
 
+                <button id="measureBtn">
+                    Measure
+                </button>
+
             </div>
 
-            <div class="layer-title" id="layerTitle">
-                RGB
-            </div>
-            
+           <div class="point-inspector" id="pointInspector">
+
+    <div class="point-inspector-title">
+        POINT INSPECTOR
+    </div>
+
+    <div class="point-row">
+        <span>Vertex</span>
+        <strong id="pointIndex">--</strong>
+    </div>
+
+    <div class="point-row">
+        <span>X</span>
+        <strong id="pointX">--</strong>
+    </div>
+
+    <div class="point-row">
+        <span>Y</span>
+        <strong id="pointY">--</strong>
+    </div>
+
+    <div class="point-row">
+        <span>Elevation</span>
+        <strong id="pointElevation">--</strong>
+    </div>
+
+    <div class="point-row">
+        <span>Slope</span>
+        <strong id="pointSlope">--</strong>
+    </div>
+
+    <div class="point-row">
+        <span>NDVI</span>
+        <strong id="pointNDVI">--</strong>
+    </div>
+
+</div>
+
+
+<div class="measure-inspector" id="measureInspector">
+
+    <div class="measure-inspector-title">
+        3D MEASUREMENT
+    </div>
+
+    <div class="measure-row">
+        <span>Point A</span>
+        <strong id="measurePointA">--</strong>
+    </div>
+
+    <div class="measure-row">
+        <span>Point B</span>
+        <strong id="measurePointB">--</strong>
+    </div>
+
+    <div class="measure-row">
+        <span>Horizontal</span>
+        <strong id="horizontalDistance">--</strong>
+    </div>
+
+    <div class="measure-row">
+        <span>Elevation Δ</span>
+        <strong id="elevationDifference">--</strong>
+    </div>
+
+    <div class="measure-row">
+        <span>3D Distance</span>
+        <strong id="distance3D">--</strong>
+    </div>
+
+</div>
+                    
             <div class="legend" id="layerLegend">
 
                 <div class="legend-title" id="legendTitle">
@@ -416,6 +557,42 @@ header p {
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script>
 
+function showPointInspector(point) {
+
+    document.getElementById(
+        "pointInspector"
+    ).style.display = "block";
+
+    document.getElementById(
+        "pointIndex"
+    ).textContent =
+        point.index;
+
+    document.getElementById(
+        "pointX"
+    ).textContent =
+        point.x.toFixed(2) + " m";
+
+    document.getElementById(
+        "pointY"
+    ).textContent =
+        point.y.toFixed(2) + " m";
+
+    document.getElementById(
+        "pointElevation"
+    ).textContent =
+        point.elevation.toFixed(2) + " m";
+
+    document.getElementById(
+        "pointSlope"
+    ).textContent =
+        point.slope.toFixed(2) + "°";
+
+    document.getElementById(
+        "pointNDVI"
+    ).textContent =
+        point.ndvi.toFixed(3);
+}
 let scene;
 let camera;
 let renderer;
@@ -424,8 +601,17 @@ let controls;
 let terrainMesh;
 let terrainGeometry;
 
-let currentLayer = "RGB";
 let terrainData = null;
+
+/* POINT INTERROGATION */
+let raycaster;
+let mouse;
+let selectedPoint;
+let measureMode = false;
+let measurePoints = [];
+let measureMarkers = [];
+let measureLine = null;
+let currentLayer = "RGB";
 let analyticsData = null;
 
 
@@ -1078,13 +1264,11 @@ function createTerrain() {
     ===================================================== */
 
     updateLayerColors(
-        "RGB"
+    "RGB"
     );
+
     updateLegend(
-        layer
-    );
-        updateLegend(
-        layer
+        "RGB"
     );
     console.log(
         "Actual Bilaspur terrain created."
@@ -1532,52 +1716,28 @@ function updateLegend(layer) {
    LAYER BUTTONS
 ========================================================= */
 
-function setLayer(
-    layer
-) {
+function setLayer(layer) {
 
-    currentLayer =
-        layer;
-
-
-    document.getElementById(
-        "layerTitle"
-    ).textContent =
-        layer;
-
+    currentLayer = layer;
 
     document
-        .querySelectorAll(
-            ".controls button"
-        )
+        .querySelectorAll(".controls button")
         .forEach(
             button =>
-                button.classList.remove(
-                    "active"
-                )
+                button.classList.remove("active")
         );
-
 
     const button =
         document.getElementById(
-            layer.toLowerCase() +
-            "Btn"
+            layer.toLowerCase() + "Btn"
         );
 
-
-    if (
-        button
-    ) {
-
-        button.classList.add(
-            "active"
-        );
+    if (button) {
+        button.classList.add("active");
     }
 
-
-    updateLayerColors(
-        layer
-    );
+    updateLayerColors(layer);
+    updateLegend(layer);
 }
 
 
@@ -1657,8 +1817,35 @@ function init3D() {
 
     controls.enableDamping =
         true;
+    /* =====================================================
+   POINT INTERROGATION
+===================================================== */
 
+raycaster = new THREE.Raycaster();
 
+mouse = new THREE.Vector2();
+
+selectedPoint =
+    new THREE.Mesh(
+        new THREE.SphereGeometry(
+            7,
+            16,
+            16
+        ),
+        new THREE.MeshBasicMaterial({
+            color: 0xff0000
+        })
+    );
+
+selectedPoint.visible = false;
+
+scene.add(
+    selectedPoint
+);
+        canvas.addEventListener(
+    "click",
+    handleTerrainClick
+);
     controls.target.set(
         0,
         0,
@@ -1714,7 +1901,515 @@ function init3D() {
     animate();
 }
 
+/* =====================================================
+   TERRAIN POINT INTERROGATION
+===================================================== */
+function getElevationMean() {
 
+    if (
+        !terrainData ||
+        !terrainData.elevation
+    ) {
+        return 0;
+    }
+
+    const values =
+        terrainData.elevation.filter(
+            Number.isFinite
+        );
+
+    if (
+        values.length === 0
+    ) {
+        return 0;
+    }
+
+    let sum = 0;
+
+    for (
+        const value of values
+    ) {
+        sum += value;
+    }
+
+    return (
+        sum /
+        values.length
+    );
+}
+
+function toggleMeasureMode() {
+
+    measureMode =
+        !measureMode;
+
+    const button =
+        document.getElementById(
+            "measureBtn"
+        );
+
+    if (measureMode) {
+
+        button.classList.add(
+            "active"
+        );
+
+        measurePoints = [];
+
+        clearMeasurement();
+
+        console.log(
+            "Measurement mode enabled. Select Point A."
+        );
+
+    } else {
+
+        button.classList.remove(
+            "active"
+        );
+
+        console.log(
+            "Measurement mode disabled."
+        );
+    }
+}
+
+document.getElementById(
+    "measureBtn"
+).onclick =
+    toggleMeasureMode;
+
+function clearMeasurement() {
+
+    measurePoints = [];
+
+    measureMarkers.forEach(
+        marker => scene.remove(marker)
+    );
+
+    measureMarkers = [];
+
+
+    if (measureLine) {
+
+        scene.remove(
+            measureLine
+        );
+
+        measureLine = null;
+    }
+}
+function addMeasurementPoint(
+    point,
+    worldPosition
+) {
+
+    measurePoints.push({
+        point: point,
+        worldPosition: worldPosition.clone()
+    });
+
+
+    /*
+       Create visual marker
+    */
+
+    const marker =
+        new THREE.Mesh(
+            new THREE.SphereGeometry(
+                6,
+                16,
+                16
+            ),
+            new THREE.MeshBasicMaterial({
+                color:
+                    measurePoints.length === 1
+                        ? 0x22c55e
+                        : 0xef4444
+            })
+        );
+
+
+    marker.position.copy(
+        worldPosition
+    );
+
+
+    scene.add(
+        marker
+    );
+
+
+    measureMarkers.push(
+        marker
+    );
+
+
+    /*
+       Point A
+    */
+
+    if (
+        measurePoints.length === 1
+    ) {
+
+        console.log(
+            "Measurement Point A:",
+            point
+        );
+
+        document.getElementById(
+            "measurePointA"
+        ).textContent =
+            `(${point.x.toFixed(1)}, ${point.y.toFixed(1)})`;
+
+        document.getElementById(
+            "measureInspector"
+        ).style.display =
+            "block";
+
+        return;
+    }
+
+
+    /*
+       Point B
+    */
+
+    if (
+        measurePoints.length === 2
+    ) {
+
+        console.log(
+            "Measurement Point B:",
+            point
+        );
+
+
+        const pointA =
+            measurePoints[0].point;
+
+        const pointB =
+            measurePoints[1].point;
+
+
+        const dx =
+            pointB.x -
+            pointA.x;
+
+        const dy =
+            pointB.y -
+            pointA.y;
+
+        const dz =
+            pointB.elevation -
+            pointA.elevation;
+
+
+        const horizontalDistance =
+            Math.sqrt(
+                dx * dx +
+                dy * dy
+            );
+
+
+        const distance3D =
+            Math.sqrt(
+                dx * dx +
+                dy * dy +
+                dz * dz
+            );
+
+
+        const elevationDifference =
+            dz;
+
+
+        /*
+           Draw measurement line
+        */
+
+        const lineGeometry =
+            new THREE.BufferGeometry().setFromPoints([
+                measurePoints[0].worldPosition,
+                measurePoints[1].worldPosition
+            ]);
+
+
+        const lineMaterial =
+            new THREE.LineBasicMaterial({
+                color: 0x22c55e,
+                linewidth: 3
+            });
+
+
+        measureLine =
+            new THREE.Line(
+                lineGeometry,
+                lineMaterial
+            );
+
+
+        scene.add(
+            measureLine
+        );
+
+
+        /*
+           Update UI
+        */
+
+        document.getElementById(
+            "measurePointB"
+        ).textContent =
+            `(${point.x.toFixed(1)}, ${point.y.toFixed(1)})`;
+
+
+        document.getElementById(
+            "horizontalDistance"
+        ).textContent =
+            horizontalDistance.toFixed(2)
+            + " m";
+
+
+        document.getElementById(
+            "elevationDifference"
+        ).textContent =
+            elevationDifference.toFixed(2)
+            + " m";
+
+
+        document.getElementById(
+            "distance3D"
+        ).textContent =
+            distance3D.toFixed(2)
+            + " m";
+
+
+        console.log(
+            "3D Measurement:",
+            {
+                pointA: pointA,
+                pointB: pointB,
+                horizontalDistance:
+                    horizontalDistance,
+                elevationDifference:
+                    elevationDifference,
+                distance3D:
+                    distance3D
+            }
+        );
+
+        /*
+           Measurement completed.
+           Keep mode active so another
+           pair can be measured.
+        */
+
+        measurePoints = [];
+
+        measureMarkers.forEach(
+            marker => scene.remove(marker)
+        );
+
+        measureMarkers = [];
+
+
+        /*
+           Keep the line visible.
+           The next measurement will
+           replace it.
+        */
+    }
+}
+function handleTerrainClick(event) {
+
+    if (
+        !terrainMesh ||
+        !terrainData
+    ) {
+        return;
+    }
+
+    const canvas =
+        renderer.domElement;
+
+    const rect =
+        canvas.getBoundingClientRect();
+
+
+    mouse.x =
+        (
+            (event.clientX - rect.left)
+            / rect.width
+        ) * 2 - 1;
+
+    mouse.y =
+        -(
+            (event.clientY - rect.top)
+            / rect.height
+        ) * 2 + 1;
+
+
+    raycaster.setFromCamera(
+        mouse,
+        camera
+    );
+
+
+    const intersections =
+        raycaster.intersectObject(
+            terrainMesh
+        );
+
+
+    if (
+        intersections.length === 0
+    ) {
+        return;
+    }
+
+
+    const hit =
+        intersections[0];
+
+
+    /*
+       Triangle that was clicked
+    */
+
+    const face =
+        hit.face;
+
+
+    if (!face) {
+        return;
+    }
+
+
+    /*
+       Use the closest vertex
+       of the clicked triangle.
+    */
+
+    const vertexIndices = [
+        face.a,
+        face.b,
+        face.c
+    ];
+
+
+    let nearestIndex =
+        vertexIndices[0];
+
+    let nearestDistance =
+        Infinity;
+
+
+    for (
+        const index of vertexIndices
+    ) {
+
+        const vertex =
+            terrainData.vertices[
+                index
+            ];
+
+
+        if (!vertex) {
+            continue;
+        }
+
+
+        const distance =
+            hit.point.distanceTo(
+                terrainMesh.localToWorld(
+                    new THREE.Vector3(
+                        vertex[0] - 500,
+                        (
+                            vertex[2] -
+                            getElevationMean()
+                        ) * 8,
+                        vertex[1] - 500
+                    )
+                )
+            );
+
+
+        if (
+            distance <
+            nearestDistance
+        ) {
+
+            nearestDistance =
+                distance;
+
+            nearestIndex =
+                index;
+        }
+    }
+
+
+    const vertex =
+        terrainData.vertices[
+            nearestIndex
+        ];
+
+
+    const elevation =
+        terrainData.elevation[
+            nearestIndex
+        ];
+
+    const slope =
+        terrainData.slope[
+            nearestIndex
+        ];
+
+    const ndvi =
+        terrainData.ndvi[
+            nearestIndex
+        ];
+
+
+    /*
+       Show marker
+    */
+
+    selectedPoint.position.copy(
+        hit.point
+    );
+
+    selectedPoint.visible =
+        true;
+
+
+    const point = {
+    index: nearestIndex,
+    x: vertex[0],
+    y: vertex[1],
+    elevation: elevation,
+    slope: slope,
+    ndvi: ndvi
+};
+
+console.log(
+    "Selected terrain point:",
+    point
+);
+
+showPointInspector(
+    point
+);
+
+if (measureMode) {
+
+    addMeasurementPoint(
+        point,
+        hit.point
+    );
+}
+}
 /* =========================================================
    ANIMATION
 ========================================================= */
