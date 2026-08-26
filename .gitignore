@@ -4,3 +4,6 @@ digital_twin_data/AOI-01_Bilaspur/row/
 
 # Generated Digital Twin outputs
 digital_twin_data/AOI-01_Bilaspur/processed/
+__pycache__/
+*.pyc
+dashboard/index_backup.html

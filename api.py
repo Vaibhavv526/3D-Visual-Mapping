@@ -47,3 +47,88 @@ def get_analytics():
         data = json.load(file)
 
     return data
+
+
+# =========================================================
+# 3D TERRAIN DATA
+# =========================================================
+@app.get("/api/terrain")
+def get_terrain():
+
+    import pyvista as pv
+    import numpy as np
+
+    mesh_path = (
+        "digital_twin_data/AOI-01_Bilaspur/"
+        "processed/terrain_analysis/"
+        "bilaspur_digital_twin_mesh.vtp"
+    )
+
+    mesh = pv.read(mesh_path)
+
+    points = mesh.points.astype(np.float32)
+
+    elevation = np.asarray(
+        mesh.point_data["Elevation"],
+        dtype=np.float32
+    )
+
+    ndvi = np.asarray(
+        mesh.point_data["NDVI"],
+        dtype=np.float32
+    )
+
+    slope = np.asarray(
+        mesh.point_data["Slope"],
+        dtype=np.float32
+    )
+
+    rgb = np.asarray(
+        mesh.point_data["RGB"],
+        dtype=np.uint8
+    )
+
+    # Replace NaN / Infinity values so JSON serialization works
+    elevation = np.nan_to_num(
+        elevation,
+        nan=0.0,
+        posinf=0.0,
+        neginf=0.0
+    )
+
+    ndvi = np.nan_to_num(
+        ndvi,
+        nan=0.0,
+        posinf=0.0,
+        neginf=0.0
+    )
+
+    slope = np.nan_to_num(
+        slope,
+        nan=0.0,
+        posinf=0.0,
+        neginf=0.0
+    )
+
+    points = np.nan_to_num(
+        points,
+        nan=0.0,
+        posinf=0.0,
+        neginf=0.0
+    )
+
+    faces = mesh.faces.reshape(-1, 4)[:, 1:].astype(
+        np.uint32
+    )
+
+    return {
+        "vertices": points.tolist(),
+        "faces": faces.tolist(),
+        "elevation": elevation.tolist(),
+        "ndvi": ndvi.tolist(),
+        "slope": slope.tolist(),
+        "rgb": rgb.tolist(),
+        "vertex_count": mesh.n_points,
+        "triangle_count": mesh.n_cells,
+        "crs": "EPSG:32644"
+    }

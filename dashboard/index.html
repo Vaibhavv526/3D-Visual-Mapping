@@ -1,375 +1,456 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
+<title>Bilaspur Digital Twin</title>
 
-    <title>Bilaspur Digital Twin</title>
+<style>
+* {
+    box-sizing: border-box;
+}
 
-    <style>
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #111827;
+    color: white;
+}
 
-        body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background: #111827;
-            color: white;
-        }
+.legend {
+    position: absolute;
+    left: 20px;
+    bottom: 20px;
+    width: 280px;
+    padding: 10px 12px;
+    background: rgba(2, 6, 23, 0.88);
+    border: 1px solid #374151;
+    border-radius: 8px;
+    z-index: 5;
+}
 
-        header {
-            padding: 20px 30px;
-            background: #1f2937;
-            border-bottom: 1px solid #374151;
-        }
+.legend-title {
+    font-size: 12px;
+    font-weight: bold;
+    margin-bottom: 7px;
+}
 
-        header h1 {
-            margin: 0;
-        }
+.legend-gradient {
+    height: 12px;
+    border-radius: 6px;
+    background:
+        linear-gradient(
+            to right,
+            #a50026,
+            #f46d43,
+            #ffffbf,
+            #a6d96a,
+            #66bd63,
+            #006837
+        );
+}
 
-        header p {
-            margin: 6px 0 0;
-            color: #9ca3af;
-        }
+.legend-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 5px;
+    font-size: 10px;
+    color: #9ca3af;
+}
 
-        .dashboard {
-            padding: 25px;
-        }
+header {
+    padding: 18px 28px;
+    background: #1f2937;
+    border-bottom: 1px solid #374151;
+}
 
-        .cards {
-            display: grid;
-            grid-template-columns:
-                repeat(4, 1fr);
+header h1 {
+    margin: 0;
+    font-size: 24px;
+}
 
-            gap: 18px;
-        }
+header p {
+    margin: 5px 0 0;
+    color: #9ca3af;
+}
 
-        .card {
-            background: #1f2937;
-            border-radius: 12px;
-            padding: 20px;
-            border: 1px solid #374151;
-        }
+.dashboard {
+    padding: 20px;
+}
 
-        .card h3 {
-            margin-top: 0;
-            color: #9ca3af;
-            font-size: 14px;
-        }
+.cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px;
+}
 
-        .value {
-            font-size: 28px;
-            font-weight: bold;
-        }
+.card,
+.section {
+    background: #1f2937;
+    border: 1px solid #374151;
+    border-radius: 12px;
+}
 
-        .unit {
-            color: #9ca3af;
-            font-size: 14px;
-        }
+.card {
+    padding: 18px;
+}
 
-        .section {
-            margin-top: 25px;
-            background: #1f2937;
-            padding: 20px;
-            border-radius: 12px;
-            border: 1px solid #374151;
-        }
+.card h3 {
+    margin: 0 0 8px;
+    color: #9ca3af;
+    font-size: 13px;
+}
 
-        .stats {
-            display: grid;
-            grid-template-columns:
-                repeat(3, 1fr);
+.value {
+    font-size: 26px;
+    font-weight: bold;
+}
 
-            gap: 15px;
-        }
+.unit {
+    color: #9ca3af;
+    font-size: 13px;
+}
 
-        .stat {
-            padding: 15px;
-            background: #111827;
-            border-radius: 8px;
-        }
+.section {
+    margin-top: 20px;
+    padding: 18px;
+}
 
-        .bar {
-            height: 18px;
-            background: #374151;
-            border-radius: 10px;
-            overflow: hidden;
-            margin-top: 8px;
-        }
+.section h2 {
+    margin-top: 0;
+}
 
-        .bar-fill {
-            height: 100%;
-            background: #22c55e;
-        }
+/* 3D VIEWER */
 
-        @media (max-width: 900px) {
+.viewer {
+    position: relative;
+    height: 600px;
+    overflow: hidden;
+    border-radius: 10px;
+    background: #020617;
+}
 
-            .cards {
-                grid-template-columns:
-                    repeat(2, 1fr);
-            }
+#terrainCanvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
 
-            .stats {
-                grid-template-columns:
-                    1fr;
-            }
+.controls {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    z-index: 10;
+}
 
-        }
+.controls button {
+    border: 1px solid #4b5563;
+    background: #1f2937;
+    color: white;
+    padding: 9px 14px;
+    border-radius: 7px;
+    cursor: pointer;
+    font-weight: bold;
+}
 
-    </style>
+.controls button:hover {
+    background: #374151;
+}
 
+.controls button.active {
+    background: #2563eb;
+    border-color: #60a5fa;
+}
+
+.layer-title {
+    position: absolute;
+    top: 65px;
+    left: 15px;
+    background: rgba(17, 24, 39, 0.85);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-weight: bold;
+    z-index: 10;
+}
+
+.info {
+    position: absolute;
+    right: 15px;
+    top: 15px;
+    background: rgba(17, 24, 39, 0.88);
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    z-index: 10;
+}
+
+.stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+.stat {
+    padding: 14px;
+    background: #111827;
+    border-radius: 8px;
+}
+
+.stat strong {
+    display: block;
+    margin-bottom: 6px;
+}
+
+.bar {
+    height: 16px;
+    background: #374151;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-top: 6px;
+}
+
+.bar-fill {
+    height: 100%;
+    background: #22c55e;
+}
+
+@media (max-width: 900px) {
+    .cards {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .stats {
+        grid-template-columns: 1fr;
+    }
+
+    .viewer {
+        height: 500px;
+    }
+}
+</style>
 </head>
-
 
 <body>
 
-
 <header>
-
-    <h1>
-        Bilaspur Digital Twin
-    </h1>
-
-    <p>
-        3D Terrain & Environmental Analytics
-    </p>
-
+    <h1>Bilaspur Digital Twin</h1>
+    <p>3D Terrain & Environmental Analytics</p>
 </header>
-
 
 <div class="dashboard">
 
-
-    <!-- MAIN CARDS -->
+    <!-- ANALYTICS -->
 
     <div class="cards">
 
-
         <div class="card">
-
-            <h3>
-                MEAN ELEVATION
-            </h3>
-
-            <div class="value"
-                 id="meanElevation">
-                --
-            </div>
-
-            <span class="unit">
-                meters
-            </span>
-
+            <h3>MEAN ELEVATION</h3>
+            <div class="value" id="meanElevation">--</div>
+            <span class="unit">meters</span>
         </div>
 
-
         <div class="card">
-
-            <h3>
-                MEAN SLOPE
-            </h3>
-
-            <div class="value"
-                 id="meanSlope">
-                --
-            </div>
-
-            <span class="unit">
-                degrees
-            </span>
-
+            <h3>MEAN SLOPE</h3>
+            <div class="value" id="meanSlope">--</div>
+            <span class="unit">degrees</span>
         </div>
 
-
         <div class="card">
-
-            <h3>
-                MEAN NDVI
-            </h3>
-
-            <div class="value"
-                 id="meanNDVI">
-                --
-            </div>
-
-            <span class="unit">
-                vegetation index
-            </span>
-
+            <h3>MEAN NDVI</h3>
+            <div class="value" id="meanNDVI">--</div>
+            <span class="unit">vegetation index</span>
         </div>
 
-
         <div class="card">
-
-            <h3>
-                TERRAIN AREA
-            </h3>
-
-            <div class="value"
-                 id="terrainArea">
-                --
-            </div>
-
-            <span class="unit">
-                m²
-            </span>
-
+            <h3>TERRAIN AREA</h3>
+            <div class="value" id="terrainArea">--</div>
+            <span class="unit">m²</span>
         </div>
-
 
     </div>
 
+    <!-- 3D DIGITAL TWIN -->
+
+    <div class="section">
+
+        <h2>3D Digital Twin</h2>
+
+        <div class="viewer">
+
+            <canvas id="terrainCanvas"></canvas>
+
+            <div class="controls">
+
+                <button id="rgbBtn" class="active">
+                    RGB
+                </button>
+
+                <button id="elevationBtn">
+                    Elevation
+                </button>
+
+                <button id="slopeBtn">
+                    Slope
+                </button>
+
+                <button id="ndviBtn">
+                    NDVI
+                </button>
+
+            </div>
+
+            <div class="layer-title" id="layerTitle">
+                RGB
+            </div>
+            
+            <div class="legend" id="layerLegend">
+
+                <div class="legend-title" id="legendTitle">
+                    RGB
+                </div>
+
+                <div class="legend-gradient"
+                    id="legendGradient">
+                </div>
+
+                <div class="legend-labels">
+                    <span id="legendMin">RGB</span>
+                    <span id="legendMax"></span>
+                </div>
+
+            </div>
+
+        </div>
+            <div class="info">
+                Bilaspur AOI<br>
+                1000 × 1000 m<br>
+                EPSG:32644
+            </div>
+
+        </div>
+
+    </div>
 
     <!-- TERRAIN -->
 
     <div class="section">
 
-        <h2>
-            Terrain
-        </h2>
+        <h2>Terrain Analytics</h2>
 
         <div class="stats">
 
-
             <div class="stat">
-
-                <strong>
-                    Elevation Range
-                </strong>
-
-                <p id="elevationRange">
-                    --
-                </p>
-
+                <strong>Elevation Range</strong>
+                <span id="elevationRange">--</span>
             </div>
 
-
             <div class="stat">
-
-                <strong>
-                    Slope Range
-                </strong>
-
-                <p id="slopeRange">
-                    --
-                </p>
-
+                <strong>Slope Range</strong>
+                <span id="slopeRange">--</span>
             </div>
 
-
             <div class="stat">
-
-                <strong>
-                    Surface Area
-                </strong>
-
-                <p id="surfaceArea">
-                    --
-                </p>
-
+                <strong>Surface Area</strong>
+                <span id="surfaceArea">--</span>
             </div>
-
 
         </div>
 
     </div>
-
 
     <!-- VEGETATION -->
 
     <div class="section">
 
-        <h2>
-            Vegetation Distribution
-        </h2>
-
+        <h2>Vegetation Distribution</h2>
 
         <p>
             Very Low
-            <span id="veryLow">
-                --
-            </span>%
+            <span id="veryLow">--</span>%
         </p>
 
         <div class="bar">
-            <div class="bar-fill"
-                 id="veryLowBar">
-            </div>
+            <div class="bar-fill" id="veryLowBar"></div>
         </div>
-
 
         <p>
             Low
-            <span id="low">
-                --
-            </span>%
+            <span id="low">--</span>%
         </p>
 
         <div class="bar">
-            <div class="bar-fill"
-                 id="lowBar">
-            </div>
+            <div class="bar-fill" id="lowBar"></div>
         </div>
-
 
         <p>
             Moderate
-            <span id="moderate">
-                --
-            </span>%
+            <span id="moderate">--</span>%
         </p>
 
         <div class="bar">
-            <div class="bar-fill"
-                 id="moderateBar">
-            </div>
+            <div class="bar-fill" id="moderateBar"></div>
         </div>
-
 
         <p>
             High
-            <span id="high">
-                --
-            </span>%
+            <span id="high">--</span>%
         </p>
 
         <div class="bar">
-            <div class="bar-fill"
-                 id="highBar">
-            </div>
+            <div class="bar-fill" id="highBar"></div>
         </div>
 
-
     </div>
-
 
 </div>
 
 
+<!-- THREE.JS -->
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script>
+
+let scene;
+let camera;
+let renderer;
+let controls;
+
+let terrainMesh;
+let terrainGeometry;
+
+let currentLayer = "RGB";
+let terrainData = null;
+let analyticsData = null;
+
+
+/* =========================================================
+   ANALYTICS
+========================================================= */
 
 async function loadAnalytics() {
 
     try {
 
         const response =
-            await fetch(
-                "/api/analytics"
-            );
+            await fetch("/api/analytics");
 
-        const data =
+        analyticsData =
             await response.json();
 
-
         const terrain =
-            data.terrain;
+            analyticsData.terrain;
 
         const slope =
-            data.slope;
+            analyticsData.slope;
 
         const ndvi =
-            data.ndvi;
+            analyticsData.ndvi;
 
 
         document.getElementById(
@@ -413,8 +494,7 @@ async function loadAnalytics() {
         document.getElementById(
             "surfaceArea"
         ).textContent =
-            `${terrain.surface_area_m2.toLocaleString()}
-             m²`;
+            `${terrain.surface_area_m2.toLocaleString()} m²`;
 
 
         const vegetation = [
@@ -437,7 +517,6 @@ async function loadAnalytics() {
                     name + "Bar"
                 ).style.width =
                     value + "%";
-
             }
         );
 
@@ -446,20 +525,1295 @@ async function loadAnalytics() {
     catch (error) {
 
         console.error(
-            "Failed to load analytics:",
+            "Analytics loading failed:",
             error
         );
 
     }
-
 }
 
 
+/* =========================================================
+   LOAD ACTUAL TERRAIN DATA
+========================================================= */
+
+async function loadTerrain() {
+
+    try {
+
+        console.log(
+            "Loading terrain from /api/terrain..."
+        );
+
+        const response =
+            await fetch("/api/terrain");
+
+        if (!response.ok) {
+
+            throw new Error(
+                `Terrain API returned ${response.status}`
+            );
+        }
+
+        terrainData =
+            await response.json();
+
+
+        console.log(
+            "Terrain loaded:",
+            terrainData.vertex_count,
+            "vertices",
+            terrainData.triangle_count,
+            "triangles"
+        );
+
+
+        createTerrain();
+
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "Terrain loading failed:",
+            error
+        );
+
+    }
+}
+
+
+/* =========================================================
+   COLOR INTERPOLATION
+========================================================= */
+
+function colorFromStops(
+    value,
+    min,
+    max,
+    stops
+) {
+
+    const color =
+        new THREE.Color();
+
+
+    if (
+        !Number.isFinite(value)
+    ) {
+
+        color.setRGB(
+            0.5,
+            0.5,
+            0.5
+        );
+
+        return color;
+    }
+
+
+    let t =
+        (value - min) /
+        (max - min);
+
+
+    t =
+        Math.max(
+            0,
+            Math.min(
+                1,
+                t
+            )
+        );
+
+
+    for (
+        let i = 0;
+        i < stops.length - 1;
+        i++
+    ) {
+
+        const s1 =
+            stops[i];
+
+        const s2 =
+            stops[i + 1];
+
+
+        if (
+            t >= s1[0] &&
+            t <= s2[0]
+        ) {
+
+            const localT =
+                (t - s1[0]) /
+                (s2[0] - s1[0]);
+
+
+            color.lerpColors(
+                s1[1],
+                s2[1],
+                localT
+            );
+
+            return color;
+        }
+    }
+
+
+    return t <= 0
+        ? stops[0][1].clone()
+        : stops[stops.length - 1][1].clone();
+}
+
+
+/* =========================================================
+   ELEVATION COLORS
+========================================================= */
+
+function elevationColor(
+    value,
+    min,
+    max
+) {
+
+    return colorFromStops(
+        value,
+        min,
+        max,
+        [
+
+            [
+                0.0,
+                new THREE.Color(
+                    0x2166ac
+                )
+            ],
+
+            [
+                0.25,
+                new THREE.Color(
+                    0x2ca25f
+                )
+            ],
+
+            [
+                0.50,
+                new THREE.Color(
+                    0xffffbf
+                )
+            ],
+
+            [
+                0.75,
+                new THREE.Color(
+                    0xd9a066
+                )
+            ],
+
+            [
+                1.0,
+                new THREE.Color(
+                    0xffffff
+                )
+            ]
+
+        ]
+    );
+}
+
+
+/* =========================================================
+   SLOPE COLORS
+========================================================= */
+
+function slopeColor(
+    value,
+    min,
+    max
+) {
+
+    return colorFromStops(
+        value,
+        min,
+        max,
+        [
+
+            [
+                0.0,
+                new THREE.Color(
+                    0x440154
+                )
+            ],
+
+            [
+                0.25,
+                new THREE.Color(
+                    0x3b528b
+                )
+            ],
+
+            [
+                0.50,
+                new THREE.Color(
+                    0x21918c
+                )
+            ],
+
+            [
+                0.75,
+                new THREE.Color(
+                    0x5ec962
+                )
+            ],
+
+            [
+                1.0,
+                new THREE.Color(
+                    0xfde725
+                )
+            ]
+
+        ]
+    );
+}
+
+
+/* =========================================================
+   NDVI COLORS
+========================================================= */
+
+function ndviColor(
+    value
+) {
+
+    return colorFromStops(
+        value,
+        -0.1,
+        0.6,
+        [
+
+            [
+                0.0,
+                new THREE.Color(
+                    0xa50026
+                )
+            ],
+
+            [
+                0.20,
+                new THREE.Color(
+                    0xf46d43
+                )
+            ],
+
+            [
+                0.40,
+                new THREE.Color(
+                    0xffffbf
+                )
+            ],
+
+            [
+                0.60,
+                new THREE.Color(
+                    0xa6d96a
+                )
+            ],
+
+            [
+                0.80,
+                new THREE.Color(
+                    0x66bd63
+                )
+            ],
+
+            [
+                1.0,
+                new THREE.Color(
+                    0x006837
+                )
+            ]
+
+        ]
+    );
+}
+
+/* =========================================================
+   CREATE ACTUAL TERRAIN MESH
+========================================================= */
+
+function createTerrain() {
+
+    const vertices =
+        terrainData.vertices;
+
+    const faces =
+        terrainData.faces;
+
+
+    const elevation =
+        terrainData.elevation;
+
+    const slope =
+        terrainData.slope;
+
+    const ndvi =
+        terrainData.ndvi;
+
+    const rgb =
+        terrainData.rgb;
+
+
+    const vertexCount =
+        vertices.length;
+
+
+    console.log(
+        "Creating geometry with",
+        vertexCount,
+        "vertices"
+    );
+
+
+    /*
+       Center the terrain around origin.
+
+       X  -> horizontal
+       Z  -> vertical elevation
+       Y  -> depth
+    */
+
+    let elevationMean = 0;
+
+    for (
+        let i = 0;
+        i < elevation.length;
+        i++
+    ) {
+
+        if (
+            Number.isFinite(
+                elevation[i]
+            )
+        ) {
+
+            elevationMean +=
+                elevation[i];
+        }
+    }
+
+    elevationMean /=
+        elevation.length;
+
+
+    const positions =
+        new Float32Array(
+            vertexCount * 3
+        );
+
+
+    for (
+        let i = 0;
+        i < vertexCount;
+        i++
+    ) {
+
+        const x =
+            vertices[i][0];
+
+        const y =
+            vertices[i][1];
+
+        const z =
+            vertices[i][2];
+
+
+        positions[
+            i * 3
+        ] =
+            x - 500;
+
+
+        const Z_EXAGGERATION = 8.0;
+
+        positions[
+            i * 3 + 1
+        ] =
+            (z - elevationMean) * Z_EXAGGERATION;
+
+        positions[
+            i * 3 + 2
+        ] =
+            y - 500;
+    }
+
+
+    /* =====================================================
+       TRIANGLE INDICES
+    ===================================================== */
+
+    const indices =
+        new Uint32Array(
+            faces.length * 3
+        );
+
+
+    for (
+        let i = 0;
+        i < faces.length;
+        i++
+    ) {
+
+        indices[
+            i * 3
+        ] =
+            faces[i][0];
+
+        indices[
+            i * 3 + 1
+        ] =
+            faces[i][1];
+
+        indices[
+            i * 3 + 2
+        ] =
+            faces[i][2];
+    }
+
+
+    /* =====================================================
+       GEOMETRY
+    ===================================================== */
+
+    terrainGeometry =
+        new THREE.BufferGeometry();
+
+
+    terrainGeometry.setAttribute(
+        "position",
+        new THREE.BufferAttribute(
+            positions,
+            3
+        )
+    );
+
+
+    terrainGeometry.setIndex(
+        new THREE.BufferAttribute(
+            indices,
+            1
+        )
+    );
+
+
+    terrainGeometry.computeVertexNormals();
+
+
+    /* =====================================================
+       COLORS
+    ===================================================== */
+
+    const colors =
+        new Float32Array(
+            vertexCount * 3
+        );
+
+
+    for (
+        let i = 0;
+        i < vertexCount;
+        i++
+    ) {
+
+        colors[
+            i * 3
+        ] = 1;
+
+        colors[
+            i * 3 + 1
+        ] = 1;
+
+        colors[
+            i * 3 + 2
+        ] = 1;
+    }
+
+
+    terrainGeometry.setAttribute(
+        "color",
+        new THREE.BufferAttribute(
+            colors,
+            3
+        )
+    );
+
+
+    /* =====================================================
+       MATERIAL
+    ===================================================== */
+
+    const material =
+        new THREE.MeshBasicMaterial({
+            vertexColors: true,
+            side: THREE.DoubleSide
+        });
+
+
+    terrainMesh =
+        new THREE.Mesh(
+            terrainGeometry,
+            material
+        );
+
+
+    scene.add(
+        terrainMesh
+    );
+
+
+    /* =====================================================
+       INITIAL LAYER
+    ===================================================== */
+
+    updateLayerColors(
+        "RGB"
+    );
+    updateLegend(
+        layer
+    );
+        updateLegend(
+        layer
+    );
+    console.log(
+        "Actual Bilaspur terrain created."
+    );
+}
+
+
+/* =========================================================
+   UPDATE TERRAIN COLORS
+========================================================= */
+
+function updateLayerColors(
+    layer
+) {
+
+    if (
+        !terrainGeometry ||
+        !terrainData
+    ) {
+
+        return;
+    }
+
+
+    const colorAttribute =
+        terrainGeometry.getAttribute(
+            "color"
+        );
+
+
+    const colors =
+        colorAttribute.array;
+
+
+    const vertexCount =
+        terrainData.vertices.length;
+
+
+    const elevation =
+        terrainData.elevation;
+
+    const slope =
+        terrainData.slope;
+
+    const ndvi =
+        terrainData.ndvi;
+
+    const rgb =
+        terrainData.rgb;
+
+
+    let elevationMin =
+        Math.min(
+            ...elevation.filter(
+                Number.isFinite
+            )
+        );
+
+
+    let elevationMax =
+        Math.max(
+            ...elevation.filter(
+                Number.isFinite
+            )
+        );
+
+
+    let slopeMin =
+        Math.min(
+            ...slope.filter(
+                Number.isFinite
+            )
+        );
+
+
+    let slopeMax =
+        Math.max(
+            ...slope.filter(
+                Number.isFinite
+            )
+        );
+
+
+    for (
+        let i = 0;
+        i < vertexCount;
+        i++
+    ) {
+
+        let color;
+
+
+        /* =================================================
+           RGB
+        ================================================= */
+
+        if (
+            layer === "RGB"
+        ) {
+
+            const pixel =
+                rgb[i];
+
+
+            if (
+                Array.isArray(pixel) &&
+                pixel.length >= 3
+            ) {
+
+                let r =
+                    Number(pixel[0]);
+
+                let g =
+                    Number(pixel[1]);
+
+                let b =
+                    Number(pixel[2]);
+
+
+                /*
+                   Support both:
+
+                   0-255 RGB
+                   and
+                   0-1 normalized RGB
+                */
+
+                if (
+                    r <= 1 &&
+                    g <= 1 &&
+                    b <= 1
+                ) {
+
+                    r *= 255;
+                    g *= 255;
+                    b *= 255;
+                }
+
+
+                color =
+                    new THREE.Color(
+                        r / 255,
+                        g / 255,
+                        b / 255
+                    );
+
+            }
+
+            else {
+
+                color =
+                    new THREE.Color(
+                        0.7,
+                        0.7,
+                        0.7
+                    );
+            }
+
+        }
+
+
+        /* =================================================
+           ELEVATION
+        ================================================= */
+
+        else if (
+            layer === "Elevation"
+        ) {
+
+            color =
+                elevationColor(
+                    elevation[i],
+                    elevationMin,
+                    elevationMax
+                );
+        }
+
+
+        /* =================================================
+           SLOPE
+        ================================================= */
+
+        else if (
+            layer === "Slope"
+        ) {
+
+            color =
+                slopeColor(
+                    slope[i],
+                    slopeMin,
+                    slopeMax
+                );
+        }
+
+
+        /* =================================================
+           NDVI
+        ================================================= */
+
+        else if (
+            layer === "NDVI"
+        ) {
+
+            color =
+                ndviColor(
+                    ndvi[i]
+                );
+        }
+
+
+        if (
+            !color
+        ) {
+
+            color =
+                new THREE.Color(
+                    0.5,
+                    0.5,
+                    0.5
+                );
+        }
+
+
+        colors[
+            i * 3
+        ] =
+            color.r;
+
+
+        colors[
+            i * 3 + 1
+        ] =
+            color.g;
+
+
+        colors[
+            i * 3 + 2
+        ] =
+            color.b;
+    }
+
+
+    colorAttribute.needsUpdate =
+        true;
+}
+
+function updateLegend(layer) {
+
+    const title =
+        document.getElementById(
+            "legendTitle"
+        );
+
+    const gradient =
+        document.getElementById(
+            "legendGradient"
+        );
+
+    const minLabel =
+        document.getElementById(
+            "legendMin"
+        );
+
+    const maxLabel =
+        document.getElementById(
+            "legendMax"
+        );
+
+
+    if (layer === "RGB") {
+
+        title.textContent =
+            "RGB";
+
+        gradient.style.background =
+            "linear-gradient(to right, #111827, #ef4444, #22c55e, #3b82f6)";
+
+        minLabel.textContent =
+            "RGB";
+
+        maxLabel.textContent =
+            "255";
+
+        return;
+    }
+
+
+    if (layer === "Elevation") {
+
+        title.textContent =
+            "Elevation (m)";
+
+        gradient.style.background =
+            "linear-gradient(to right, #2166ac, #2ca25f, #ffffbf, #d9a066, #ffffff)";
+
+        minLabel.textContent =
+            "265.96 m";
+
+        maxLabel.textContent =
+            "291.19 m";
+
+        return;
+    }
+
+
+    if (layer === "Slope") {
+
+        title.textContent =
+            "Slope (degrees)";
+
+        gradient.style.background =
+            "linear-gradient(to right, #440154, #3b528b, #21918c, #5ec962, #fde725)";
+
+        minLabel.textContent =
+            "0.03°";
+
+        maxLabel.textContent =
+            "21.15°";
+
+        return;
+    }
+
+
+    if (layer === "NDVI") {
+
+        title.textContent =
+            "NDVI";
+
+        gradient.style.background =
+            "linear-gradient(to right, #a50026, #f46d43, #ffffbf, #a6d96a, #66bd63, #006837)";
+
+        minLabel.textContent =
+            "-0.10";
+
+        maxLabel.textContent =
+            "0.60";
+    }
+}
+
+function updateLegend(layer) {
+
+    const title =
+        document.getElementById(
+            "legendTitle"
+        );
+
+    const gradient =
+        document.getElementById(
+            "legendGradient"
+        );
+
+    const minLabel =
+        document.getElementById(
+            "legendMin"
+        );
+
+    const maxLabel =
+        document.getElementById(
+            "legendMax"
+        );
+
+
+    if (
+        !title ||
+        !gradient ||
+        !minLabel ||
+        !maxLabel
+    ) {
+        return;
+    }
+
+
+    if (layer === "RGB") {
+
+        title.textContent =
+            "RGB";
+
+        gradient.style.background =
+            "linear-gradient(to right, #111827, #ef4444, #22c55e, #3b82f6)";
+
+        minLabel.textContent =
+            "0";
+
+        maxLabel.textContent =
+            "255";
+
+        return;
+    }
+
+
+    if (
+        layer === "Elevation"
+    ) {
+
+        title.textContent =
+            "Elevation (m)";
+
+        gradient.style.background =
+            "linear-gradient(to right, #2166ac, #2ca25f, #ffffbf, #d9a066, #ffffff)";
+
+        minLabel.textContent =
+            "265.96 m";
+
+        maxLabel.textContent =
+            "291.19 m";
+
+        return;
+    }
+
+
+    if (layer === "Slope") {
+
+        title.textContent =
+            "Slope (degrees)";
+
+        gradient.style.background =
+            "linear-gradient(to right, #440154, #3b528b, #21918c, #5ec962, #fde725)";
+
+        minLabel.textContent =
+            "0.03°";
+
+        maxLabel.textContent =
+            "21.15°";
+
+        return;
+    }
+
+
+    if (layer === "NDVI") {
+
+        title.textContent =
+            "NDVI";
+
+        gradient.style.background =
+            "linear-gradient(to right, #a50026, #f46d43, #ffffbf, #a6d96a, #66bd63, #006837)";
+
+        minLabel.textContent =
+            "-0.10";
+
+        maxLabel.textContent =
+            "0.60";
+    }
+}
+/* =========================================================
+   LAYER BUTTONS
+========================================================= */
+
+function setLayer(
+    layer
+) {
+
+    currentLayer =
+        layer;
+
+
+    document.getElementById(
+        "layerTitle"
+    ).textContent =
+        layer;
+
+
+    document
+        .querySelectorAll(
+            ".controls button"
+        )
+        .forEach(
+            button =>
+                button.classList.remove(
+                    "active"
+                )
+        );
+
+
+    const button =
+        document.getElementById(
+            layer.toLowerCase() +
+            "Btn"
+        );
+
+
+    if (
+        button
+    ) {
+
+        button.classList.add(
+            "active"
+        );
+    }
+
+
+    updateLayerColors(
+        layer
+    );
+}
+
+
+/* =========================================================
+   THREE.JS INITIALIZATION
+========================================================= */
+
+function init3D() {
+
+    const canvas =
+        document.getElementById(
+            "terrainCanvas"
+        );
+
+
+    const container =
+        canvas.parentElement;
+
+
+    scene =
+        new THREE.Scene();
+
+
+    scene.background =
+        new THREE.Color(
+            0x020617
+        );
+
+
+    camera =
+        new THREE.PerspectiveCamera(
+            45,
+            container.clientWidth /
+            container.clientHeight,
+            0.1,
+            10000
+        );
+
+
+    camera.position.set(
+        850,
+        700,
+        850
+    );
+
+
+    renderer =
+        new THREE.WebGLRenderer({
+
+            canvas: canvas,
+
+            antialias: true
+
+        });
+
+
+    renderer.setPixelRatio(
+        Math.min(
+            window.devicePixelRatio,
+            2
+        )
+    );
+
+
+    renderer.setSize(
+        container.clientWidth,
+        container.clientHeight
+    );
+
+
+    controls =
+        new THREE.OrbitControls(
+            camera,
+            renderer.domElement
+        );
+
+
+    controls.enableDamping =
+        true;
+
+
+    controls.target.set(
+        0,
+        0,
+        0
+    );
+
+
+    controls.update();
+
+
+    /* =====================================================
+       LIGHTING
+    ===================================================== */
+
+    const ambient =
+        new THREE.AmbientLight(
+            0xffffff,
+            1.8
+        );
+
+
+    scene.add(
+        ambient
+    );
+
+
+    const directional =
+        new THREE.DirectionalLight(
+            0xffffff,
+            2.5
+        );
+
+
+    directional.position.set(
+        500,
+        1000,
+        500
+    );
+
+
+    scene.add(
+        directional
+    );
+
+
+    /* =====================================================
+       LOAD TERRAIN
+    ===================================================== */
+
+    loadTerrain();
+
+
+    animate();
+}
+
+
+/* =========================================================
+   ANIMATION
+========================================================= */
+
+function animate() {
+
+    requestAnimationFrame(
+        animate
+    );
+
+
+    if (
+        controls
+    ) {
+
+        controls.update();
+    }
+
+
+    renderer.render(
+        scene,
+        camera
+    );
+}
+
+
+/* =========================================================
+   BUTTON EVENTS
+========================================================= */
+
+document.getElementById(
+    "rgbBtn"
+).onclick =
+    () => setLayer(
+        "RGB"
+    );
+
+
+document.getElementById(
+    "elevationBtn"
+).onclick =
+    () => setLayer(
+        "Elevation"
+    );
+
+
+document.getElementById(
+    "slopeBtn"
+).onclick =
+    () => setLayer(
+        "Slope"
+    );
+
+
+document.getElementById(
+    "ndviBtn"
+).onclick =
+    () => setLayer(
+        "NDVI"
+    );
+
+
+/* =========================================================
+   RESIZE
+========================================================= */
+
+window.addEventListener(
+    "resize",
+    () => {
+
+        const container =
+            document.getElementById(
+                "terrainCanvas"
+            ).parentElement;
+
+
+        camera.aspect =
+            container.clientWidth /
+            container.clientHeight;
+
+
+        camera.updateProjectionMatrix();
+
+
+        renderer.setSize(
+            container.clientWidth,
+            container.clientHeight
+        );
+
+    }
+);
+
+
+/* =========================================================
+   START
+========================================================= */
+
 loadAnalytics();
 
+init3D();
+
 </script>
-
-
-</body>
-
-</html>
