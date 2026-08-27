@@ -1,0 +1,222 @@
+main {
+    min-height: 100vh;
+    background: #0b1220;
+}
+
+/* =========================================================
+   HEADER
+========================================================= */
+
+main > header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 18px 28px;
+
+    background: #1f2937;
+    border-bottom: 1px solid #374151;
+}
+
+main > header h1 {
+    margin: 0;
+
+    font-size: 25px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+
+    color: #f8fafc;
+}
+
+main > header p {
+    margin: 4px 0 0;
+
+    font-size: 13px;
+    color: #94a3b8;
+}
+
+
+/* =========================================================
+   ANALYTICS AREA
+========================================================= */
+
+main > .analytics-cards {
+    display: grid;
+
+    grid-template-columns:
+        repeat(4, minmax(0, 1fr));
+
+    gap: 14px;
+
+    padding: 16px 20px;
+}
+
+
+/* =========================================================
+   DIGITAL TWIN SECTION
+========================================================= */
+
+main > section {
+    margin: 0 20px 20px;
+
+    padding: 16px;
+
+    background: #1f2937;
+
+    border: 1px solid #374151;
+    border-radius: 10px;
+
+    box-shadow:
+        0 12px 30px rgba(0, 0, 0, 0.18);
+}
+
+main > section h2 {
+    margin: 0 0 14px;
+
+    font-size: 20px;
+    font-weight: 700;
+
+    color: #f8fafc;
+}
+
+
+/* =========================================================
+   RESPONSIVE
+========================================================= */
+
+@media (max-width: 900px) {
+
+    main > .analytics-cards {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+    }
+
+}
+
+@media (max-width: 600px) {
+
+    main > header {
+        padding: 16px 18px;
+    }
+
+    main > header h1 {
+        font-size: 21px;
+    }
+
+    main > .analytics-cards {
+        grid-template-columns: 1fr;
+        padding: 14px;
+    }
+
+    main > section {
+        margin: 0 14px 14px;
+        padding: 12px;
+    }
+
+}
+/* =========================================================
+   ANALYTICS CARDS
+========================================================= */
+
+.analytics-cards {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+
+    width: 100%;
+    padding: 16px 20px;
+}
+
+.analytics-card {
+    min-width: 0;
+
+    padding: 16px 18px;
+
+    background: #1f2937;
+
+    border: 1px solid #374151;
+    border-radius: 10px;
+
+    box-shadow:
+        0 8px 20px rgba(0, 0, 0, 0.16);
+
+    text-align: left;
+
+    transition:
+        border-color 0.2s ease,
+        transform 0.2s ease;
+}
+
+.analytics-card:hover {
+    border-color: #4b5563;
+    transform: translateY(-1px);
+}
+
+.analytics-card h3 {
+    margin: 0 0 6px;
+
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+
+    color: #94a3b8;
+}
+
+.analytics-card strong {
+    display: block;
+
+    margin: 0;
+
+    font-size: 24px;
+    line-height: 1.15;
+    font-weight: 700;
+
+    color: #f8fafc;
+}
+
+.analytics-card span {
+    display: block;
+
+    margin-top: 4px;
+
+    font-size: 11px;
+
+    color: #94a3b8;
+}
+
+.analytics-cards-state {
+    margin: 16px 20px;
+    padding: 20px;
+
+    color: #94a3b8;
+
+    background: #1f2937;
+    border: 1px solid #374151;
+    border-radius: 10px;
+}
+
+
+/* =========================================================
+   RESPONSIVE ANALYTICS
+========================================================= */
+
+@media (max-width: 900px) {
+
+    .analytics-cards {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+}
+
+@media (max-width: 600px) {
+
+    .analytics-cards {
+        grid-template-columns: 1fr;
+        padding: 12px 14px;
+    }
+
+    .analytics-card {
+        padding: 14px 16px;
+    }
+
+}
