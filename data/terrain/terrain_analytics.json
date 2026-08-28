@@ -1,0 +1,41 @@
+{
+    "terrain": {
+        "vertices": 10201,
+        "faces": 20000,
+        "elevation_min_m": 265.964,
+        "elevation_max_m": 291.189,
+        "elevation_mean_m": 274.73220939123615,
+        "elevation_range_m": 25.225000000000023,
+        "width_m": 1000.0,
+        "height_m": 1000.0,
+        "planar_area_m2": 1000000.0,
+        "surface_area_m2": 1002494.8660640522
+    },
+    "slope": {
+        "minimum_degrees": 0.028996720910072327,
+        "maximum_degrees": 21.151527404785156,
+        "mean_degrees": 3.006107807159424,
+        "stddev_degrees": 2.266266345977783
+    },
+    "ndvi": {
+        "minimum": -0.06844479590654373,
+        "maximum": 0.5881987810134888,
+        "mean": 0.2571932375431061,
+        "stddev": 0.11986853182315826,
+        "pixels": 9863,
+        "very_low_count": 6,
+        "low_count": 3217,
+        "moderate_count": 6597,
+        "high_count": 43,
+        "very_low_percent": 0.060833417824191424,
+        "low_percent": 32.6168508567373,
+        "moderate_percent": 66.88634289769847,
+        "high_percent": 0.4359728277400385
+    },
+    "bounds": {
+        "x_min": 615935.0,
+        "x_max": 616935.0,
+        "y_min": 2447345.0,
+        "y_max": 2448345.0
+    }
+}

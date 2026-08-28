@@ -1,15 +1,47 @@
-from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from pathlib import Path
 import json
+
+import numpy as np
+import pyvista as pv
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+
+# =========================================================
+# PATHS
+# =========================================================
+
+BASE_DIR = Path(__file__).resolve().parent
+
+ANALYTICS_FILE = (
+    BASE_DIR
+    / "data"
+    / "terrain"
+    / "terrain_analytics.json"
+)
+
+TERRAIN_FILE = (
+    BASE_DIR
+    / "data"
+    / "terrain"
+    / "bilaspur_digital_twin_mesh.vtp"
+)
+
+
+# =========================================================
+# APPLICATION
+# =========================================================
 
 app = FastAPI(
     title="Bilaspur Digital Twin API",
     description="Terrain, slope, elevation and NDVI analytics API",
     version="1.0.0",
 )
+
+
+# =========================================================
+# CORS
+# =========================================================
 
 app.add_middleware(
     CORSMiddleware,
@@ -23,21 +55,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.mount(
-    "/dashboard",
-    StaticFiles(directory="dashboard", html=True),
-    name="dashboard",
-)
 
-@app.get("/dashboard")
-def dashboard():
-    return FileResponse("dashboard/index.html")
 
-ANALYTICS_FILE = Path(
-    "digital_twin_data/AOI-01_Bilaspur/"
-    "processed/terrain_analysis/terrain_analytics.json"
-)
-
+# =========================================================
+# ROOT / HEALTH
+# =========================================================
 
 @app.get("/")
 def root():
@@ -47,6 +69,19 @@ def root():
         "version": "1.0.0",
     }
 
+
+@app.get("/health")
+def health():
+    return {
+        "status": "healthy",
+        "terrain_available": TERRAIN_FILE.exists(),
+        "analytics_available": ANALYTICS_FILE.exists(),
+    }
+
+
+# =========================================================
+# ANALYTICS
+# =========================================================
 
 @app.get("/api/analytics")
 def get_analytics():
@@ -65,19 +100,16 @@ def get_analytics():
 # =========================================================
 # 3D TERRAIN DATA
 # =========================================================
+
 @app.get("/api/terrain")
 def get_terrain():
 
-    import pyvista as pv
-    import numpy as np
+    if not TERRAIN_FILE.exists():
+        return {
+            "error": "Terrain mesh file not found"
+        }
 
-    mesh_path = (
-        "digital_twin_data/AOI-01_Bilaspur/"
-        "processed/terrain_analysis/"
-        "bilaspur_digital_twin_mesh.vtp"
-    )
-
-    mesh = pv.read(mesh_path)
+    mesh = pv.read(TERRAIN_FILE)
 
     points = mesh.points.astype(np.float32)
 
@@ -101,7 +133,7 @@ def get_terrain():
         dtype=np.uint8
     )
 
-    # Replace NaN / Infinity values so JSON serialization works
+    # Replace NaN / Infinity values
     elevation = np.nan_to_num(
         elevation,
         nan=0.0,

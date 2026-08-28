@@ -7,3 +7,12 @@ digital_twin_data/AOI-01_Bilaspur/processed/
 __pycache__/
 *.pyc
 dashboard/index_backup.html
+
+# Large LiDAR source files
+lidar_data/*.laz
+lidar_data/*.ply
+
+# Local environment files
+.env
+.env.*
+!.env.example
