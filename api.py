@@ -3,12 +3,25 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
 import json
-
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
     title="Bilaspur Digital Twin API",
     description="Terrain, slope, elevation and NDVI analytics API",
     version="1.0.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 app.mount(
     "/dashboard",

@@ -4,7 +4,8 @@ import {
     Canvas
 } from "@react-three/fiber";
 import {
-    OrbitControls
+    OrbitControls,
+    Line
 } from "@react-three/drei";
 
 import {
@@ -12,7 +13,9 @@ import {
     type TerrainData
 } from "../../services/terrainApi";
 
-
+import PointInspector, {
+    type SelectedPoint
+} from "../PointInspector/PointInspector";
 type Layer =
     | "RGB"
     | "Elevation"
@@ -23,6 +26,7 @@ type Layer =
 interface TerrainMeshProps {
     terrain: TerrainData;
     layer: Layer;
+    onPointSelect: (point: SelectedPoint) => void;
 }
 
 
@@ -245,11 +249,145 @@ function ndviColor(
         ]
     );
 }
+function SelectionMarker({
+    point,
+    terrain
+}: {
+    point: SelectedPoint | null;
+    terrain: TerrainData;
+}) {
 
+    if (!point) {
+        return null;
+    }
 
+    const elevationValues =
+        terrain.elevation.filter(
+            Number.isFinite
+        );
+
+    const elevationMean =
+        elevationValues.length > 0
+            ? elevationValues.reduce(
+                (sum, value) => sum + value,
+                0
+            ) / elevationValues.length
+            : 0;
+
+    const Z_EXAGGERATION = 8.0;
+
+    const position: [
+        number,
+        number,
+        number
+    ] = [
+        point.x - 500,
+        (
+            point.elevation -
+            elevationMean
+        ) * Z_EXAGGERATION + 6,
+        point.y - 500
+    ];
+
+    return (
+        <mesh position={position}>
+            <sphereGeometry
+                args={[8, 16, 16]}
+            />
+
+            <meshBasicMaterial
+                color="#ff2222"
+            />
+        </mesh>
+    );
+}
+function MeasurementLine({
+    pointA,
+    pointB,
+    terrain
+}: {
+    pointA: SelectedPoint;
+    pointB: SelectedPoint;
+    terrain: TerrainData;
+}) {
+
+    const elevationValues =
+        terrain.elevation.filter(
+            Number.isFinite
+        );
+
+    const elevationMean =
+        elevationValues.length > 0
+            ? elevationValues.reduce(
+                (sum, value) =>
+                    sum + value,
+                0
+            ) / elevationValues.length
+            : 0;
+
+    const Z_EXAGGERATION = 8.0;
+
+    const positionA =
+        new THREE.Vector3(
+            pointA.x - 500,
+            (
+                pointA.elevation -
+                elevationMean
+            ) * Z_EXAGGERATION + 8,
+            pointA.y - 500
+        );
+
+    const positionB =
+        new THREE.Vector3(
+            pointB.x - 500,
+            (
+                pointB.elevation -
+                elevationMean
+            ) * Z_EXAGGERATION + 8,
+            pointB.y - 500
+        );
+
+    return (
+        <>
+            <Line
+                points={[
+                    positionA,
+                    positionB
+                ]}
+                color="#00ff88"
+                lineWidth={3}
+            />
+
+            <mesh
+                position={positionA}
+            >
+                <sphereGeometry
+                    args={[7, 16, 16]}
+                />
+
+                <meshBasicMaterial
+                    color="#00ff88"
+                />
+            </mesh>
+
+            <mesh
+                position={positionB}
+            >
+                <sphereGeometry
+                    args={[7, 16, 16]}
+                />
+
+                <meshBasicMaterial
+                    color="#00ff88"
+                />
+            </mesh>
+        </>
+    );
+}
 function TerrainMesh({
     terrain,
-    layer
+    layer,
+    onPointSelect
 }: TerrainMeshProps) {
 
     const geometry =
@@ -532,10 +670,133 @@ function TerrainMesh({
         layer
     ]);
 
-
     return (
         <mesh
             geometry={geometry}
+            onClick={(event) => {
+
+                event.stopPropagation();
+
+                const triangleIndex =
+                    event.faceIndex;
+
+                if (
+                    triangleIndex === undefined ||
+                    triangleIndex === null
+                ) {
+                    return;
+                }
+
+                const face =
+                    terrain.faces[triangleIndex];
+
+                if (!face) {
+                    return;
+                }
+
+                const vertexIndices = [
+                    face[0],
+                    face[1],
+                    face[2]
+                ];
+
+                let nearestIndex =
+                    vertexIndices[0];
+
+                let nearestDistance =
+                    Infinity;
+
+                const elevationValues =
+                    terrain.elevation.filter(
+                        Number.isFinite
+                    );
+
+                const elevationMean =
+                    elevationValues.length > 0
+                        ? elevationValues.reduce(
+                            (sum, value) =>
+                                sum + value,
+                            0
+                        ) / elevationValues.length
+                        : 0;
+
+                const Z_EXAGGERATION = 8.0;
+
+                for (
+                    const index of vertexIndices
+                ) {
+
+                    const vertex =
+                        terrain.vertices[index];
+
+                    if (!vertex) {
+                        continue;
+                    }
+
+                    const worldVertex =
+                        new THREE.Vector3(
+                            vertex[0] - 500,
+                            (
+                                vertex[2] -
+                                elevationMean
+                            ) * Z_EXAGGERATION,
+                            vertex[1] - 500
+                        );
+
+                    const distance =
+                        event.point.distanceTo(
+                            worldVertex
+                        );
+
+                    if (
+                        distance <
+                        nearestDistance
+                    ) {
+
+                        nearestDistance =
+                            distance;
+
+                        nearestIndex =
+                            index;
+                    }
+                }
+
+                const vertex =
+                    terrain.vertices[
+                        nearestIndex
+                    ];
+
+                if (!vertex) {
+                    return;
+                }
+
+                const selectedPoint: SelectedPoint = {
+                    index: nearestIndex,
+                    x: vertex[0],
+                    y: vertex[1],
+                    elevation:
+                        terrain.elevation[
+                            nearestIndex
+                        ],
+                    slope:
+                        terrain.slope[
+                            nearestIndex
+                        ],
+                    ndvi:
+                        terrain.ndvi[
+                            nearestIndex
+                        ]
+                };
+
+                console.log(
+                    "Selected React terrain point:",
+                    selectedPoint
+                );
+
+                onPointSelect(
+                    selectedPoint
+                );
+            }}
         >
 
             <meshStandardMaterial
@@ -561,6 +822,36 @@ export default function TerrainViewer() {
         );
 
     const [
+        selectedPoint,
+        setSelectedPoint
+    ] =
+        useState<SelectedPoint | null>(
+            null
+        );
+
+    const [
+        measurementMode,
+        setMeasurementMode
+    ] =
+        useState(false);
+
+    const [
+        measurePointA,
+        setMeasurePointA
+    ] =
+        useState<SelectedPoint | null>(
+            null
+        );
+
+    const [
+        measurePointB,
+        setMeasurePointB
+    ] =
+        useState<SelectedPoint | null>(
+            null
+        );
+
+    const [
         layer,
         setLayer
     ] =
@@ -573,8 +864,77 @@ export default function TerrainViewer() {
         useState<string | null>(
             null
         );
+    const handlePointSelect = (
+        point: SelectedPoint
+    ) => {
 
+        setSelectedPoint(point);
 
+        if (!measurementMode) {
+            return;
+        }
+
+        // First click → Point A
+        if (!measurePointA || measurePointB) {
+
+            setMeasurePointA(point);
+            setMeasurePointB(null);
+
+            console.log(
+                "Measurement Point A:",
+                point
+            );
+
+            return;
+        }
+
+        // Second click → Point B
+        setMeasurePointB(point);
+
+        console.log(
+            "Measurement Point B:",
+            point
+        );
+    };
+
+    const horizontalDistance =
+        measurePointA &&
+        measurePointB
+            ? Math.sqrt(
+                Math.pow(
+                    measurePointB.x -
+                    measurePointA.x,
+                    2
+                ) +
+                Math.pow(
+                    measurePointB.y -
+                    measurePointA.y,
+                    2
+                )
+            )
+            : null;
+
+    const elevationDifference =
+        measurePointA &&
+        measurePointB
+            ? measurePointB.elevation -
+            measurePointA.elevation
+            : null;
+
+    const distance3D =
+        horizontalDistance !== null &&
+        elevationDifference !== null
+            ? Math.sqrt(
+                Math.pow(
+                    horizontalDistance,
+                    2
+                ) +
+                Math.pow(
+                    elevationDifference,
+                    2
+                )
+            )
+            : null;
     useEffect(() => {
 
         getTerrain()
@@ -687,6 +1047,36 @@ export default function TerrainViewer() {
 
                     )
                 )}
+                <button
+                    onClick={() => {
+
+                        const nextMode =
+                            !measurementMode;
+
+                        setMeasurementMode(
+                            nextMode
+                        );
+
+                        setMeasurePointA(null);
+                        setMeasurePointB(null);
+
+                    }}
+                    style={{
+                        padding: "8px 14px",
+                        borderRadius: "6px",
+                        border:
+                            "1px solid #475569",
+                        background:
+                            measurementMode
+                                ? "#16a34a"
+                                : "#1e293b",
+                        color: "white",
+                        cursor: "pointer",
+                        fontWeight: 600
+                    }}
+                >
+                    Measure
+                </button>
 
             </div>
 
@@ -752,8 +1142,22 @@ export default function TerrainViewer() {
                 <TerrainMesh
                     terrain={terrain}
                     layer={layer}
+                    onPointSelect={
+                        handlePointSelect
+                    }
                 />
-
+                <SelectionMarker
+                    point={selectedPoint}
+                    terrain={terrain}
+                />
+                {measurePointA &&
+                    measurePointB && (
+                        <MeasurementLine
+                            pointA={measurePointA}
+                            pointB={measurePointB}
+                            terrain={terrain}
+                        />
+                    )}
                 <OrbitControls
                     enableDamping
                     dampingFactor={0.08}
@@ -765,6 +1169,132 @@ export default function TerrainViewer() {
                 />
 
             </Canvas>
+            {measurementMode && (
+                <div
+                    style={{
+                        position: "absolute",
+                        top: "70px",
+                        left: "16px",
+                        zIndex: 20,
+                        minWidth: "190px",
+                        padding: "14px",
+                        borderRadius: "8px",
+                        background:
+                            "rgba(15,23,42,0.94)",
+                        border:
+                            "1px solid #334155",
+                        color: "white",
+                        fontSize: "12px",
+                        boxShadow:
+                            "0 8px 24px rgba(0,0,0,0.35)"
+                    }}
+                >
+
+                    <div
+                        style={{
+                            color: "#00ff88",
+                            fontWeight: 700,
+                            fontSize: "11px",
+                            marginBottom: "10px"
+                        }}
+                    >
+                        3D MEASUREMENT
+                    </div>
+
+                    <div
+                        style={{
+                            display: "flex",
+                            justifyContent:
+                                "space-between",
+                            gap: "20px",
+                            marginBottom: "6px"
+                        }}
+                    >
+                        <span>Point A</span>
+
+                        <strong>
+                            {measurePointA
+                                ? `(${measurePointA.x.toFixed(0)}, ${measurePointA.y.toFixed(0)})`
+                                : "--"}
+                        </strong>
+                    </div>
+
+                    <div
+                        style={{
+                            display: "flex",
+                            justifyContent:
+                                "space-between",
+                            gap: "20px",
+                            marginBottom: "6px"
+                        }}
+                    >
+                        <span>Point B</span>
+
+                        <strong>
+                            {measurePointB
+                                ? `(${measurePointB.x.toFixed(0)}, ${measurePointB.y.toFixed(0)})`
+                                : "--"}
+                        </strong>
+                    </div>
+
+                    <div
+                        style={{
+                            display: "flex",
+                            justifyContent:
+                                "space-between",
+                            gap: "20px",
+                            marginBottom: "6px"
+                        }}
+                    >
+                        <span>Horizontal</span>
+
+                        <strong>
+                            {horizontalDistance !== null
+                                ? `${horizontalDistance.toFixed(2)} m`
+                                : "--"}
+                        </strong>
+                    </div>
+
+                    <div
+                        style={{
+                            display: "flex",
+                            justifyContent:
+                                "space-between",
+                            gap: "20px",
+                            marginBottom: "6px"
+                        }}
+                    >
+                        <span>Elevation Δ</span>
+
+                        <strong>
+                            {elevationDifference !== null
+                                ? `${elevationDifference.toFixed(2)} m`
+                                : "--"}
+                        </strong>
+                    </div>
+
+                    <div
+                        style={{
+                            display: "flex",
+                            justifyContent:
+                                "space-between",
+                            gap: "20px"
+                        }}
+                    >
+                        <span>3D Distance</span>
+
+                        <strong>
+                            {distance3D !== null
+                                ? `${distance3D.toFixed(2)} m`
+                                : "--"}
+                        </strong>
+                    </div>
+
+                </div>
+            )}
+            <PointInspector
+                point={selectedPoint}
+            />
 
         </div>
     );
