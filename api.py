@@ -5,7 +5,8 @@ import numpy as np
 import pyvista as pv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 # =========================================================
 # PATHS
@@ -38,7 +39,11 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# =========================================================
+# REACT FRONTEND
+# =========================================================
 
+FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
 # =========================================================
 # CORS
 # =========================================================
@@ -63,6 +68,11 @@ app.add_middleware(
 
 @app.get("/")
 def root():
+    if FRONTEND_DIST.exists():
+        return FileResponse(
+            FRONTEND_DIST / "index.html"
+        )
+
     return {
         "project": "Bilaspur Digital Twin",
         "status": "running",
@@ -177,3 +187,28 @@ def get_terrain():
         "triangle_count": mesh.n_cells,
         "crs": "EPSG:32644"
     }
+# =========================================================
+# REACT FRONTEND
+# =========================================================
+
+if FRONTEND_DIST.exists():
+
+    app.mount(
+        "/assets",
+        StaticFiles(
+            directory=FRONTEND_DIST / "assets"
+        ),
+        name="frontend-assets",
+    )
+
+    @app.get("/favicon.svg")
+    def favicon():
+        return FileResponse(
+            FRONTEND_DIST / "favicon.svg"
+        )
+
+    @app.get("/icons.svg")
+    def icons():
+        return FileResponse(
+            FRONTEND_DIST / "icons.svg"
+        )
