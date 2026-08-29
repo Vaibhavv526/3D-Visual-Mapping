@@ -1,13 +1,26 @@
 from pathlib import Path
 import json
-
+from pipeline.build_digital_twin import build_digital_twin
+from pipeline.process_lidar import build_dtm
+from pipeline.process_satellite import build_satellite_products
+from pipeline.run_pipeline import run_pipeline
 import numpy as np
 import pyvista as pv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-
+from fastapi import (
+    FastAPI,
+    UploadFile,
+    File,
+    HTTPException,
+)
+from pipeline.uploads import (
+    save_uploaded_file,
+    SATELLITE_DIR,
+    LIDAR_DIR,
+)
 # =========================================================
 # PATHS
 # =========================================================
@@ -23,8 +36,10 @@ ANALYTICS_FILE = (
 
 TERRAIN_FILE = (
     BASE_DIR
-    / "data"
-    / "terrain"
+    / "digital_twin_data"
+    / "AOI-01_Bilaspur"
+    / "processed"
+    / "terrain_analysis"
     / "bilaspur_digital_twin_mesh.vtp"
 )
 
@@ -38,6 +53,177 @@ app = FastAPI(
     description="Terrain, slope, elevation and NDVI analytics API",
     version="1.0.0",
 )
+
+# =========================================================
+# LIDAR PROCESSING
+# =========================================================
+
+@app.post("/api/pipeline/process-lidar")
+def process_lidar():
+
+    lidar_files = sorted(
+        LIDAR_DIR.glob("*.las")
+    ) + sorted(
+        LIDAR_DIR.glob("*.laz")
+    )
+
+    if not lidar_files:
+        return {
+            "success": False,
+            "error": "No LiDAR file uploaded"
+        }
+
+    lidar_file = lidar_files[-1]
+
+    output = (
+        BASE_DIR
+        / "data"
+        / "outputs"
+        / "terrain"
+        / "lidar_dtm.tif"
+    )
+
+    try:
+
+        slope_output = (
+            BASE_DIR
+            / "data"
+            / "outputs"
+            / "terrain"
+            / "slope.tif"
+        )
+
+        result = build_dtm(
+            lidar_file,
+            output,
+            slope_output,
+            resolution=10.0,
+        )
+
+        return {
+            "success": True,
+            "filename": lidar_file.name,
+            "output": str(result["dtm"]),
+            "slope": str(result["slope"]),
+            "crs": str(result["crs"]),
+            "resolution_m": result["resolution"],
+            "width": result["width"],
+            "height": result["height"],
+        }
+
+    except Exception as exc:
+
+        return {
+            "success": False,
+            "error": str(exc),
+        }
+
+
+# =========================================================
+# SATELLITE PROCESSING
+# =========================================================
+
+@app.post("/api/pipeline/process-satellite")
+def process_satellite():
+
+    satellite_files = sorted(
+        SATELLITE_DIR.rglob("*.jp2")
+    ) + sorted(
+        SATELLITE_DIR.rglob("*.tif")
+    ) + sorted(
+        SATELLITE_DIR.rglob("*.tiff")
+    )
+
+    if not satellite_files:
+        return {
+            "success": False,
+            "error": "No satellite data uploaded",
+        }
+
+    # For Sentinel-2, the uploaded directory may contain
+    # multiple JP2 bands. Select the B02/B03/B04/B08 files
+    # from the upload directory.
+    satellite_dir = SATELLITE_DIR
+
+    reference = (
+        BASE_DIR
+        / "data"
+        / "outputs"
+        / "terrain"
+        / "lidar_dtm.tif"
+    )
+
+    if not reference.exists():
+        return {
+            "success": False,
+            "error": (
+                "LiDAR DTM not found. "
+                "Process LiDAR before satellite data."
+            ),
+        }
+
+    rgb_output = (
+        BASE_DIR
+        / "data"
+        / "outputs"
+        / "satellite"
+        / "RGB.tif"
+    )
+
+    ndvi_output = (
+        BASE_DIR
+        / "data"
+        / "outputs"
+        / "satellite"
+        / "NDVI.tif"
+    )
+
+    try:
+
+        result = build_satellite_products(
+            satellite_dir,
+            reference,
+            rgb_output,
+            ndvi_output,
+        )
+
+        return {
+            "success": True,
+            "rgb": str(result["rgb"]),
+            "ndvi": str(result["ndvi"]),
+        }
+
+    except Exception as exc:
+
+        return {
+            "success": False,
+            "error": str(exc),
+        }
+
+
+# =========================================================
+# FULL DIGITAL TWIN PIPELINE
+# =========================================================
+
+@app.post("/api/pipeline/run")
+def run_full_pipeline():
+
+    try:
+
+        result = run_pipeline()
+
+        return {
+            "success": True,
+            **result,
+        }
+
+    except Exception as exc:
+
+        return {
+            "success": False,
+            "error": str(exc),
+        }
+
 
 # =========================================================
 # REACT FRONTEND
@@ -110,6 +296,23 @@ def get_analytics():
 # =========================================================
 # 3D TERRAIN DATA
 # =========================================================
+
+@app.post("/api/pipeline/build")
+def build_pipeline():
+    try:
+        result = build_digital_twin()
+
+        return {
+            "success": True,
+            **result,
+        }
+
+    except Exception as exc:
+        return {
+            "success": False,
+            "error": str(exc),
+        }
+
 
 @app.get("/api/terrain")
 def get_terrain():
@@ -187,6 +390,63 @@ def get_terrain():
         "triangle_count": mesh.n_cells,
         "crs": "EPSG:32644"
     }
+
+# =========================================================
+# DATA UPLOAD
+# =========================================================
+
+@app.post("/api/upload/satellite")
+async def upload_satellite(
+    file: UploadFile = File(...)
+):
+
+    try:
+        output = save_uploaded_file(
+            file.file,
+            file.filename or "satellite.tif",
+            SATELLITE_DIR,
+        )
+
+        return {
+            "success": True,
+            "type": "satellite",
+            "filename": output.name,
+            "path": str(output),
+        }
+
+    except ValueError as exc:
+
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        )
+
+
+@app.post("/api/upload/lidar")
+async def upload_lidar(
+    file: UploadFile = File(...)
+):
+
+    try:
+        output = save_uploaded_file(
+            file.file,
+            file.filename or "lidar.laz",
+            LIDAR_DIR,
+        )
+
+        return {
+            "success": True,
+            "type": "lidar",
+            "filename": output.name,
+            "path": str(output),
+        }
+
+    except ValueError as exc:
+
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        )
 # =========================================================
 # REACT FRONTEND
 # =========================================================

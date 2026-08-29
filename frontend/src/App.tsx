@@ -6,6 +6,9 @@ import AnalyticsCards
 import TerrainViewer
     from "./components/TerrainViewer/TerrainViewer";
 
+import DataInput
+    from "./components/DataInput/DataInput";
+
 
 function App() {
 
@@ -49,6 +52,12 @@ function App() {
                 <h2>
                     3D Digital Twin
                 </h2>
+
+                <DataInput
+                    onBuildComplete={() => {
+                        window.location.reload();
+                    }}
+                />
 
                 <TerrainViewer />
 

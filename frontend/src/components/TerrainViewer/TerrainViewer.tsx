@@ -13,6 +13,10 @@ import {
     type TerrainData
 } from "../../services/terrainApi";
 
+import {
+    buildDigitalTwin
+} from "../../services/pipelineApi";
+
 import PointInspector, {
     type SelectedPoint
 } from "../PointInspector/PointInspector";
@@ -864,6 +868,20 @@ export default function TerrainViewer() {
         useState<string | null>(
             null
         );
+
+    const [
+        isBuilding,
+        setIsBuilding
+    ] =
+        useState(false);
+
+    const [
+        buildStatus,
+        setBuildStatus
+    ] =
+        useState<string | null>(
+            null
+        );
     const handlePointSelect = (
         point: SelectedPoint
     ) => {
@@ -935,6 +953,67 @@ export default function TerrainViewer() {
                 )
             )
             : null;
+    const handleBuildDigitalTwin = async () => {
+
+        if (isBuilding) {
+            return;
+        }
+
+        setIsBuilding(true);
+        setBuildStatus(
+            "Building Digital Twin..."
+        );
+        setError(null);
+
+        try {
+
+            const result =
+                await buildDigitalTwin();
+
+            if (!result.success) {
+                throw new Error(
+                    result.error ||
+                    "Digital Twin build failed"
+                );
+            }
+
+            setBuildStatus(
+                `Build complete • ${result.vertices?.toLocaleString()} vertices • ${result.triangles?.toLocaleString()} triangles`
+            );
+
+            // Reload the newly generated mesh.
+            const terrain =
+                await getTerrain();
+
+            setTerrain(terrain);
+
+            console.log(
+                "Digital Twin rebuilt:",
+                result
+            );
+
+        } catch (err) {
+
+            console.error(
+                "Digital Twin build failed:",
+                err
+            );
+
+            setBuildStatus(null);
+
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : "Digital Twin build failed"
+            );
+
+        } finally {
+
+            setIsBuilding(false);
+        }
+    };
+
+
     useEffect(() => {
 
         getTerrain()
@@ -996,7 +1075,6 @@ export default function TerrainViewer() {
                 overflow: "hidden"
             }}
         >
-
             <div
                 style={{
                     position: "absolute",
@@ -1008,6 +1086,28 @@ export default function TerrainViewer() {
                 }}
             >
 
+                <button
+                    onClick={handleBuildDigitalTwin}
+                    disabled={isBuilding}
+                    style={{
+                        padding: "8px 14px",
+                        borderRadius: "6px",
+                        border: "none",
+                        cursor: isBuilding
+                            ? "wait"
+                            : "pointer",
+                        background:
+                            isBuilding
+                                ? "#64748b"
+                                : "#16a34a",
+                        color: "white",
+                        fontWeight: 600
+                    }}
+                >
+                    {isBuilding
+                        ? "Building..."
+                        : "Build Digital Twin"}
+                </button>
                 {(
                     [
                         "RGB",
@@ -1015,6 +1115,7 @@ export default function TerrainViewer() {
                         "Slope",
                         "NDVI"
                     ] as Layer[]
+               
                 ).map(
                     (item) => (
 
@@ -1080,6 +1181,25 @@ export default function TerrainViewer() {
 
             </div>
 
+            {buildStatus && (
+                <div
+                    style={{
+                        position: "absolute",
+                        top: "70px",
+                        left: "16px",
+                        zIndex: 20,
+                        padding: "8px 12px",
+                        borderRadius: "6px",
+                        background: "rgba(15,23,42,0.92)",
+                        border: "1px solid #334155",
+                        color: "#86efac",
+                        fontSize: "12px",
+                        fontWeight: 600
+                    }}
+                >
+                    {buildStatus}
+                </div>
+            )}
 
             <div
                 style={{

@@ -1,18 +1,72 @@
-# Digital Twin raw satellite data
-digital_twin_data/AOI-01_Bilaspur/raw/
-digital_twin_data/AOI-01_Bilaspur/row/
+# =========================================================
+# Python
+# =========================================================
 
-# Generated Digital Twin outputs
-digital_twin_data/AOI-01_Bilaspur/processed/
 __pycache__/
-*.pyc
-dashboard/index_backup.html
+*.py[cod]
+*.pyo
 
-# Large LiDAR source files
-lidar_data/*.laz
-lidar_data/*.ply
+# Virtual environments
+myvenv/
+venv/
 
-# Local environment files
+# Environment / secrets
 .env
 .env.*
 !.env.example
+
+
+# =========================================================
+# Node / React
+# =========================================================
+
+frontend/node_modules/
+frontend/dist/
+
+
+# =========================================================
+# Raw Sentinel-2 / Copernicus geospatial data
+# =========================================================
+
+digital_twin_data/AOI-01_Bilaspur/raw/
+digital_twin_data/AOI-01_Bilaspur/row/
+
+*.jp2
+*.las
+*.laz
+*.hgt
+
+
+# =========================================================
+# Generated geospatial products
+# =========================================================
+
+digital_twin_data/AOI-01_Bilaspur/processed/
+data/outputs/
+
+*.aux.xml
+
+
+# =========================================================
+# Large LiDAR / generated meshes
+# =========================================================
+
+lidar_data/*.laz
+lidar_data/*.ply
+
+
+# =========================================================
+# Local / IDE
+# =========================================================
+
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+
+# =========================================================
+# Old / backup files
+# =========================================================
+
+dashboard/index_backup.html
