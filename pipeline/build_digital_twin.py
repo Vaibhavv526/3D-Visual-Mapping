@@ -100,10 +100,10 @@ def build_digital_twin(
     print()
     print("Validating spatial alignment...")
 
-    if rgb_shape[1:] != dem_shape:
+    if rgb_shape != dem_shape:
         raise ValueError(
             f"RGB grid mismatch: "
-            f"{rgb_shape[1:]} != {dem_shape}"
+            f"{rgb_shape} != {dem_shape}"
         )
 
     if ndvi_shape != dem_shape:
