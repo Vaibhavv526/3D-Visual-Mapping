@@ -1124,21 +1124,6 @@ export default function NZDigitalTwin() {
                 }
 
 
-                <gridHelper
-                    args={[
-                        800,
-                        40,
-                        "#334155",
-                        "#1e293b"
-                    ]}
-                    position={[
-                        0,
-                        -45,
-                        0
-                    ]}
-                />
-
-
                 <OrbitControls
                     makeDefault
                     enableDamping
