@@ -1,7 +1,4 @@
-# =========================================================
 # Python
-# =========================================================
-
 __pycache__/
 *.py[cod]
 *.pyo
@@ -15,58 +12,26 @@ venv/
 .env.*
 !.env.example
 
-
-# =========================================================
 # Node / React
-# =========================================================
-
 frontend/node_modules/
 frontend/dist/
 
+# 27GB ML dataset — DO NOT PUSH
+ml/dataset/
 
-# =========================================================
-# Raw Sentinel-2 / Copernicus geospatial data
-# =========================================================
-
+# Bilaspur raw/processed data — DO NOT PUSH
 digital_twin_data/AOI-01_Bilaspur/raw/
 digital_twin_data/AOI-01_Bilaspur/row/
-
-*.jp2
-*.las
-*.laz
-*.hgt
-
-
-# =========================================================
-# Generated geospatial products
-# =========================================================
-
 digital_twin_data/AOI-01_Bilaspur/processed/
-data/outputs/
 
-*.aux.xml
-
-
-# =========================================================
-# Large LiDAR / generated meshes
-# =========================================================
-
-lidar_data/*.laz
-lidar_data/*.ply
-
-
-# =========================================================
 # Local / IDE
-# =========================================================
-
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
 
+# Metadata
+*.aux.xml
 
-# =========================================================
 # Old / backup files
-# =========================================================
-
 dashboard/index_backup.html

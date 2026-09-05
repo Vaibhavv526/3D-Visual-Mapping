@@ -1,0 +1,164 @@
+from pathlib import Path
+
+import numpy as np
+import pyvista as pv
+
+
+BASE_DIR = Path(__file__).resolve().parents[1]
+
+TERRAIN_FILE = (
+    BASE_DIR
+    / "data"
+    / "outputs"
+    / "nz_lidar"
+    / "terrain.vtp"
+)
+
+OUTPUT_FILE = (
+    BASE_DIR
+    / "data"
+    / "outputs"
+    / "nz_lidar"
+    / "terrain_layers.vtp"
+)
+
+
+def main():
+
+    print("=" * 70)
+    print("CREATING NZ TERRAIN ANALYTICS")
+    print("=" * 70)
+
+    terrain = pv.read(
+        TERRAIN_FILE
+    )
+
+    points = terrain.points
+
+    elevation = np.asarray(
+        terrain["Elevation"],
+        dtype=np.float64,
+    )
+
+    # ---------------------------------------------------------
+    # Recover terrain grid
+    # ---------------------------------------------------------
+
+    xs = np.unique(
+        points[:, 0]
+    )
+
+    ys = np.unique(
+        points[:, 1]
+    )
+
+    nx = len(xs)
+    ny = len(ys)
+
+    print("Grid:", nx, "x", ny)
+
+    elevation_grid = (
+        elevation
+        .reshape(ny, nx)
+    )
+
+    # ---------------------------------------------------------
+    # Calculate slope
+    # ---------------------------------------------------------
+
+    dx = (
+        xs[1] - xs[0]
+        if nx > 1
+        else 1.0
+    )
+
+    dy = (
+        ys[1] - ys[0]
+        if ny > 1
+        else 1.0
+    )
+
+    dz_dy, dz_dx = np.gradient(
+        elevation_grid,
+        dy,
+        dx,
+    )
+
+    slope_radians = np.arctan(
+        np.sqrt(
+            dz_dx ** 2
+            +
+            dz_dy ** 2
+        )
+    )
+
+    slope_degrees = np.degrees(
+        slope_radians
+    )
+
+    slope = slope_degrees.ravel()
+
+    terrain["Slope"] = (
+        slope.astype(
+            np.float32
+        )
+    )
+
+    # ---------------------------------------------------------
+    # Terrain height normalized
+    # ---------------------------------------------------------
+
+    terrain["RelativeElevation"] = (
+        (
+            elevation
+            - elevation.min()
+        )
+        /
+        (
+            elevation.max()
+            - elevation.min()
+            + 1e-9
+        )
+    ).astype(
+        np.float32
+    )
+
+    # ---------------------------------------------------------
+    # Save
+    # ---------------------------------------------------------
+
+    terrain.save(
+        OUTPUT_FILE
+    )
+
+    print()
+    print("Slope created")
+
+    print(
+        "Minimum:",
+        float(slope.min()),
+        "degrees",
+    )
+
+    print(
+        "Maximum:",
+        float(slope.max()),
+        "degrees",
+    )
+
+    print(
+        "Mean:",
+        float(slope.mean()),
+        "degrees",
+    )
+
+    print()
+    print("Output:")
+    print(OUTPUT_FILE)
+
+    print("=" * 70)
+
+
+if __name__ == "__main__":
+    main()
+

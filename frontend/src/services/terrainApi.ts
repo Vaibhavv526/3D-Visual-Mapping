@@ -17,7 +17,7 @@ export interface TerrainData {
 
 export async function getTerrain(): Promise<TerrainData> {
     const response = await axios.get<TerrainData>(
-        `${API_BASE_URL}/api/terrain`
+        `${API_BASE_URL}/api/nz/terrain`
     );
 
     return response.data;
