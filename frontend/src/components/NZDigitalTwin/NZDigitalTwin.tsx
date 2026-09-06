@@ -1,13 +1,16 @@
 import {
     useEffect,
     useMemo,
+    useRef,
     useState
 } from "react";
 
 import * as THREE from "three";
 
 import {
-    Canvas
+    Canvas,
+    useFrame,
+    useThree
 } from "@react-three/fiber";
 
 import {
@@ -146,6 +149,7 @@ function NZTerrainMesh({
     const geometry =
         useMemo(() => {
 
+            const t0 = performance.now();
             const vertices =
                 terrain.vertices;
 
@@ -327,6 +331,7 @@ function NZTerrainMesh({
 
             geo.computeVertexNormals();
 
+            console.log(`[PERF:TERRAIN_GEO] Terrain geometry created in ${(performance.now() - t0).toFixed(2)}ms`);
 
             return geo;
 
@@ -339,6 +344,7 @@ function NZTerrainMesh({
 
     useEffect(() => {
 
+        const t0 = performance.now();
         const attribute =
             geometry.getAttribute(
                 "color"
@@ -434,6 +440,8 @@ function NZTerrainMesh({
         attribute.needsUpdate =
             true;
 
+        console.log(`[PERF:TERRAIN_COLOR] Layer "${layer}" vertex colors updated in ${(performance.now() - t0).toFixed(2)}ms`);
+
     }, [
         geometry,
         terrain,
@@ -458,13 +466,35 @@ function NZTerrainMesh({
     );
 }
 
+interface TerrainMeta {
+    centerX: number;
+    centerY: number;
+    elevationMean: number;
+}
+
+interface BuildingSceneInfo {
+    center: THREE.Vector3;
+    size: THREE.Vector3;
+    radius: number;
+}
+
+function easeInOutCubic(t: number): number {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
 function NZBuildingMesh({
     building,
     terrain,
+    terrainMeta,
+    isSelected,
+    isDeemphasized,
     onSelect
 }: {
     building: NZBuilding;
     terrain: NZTerrainData;
+    terrainMeta: TerrainMeta;
+    isSelected: boolean;
+    isDeemphasized: boolean;
     onSelect: (
         building: NZBuilding
     ) => void;
@@ -473,53 +503,16 @@ function NZBuildingMesh({
     const geometry =
         useMemo(() => {
 
+            const t0 = performance.now();
             const points =
                 building.vertices;
 
             const terrainVertices =
                 terrain.vertices;
             
-            let minX = Infinity;
-            let maxX = -Infinity;
-
-            let minY = Infinity;
-            let maxY = -Infinity;
-
-            for (const vertex of terrainVertices) {
-
-                minX = Math.min(
-                    minX,
-                    vertex[0]
-                );
-
-                maxX = Math.max(
-                    maxX,
-                    vertex[0]
-                );
-
-                minY = Math.min(
-                    minY,
-                    vertex[1]
-                );
-
-                maxY = Math.max(
-                    maxY,
-                    vertex[1]
-                );
-            }
-
-            const centerX =
-                (minX + maxX) / 2;
-
-            const centerY =
-                (minY + maxY) / 2;
-
-            const elevationMean =
-                terrain.elevation.reduce(
-                    (sum, value) =>
-                        sum + value,
-                    0
-                ) / terrain.elevation.length;
+            const centerX = terrainMeta.centerX;
+            const centerY = terrainMeta.centerY;
+            const elevationMean = terrainMeta.elevationMean;
 
             const Z_EXAGGERATION = 4.0;
 
@@ -888,36 +881,389 @@ function NZBuildingMesh({
                 )
             );
 
+            const dt = performance.now() - t0;
+            const w = window as any;
+            w.__nzBuildingsPerf = w.__nzBuildingsPerf || { count: 0, totalTime: 0 };
+            w.__nzBuildingsPerf.count++;
+            w.__nzBuildingsPerf.totalTime += dt;
+            if (w.__nzBuildingsPerf.count === 56) {
+                console.log(`[PERF:BUILDINGS_GEO] All 56 building geometries created in ${w.__nzBuildingsPerf.totalTime.toFixed(2)}ms`);
+            }
 
             return geo;
 
         }, [
             building,
-            terrain
+            terrain,
+            terrainMeta
         ]);
 
 
     return (
-        <mesh
-            geometry={geometry}
-            castShadow
-            onClick={(event) => {
+        <group>
+            <mesh
+                geometry={geometry}
+                castShadow={!isDeemphasized}
+                onClick={(event) => {
+                    event.stopPropagation();
+                    onSelect(building);
+                }}
+                onPointerOver={(e) => {
+                    e.stopPropagation();
+                    document.body.style.cursor = "pointer";
+                }}
+                onPointerOut={() => {
+                    document.body.style.cursor = "auto";
+                }}
+            >
+                <meshStandardMaterial
+                    vertexColors={true}
+                    side={THREE.DoubleSide}
+                    roughness={isSelected ? 0.45 : isDeemphasized ? 0.88 : 0.72}
+                    metalness={0.0}
+                    color={isDeemphasized ? "#76869a" : "#ffffff"}
+                    transparent={isDeemphasized}
+                    opacity={isDeemphasized ? 0.55 : 1.0}
+                    depthWrite={true}
+                    emissive={isSelected ? "#0ea5e9" : "#000000"}
+                    emissiveIntensity={isSelected ? 0.35 : 0.0}
+                />
+            </mesh>
 
-                event.stopPropagation();
+            {isSelected && (
+                <mesh geometry={geometry} raycast={() => null}>
+                    <meshBasicMaterial
+                        color="#38bdf8"
+                        wireframe
+                        transparent
+                        opacity={0.65}
+                        depthTest={true}
+                    />
+                </mesh>
+            )}
+        </group>
+    );
+}
 
-                onSelect(building);
+function CameraController({
+    selectedBuilding,
+    buildingSceneInfoMap,
+    controlsRef
+}: {
+    selectedBuilding: NZBuilding | null;
+    buildingSceneInfoMap: Map<string, BuildingSceneInfo>;
+    controlsRef: React.RefObject<any>;
+}) {
+    const { camera } = useThree();
 
-            }}
-        >
+    const animRef = useRef<{
+        active: boolean;
+        startTime: number;
+        duration: number;
+        startPos: THREE.Vector3;
+        endPos: THREE.Vector3;
+        startTarget: THREE.Vector3;
+        endTarget: THREE.Vector3;
+    }>({
+        active: false,
+        startTime: 0,
+        duration: 1000,
+        startPos: new THREE.Vector3(),
+        endPos: new THREE.Vector3(),
+        startTarget: new THREE.Vector3(),
+        endTarget: new THREE.Vector3()
+    });
 
-            <meshStandardMaterial
-                vertexColors={true}
-                side={THREE.DoubleSide}
-                roughness={0.72}
-                metalness={0.0}
-            />
+    // If user manually starts manipulating orbit controls, gracefully cancel the programmatic transition
+    useEffect(() => {
+        const controls = controlsRef.current;
+        if (!controls) return;
 
-        </mesh>
+        const onUserStart = () => {
+            if (animRef.current.active) {
+                animRef.current.active = false;
+            }
+        };
+
+        controls.addEventListener("start", onUserStart);
+        return () => {
+            controls.removeEventListener("start", onUserStart);
+        };
+    }, [controlsRef]);
+
+    const prevBuildingIdRef = useRef<string | null>(null);
+
+    useEffect(() => {
+        if (!selectedBuilding) {
+            // When inspector is closed (selectedBuilding becomes null):
+            // Camera remains at its current position (no reset)
+            prevBuildingIdRef.current = null;
+            return;
+        }
+
+        if (selectedBuilding.id === prevBuildingIdRef.current) {
+            return;
+        }
+        prevBuildingIdRef.current = selectedBuilding.id;
+
+        const controls = controlsRef.current;
+        if (!controls) return;
+
+        const info = buildingSceneInfoMap.get(selectedBuilding.id);
+        if (!info) return;
+
+        // Framing distance calculation:
+        // Target approximately 30–45% of the useful viewport
+        // Vertical FOV = 45 deg, Frustum height at distance D is H ≈ 0.8284 * D
+        // Bounding dimension S:
+        const boundingDiameter = Math.max(info.radius * 2, info.size.x, info.size.y, info.size.z);
+        let targetDistance = boundingDiameter * 2.3;
+        targetDistance = THREE.MathUtils.clamp(targetDistance, 120, 240);
+
+        // Determine camera offset direction:
+        // Preserve user's current azimuth (horizontal angle) with an elevated 3D perspective pitch
+        const currentTarget = controls.target.clone();
+        const currentCameraPos = camera.position.clone();
+        const currentOffset = currentCameraPos.clone().sub(currentTarget);
+
+        let dirX = currentOffset.x;
+        let dirZ = currentOffset.z;
+        const horizDist = Math.sqrt(dirX * dirX + dirZ * dirZ);
+
+        let offsetDir: THREE.Vector3;
+        if (horizDist < 1e-2) {
+            // Default perspective: south-southeast looking northwest
+            offsetDir = new THREE.Vector3(0.55, 0.45, 0.70).normalize();
+        } else {
+            dirX /= horizDist;
+            dirZ /= horizDist;
+            // Elevation pitch angle: clamp between 26° (0.45 rad) and 42° (0.73 rad)
+            const currentPitch = Math.atan2(currentOffset.y, horizDist);
+            const targetPitch = THREE.MathUtils.clamp(currentPitch, 0.48, 0.73);
+            const cosPitch = Math.cos(targetPitch);
+            const sinPitch = Math.sin(targetPitch);
+
+            offsetDir = new THREE.Vector3(dirX * cosPitch, sinPitch, dirZ * cosPitch).normalize();
+        }
+
+        const endTarget = info.center.clone();
+        const endPos = info.center.clone().add(offsetDir.clone().multiplyScalar(targetDistance));
+
+        animRef.current = {
+            active: true,
+            startTime: performance.now(),
+            duration: 1000,
+            startPos: currentCameraPos,
+            endPos,
+            startTarget: currentTarget,
+            endTarget
+        };
+    }, [selectedBuilding, buildingSceneInfoMap, camera, controlsRef]);
+
+    useFrame(() => {
+        if (!animRef.current.active) return;
+        const controls = controlsRef.current;
+        if (!controls) return;
+
+        const now = performance.now();
+        const elapsed = now - animRef.current.startTime;
+        const progress = Math.min(1, elapsed / animRef.current.duration);
+        const ease = easeInOutCubic(progress);
+
+        camera.position.lerpVectors(animRef.current.startPos, animRef.current.endPos, ease);
+        controls.target.lerpVectors(animRef.current.startTarget, animRef.current.endTarget, ease);
+        controls.update();
+
+        if (progress >= 1) {
+            animRef.current.active = false;
+        }
+    });
+
+    const { scene } = useThree();
+
+    useEffect(() => {
+        (window as any).__nzSceneState = {
+            camera,
+            scene,
+            controls: controlsRef.current,
+            buildingSceneInfoMap
+        };
+    }, [camera, scene, controlsRef, buildingSceneInfoMap]);
+
+    return null;
+}
+
+
+function PerfFrameTracker() {
+    const rendered = useRef(false);
+    useFrame(() => {
+        if (!rendered.current) {
+            rendered.current = true;
+            const t = performance.now();
+            const start = (window as any).__nzStartTime || t;
+            console.log(`[PERF:FIRST_FRAME] First WebGL frame rendered: ${(t - start).toFixed(2)}ms total initial load time`);
+        }
+    });
+    return null;
+}
+
+
+function PropertyIntelligencePanel({
+    building,
+    onClose
+}: {
+    building: NZBuilding;
+    onClose: () => void;
+}) {
+    // 1. PROPERTY
+    const width = building.bounds.max_x - building.bounds.min_x;
+    const depth = building.bounds.max_y - building.bounds.min_y;
+    const centroidX = (building.bounds.min_x + building.bounds.max_x) / 2;
+    const centroidY = (building.bounds.min_y + building.bounds.max_y) / 2;
+    const bboxArea = width * depth;
+
+    // 2. ELEVATION
+    const estimatedStoreys = Math.max(1, Math.round(building.height / 3.2));
+
+    // 3. LiDAR
+    // building.point_count, building.triangle_count, building.min_elevation, building.max_elevation
+
+    // 4. ENVIRONMENT
+    const meanNdvi =
+        building.ndvi && building.ndvi.length > 0
+            ? building.ndvi.reduce((sum, v) => sum + v, 0) / building.ndvi.length
+            : 0;
+
+    let ndviInterpretation = "Impervious Surface";
+    if (meanNdvi >= 0.35) {
+        ndviInterpretation = "Vegetated Surface";
+    } else if (meanNdvi >= 0.22) {
+        ndviInterpretation = "Mixed / Canopy Overhang";
+    } else if (meanNdvi >= 0.12) {
+        ndviInterpretation = "Built / Low Canopy";
+    }
+
+    const enhanceSrgb = (v: number) => {
+        const clamped = THREE.MathUtils.clamp(v * 2.2, 0, 1);
+        return clamped <= 0.0031308
+            ? 12.92 * clamped
+            : 1.055 * Math.pow(clamped, 1 / 2.4) - 0.055;
+    };
+
+    const meanRgb =
+        building.rgb && building.rgb.length > 0
+            ? [
+                building.rgb.reduce((s, c) => s + c[0], 0) / building.rgb.length,
+                building.rgb.reduce((s, c) => s + c[1], 0) / building.rgb.length,
+                building.rgb.reduce((s, c) => s + c[2], 0) / building.rgb.length,
+            ]
+            : [0.5, 0.5, 0.5];
+
+    const swatchR = Math.round(enhanceSrgb(meanRgb[0]) * 255);
+    const swatchG = Math.round(enhanceSrgb(meanRgb[1]) * 255);
+    const swatchB = Math.round(enhanceSrgb(meanRgb[2]) * 255);
+    const swatchCss = `rgb(${swatchR}, ${swatchG}, ${swatchB})`;
+
+    return (
+        <div className="nz-overlay nz-property">
+            <button
+                className="nz-close"
+                onClick={onClose}
+                aria-label="Close Property Intelligence"
+            >
+                ×
+            </button>
+
+            <div className="nz-kicker">
+                PROPERTY INTELLIGENCE
+            </div>
+
+            <div className="nz-property-header">
+                <h3>{building.id}</h3>
+                <span className="nz-class-badge">Class 6 · Structure</span>
+            </div>
+
+            {/* 1. PROPERTY */}
+            <div className="nz-section-title">1. PROPERTY</div>
+            <div className="nz-property-grid">
+                <div className="nz-prop-item nz-prop-full">
+                    <span>Centroid (NZTM2000)</span>
+                    <strong>
+                        {centroidX.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} E · {centroidY.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} N
+                    </strong>
+                </div>
+                <div className="nz-prop-item">
+                    <span>Footprint (W × D)</span>
+                    <strong>{width.toFixed(1)} m × {depth.toFixed(1)} m</strong>
+                </div>
+                <div className="nz-prop-item">
+                    <span>BBox Area</span>
+                    <strong>{Math.round(bboxArea).toLocaleString()} m²</strong>
+                </div>
+            </div>
+
+            {/* 2. ELEVATION */}
+            <div className="nz-section-title">2. ELEVATION</div>
+            <div className="nz-property-grid">
+                <div className="nz-prop-item">
+                    <span>Ground Elevation</span>
+                    <strong>{building.ground_elevation.toFixed(2)} m</strong>
+                </div>
+                <div className="nz-prop-item">
+                    <span>Roof Elevation</span>
+                    <strong>{building.roof_elevation.toFixed(2)} m</strong>
+                </div>
+                <div className="nz-prop-item">
+                    <span>Building Height</span>
+                    <strong>{building.height.toFixed(2)} m</strong>
+                </div>
+                <div className="nz-prop-item">
+                    <span>Est. Storeys</span>
+                    <strong>~{estimatedStoreys} {estimatedStoreys === 1 ? "Storey" : "Storeys"}</strong>
+                </div>
+            </div>
+
+            {/* 3. LiDAR */}
+            <div className="nz-section-title">3. LiDAR</div>
+            <div className="nz-property-grid">
+                <div className="nz-prop-item">
+                    <span>Point Count</span>
+                    <strong>{building.point_count.toLocaleString()} pts</strong>
+                </div>
+                <div className="nz-prop-item">
+                    <span>Triangles</span>
+                    <strong>{building.triangle_count.toLocaleString()} faces</strong>
+                </div>
+                <div className="nz-prop-item">
+                    <span>Min Elevation</span>
+                    <strong>{building.min_elevation.toFixed(2)} m</strong>
+                </div>
+                <div className="nz-prop-item">
+                    <span>Max Elevation</span>
+                    <strong>{building.max_elevation.toFixed(2)} m</strong>
+                </div>
+            </div>
+
+            {/* 4. ENVIRONMENT */}
+            <div className="nz-section-title">4. ENVIRONMENT</div>
+            <div className="nz-property-grid">
+                <div className="nz-prop-item">
+                    <span>Mean NDVI</span>
+                    <strong>{meanNdvi.toFixed(3)}</strong>
+                </div>
+                <div className="nz-prop-item">
+                    <span>Interpretation</span>
+                    <strong className="nz-highlight-text">{ndviInterpretation}</strong>
+                </div>
+                <div className="nz-prop-item nz-prop-full nz-swatch-row">
+                    <div className="nz-swatch" style={{ backgroundColor: swatchCss }} />
+                    <div>
+                        <span>True-Color Swatch</span>
+                        <strong>RGB ({swatchR}, {swatchG}, {swatchB})</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
     );
 }
 
@@ -973,8 +1319,14 @@ export default function NZDigitalTwin() {
             null
         );
 
+    const controlsRef = useRef<any>(null);
+
 
     useEffect(() => {
+
+        (window as any).__nzStartTime = performance.now();
+        (window as any).__nzBuildingsPerf = { count: 0, totalTime: 0 };
+        console.log("[PERF:START] Initiating NZ Digital Twin load...");
 
         Promise.all([
             getNZTerrain(),
@@ -985,6 +1337,10 @@ export default function NZDigitalTwin() {
             terrainData,
             buildingData
         ]) => {
+
+            const tRecv = performance.now();
+            const start = (window as any).__nzStartTime || tRecv;
+            console.log(`[PERF:REACT_STATE] Both datasets received and parsed in ${(tRecv - start).toFixed(2)}ms. Triggering state update & render...`);
 
             setTerrain(
                 terrainData
@@ -1011,6 +1367,102 @@ export default function NZDigitalTwin() {
         });
 
     }, []);
+
+    useEffect(() => {
+        (window as any).__nzTwinState = {
+            selectedBuilding,
+            setSelectedBuilding,
+            buildings,
+            terrain
+        };
+    }, [selectedBuilding, buildings, terrain]);
+
+
+    const terrainMeta = useMemo(() => {
+        if (!terrain) return null;
+
+        let minX = Infinity;
+        let maxX = -Infinity;
+        let minY = Infinity;
+        let maxY = -Infinity;
+
+        for (const vertex of terrain.vertices) {
+            minX = Math.min(minX, vertex[0]);
+            maxX = Math.max(maxX, vertex[0]);
+            minY = Math.min(minY, vertex[1]);
+            maxY = Math.max(maxY, vertex[1]);
+        }
+
+        const centerX = (minX + maxX) / 2;
+        const centerY = (minY + maxY) / 2;
+
+        const elevationSum = terrain.elevation.reduce(
+            (sum, value) => sum + value,
+            0
+        );
+        const elevationMean = elevationSum / terrain.elevation.length;
+
+        return { centerX, centerY, elevationMean };
+    }, [terrain]);
+
+
+    const buildingSceneInfoMap = useMemo(() => {
+        if (!terrain || !terrainMeta || buildings.length === 0) {
+            return new Map<string, BuildingSceneInfo>();
+        }
+
+        const map = new Map<string, BuildingSceneInfo>();
+        const terrainVertices = terrain.vertices;
+
+        for (const building of buildings) {
+            const points = building.vertices;
+            const buildingCenterX =
+                points.reduce((sum, point) => sum + point[0], 0) / points.length;
+            const buildingCenterY =
+                points.reduce((sum, point) => sum + point[1], 0) / points.length;
+
+            let nearestIndex = 0;
+            let nearestDistance = Infinity;
+
+            for (let i = 0; i < terrainVertices.length; i++) {
+                const dx = terrainVertices[i][0] - buildingCenterX;
+                const dy = terrainVertices[i][1] - buildingCenterY;
+                const distance = dx * dx + dy * dy;
+
+                if (distance < nearestDistance) {
+                    nearestDistance = distance;
+                    nearestIndex = i;
+                }
+            }
+
+            const localGroundElevation = terrain.elevation[nearestIndex];
+            const verticalOffset = localGroundElevation - building.min_elevation;
+
+            const sceneCenterX =
+                (building.bounds.min_x + building.bounds.max_x) / 2 - terrainMeta.centerX;
+            const sceneCenterZ =
+                (building.bounds.min_y + building.bounds.max_y) / 2 - terrainMeta.centerY;
+            const sceneCenterY =
+                (
+                    (building.min_elevation + building.max_elevation) / 2 +
+                    verticalOffset -
+                    terrainMeta.elevationMean
+                ) * 4.0;
+
+            const sizeX = Math.max(12, building.bounds.max_x - building.bounds.min_x);
+            const sizeZ = Math.max(12, building.bounds.max_y - building.bounds.min_y);
+            const sizeY = Math.max(10, (building.max_elevation - building.min_elevation) * 4.0);
+            const radius = Math.sqrt(sizeX * sizeX + sizeY * sizeY + sizeZ * sizeZ) * 0.5;
+
+            map.set(building.id, {
+                center: new THREE.Vector3(sceneCenterX, sceneCenterY, sceneCenterZ),
+                size: new THREE.Vector3(sizeX, sizeY, sizeZ),
+                radius
+            });
+        }
+
+        return map;
+    }, [terrain, terrainMeta, buildings]);
 
 
     if (error) {
@@ -1051,6 +1503,8 @@ export default function NZDigitalTwin() {
 
     const slopeMax =
         slope.reduce((max, value) => Math.max(max, value), -Infinity);
+
+    const isAnySelected = selectedBuilding !== null;
 
 
     return (
@@ -1099,6 +1553,7 @@ export default function NZDigitalTwin() {
                     intensity={0.8}
                 />
 
+                <PerfFrameTracker />
 
                 <NZTerrainMesh
                     terrain={terrain}
@@ -1107,34 +1562,47 @@ export default function NZDigitalTwin() {
 
 
                 {showBuildings &&
+                    terrainMeta &&
                     buildings.map(
-                        building => (
-
-                            <NZBuildingMesh
-                                key={building.id}
-                                building={building}
-                                terrain={terrain}
-                                onSelect={
-                                    setSelectedBuilding
-                                }
-                            />
-
-                        )
+                        building => {
+                            const isSelected = selectedBuilding?.id === building.id;
+                            const isDeemphasized = isAnySelected && !isSelected;
+                            return (
+                                <NZBuildingMesh
+                                    key={building.id}
+                                    building={building}
+                                    terrain={terrain}
+                                    terrainMeta={terrainMeta}
+                                    isSelected={isSelected}
+                                    isDeemphasized={isDeemphasized}
+                                    onSelect={
+                                        setSelectedBuilding
+                                    }
+                                />
+                            );
+                        }
                     )
                 }
 
 
                 <OrbitControls
+                    ref={controlsRef}
                     makeDefault
                     enableDamping
                     dampingFactor={0.08}
-                    minDistance={180}
+                    minDistance={60}
                     maxDistance={1400}
                     target={[
                         0,
                         0,
                         0
                     ]}
+                />
+
+                <CameraController
+                    selectedBuilding={selectedBuilding}
+                    buildingSceneInfoMap={buildingSceneInfoMap}
+                    controlsRef={controlsRef}
                 />
 
             </Canvas>
@@ -1342,83 +1810,13 @@ export default function NZDigitalTwin() {
             </div>
 
 
-            {/* PROPERTY INSPECTOR */}
+            {/* PROPERTY INTELLIGENCE */}
 
             {selectedBuilding && (
-
-                <div className="nz-overlay nz-property">
-
-                    <button
-                        className="nz-close"
-                        onClick={() =>
-                            setSelectedBuilding(null)
-                        }
-                    >
-                        ×
-                    </button>
-
-
-                    <div className="nz-kicker">
-                        SELECTED PROPERTY
-                    </div>
-
-
-                    <h3>
-                        {selectedBuilding.id}
-                    </h3>
-
-
-                    <div className="nz-property-grid">
-
-                        <div>
-                            <span>
-                                LiDAR points
-                            </span>
-
-                            <strong>
-                                {selectedBuilding.point_count.toLocaleString()}
-                            </strong>
-                        </div>
-
-
-                        <div>
-                            <span>
-                                Height
-                            </span>
-
-                            <strong>
-                                {selectedBuilding.height_range.toFixed(2)}
-                                {" "}m
-                            </strong>
-                        </div>
-
-
-                        <div>
-                            <span>
-                                Base
-                            </span>
-
-                            <strong>
-                                {selectedBuilding.min_elevation.toFixed(2)}
-                                {" "}m
-                            </strong>
-                        </div>
-
-
-                        <div>
-                            <span>
-                                Roof
-                            </span>
-
-                            <strong>
-                                {selectedBuilding.max_elevation.toFixed(2)}
-                                {" "}m
-                            </strong>
-                        </div>
-
-                    </div>
-
-                </div>
+                <PropertyIntelligencePanel
+                    building={selectedBuilding}
+                    onClose={() => setSelectedBuilding(null)}
+                />
             )}
 
 
