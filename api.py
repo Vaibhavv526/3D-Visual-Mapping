@@ -1,5 +1,10 @@
 from pathlib import Path
 import json
+import gzip
+import time
+import threading
+import logging
+from contextlib import asynccontextmanager
 from pipeline.build_digital_twin import build_digital_twin
 from pipeline.process_lidar import build_dtm
 from pipeline.process_satellite import build_satellite_products
@@ -8,8 +13,9 @@ from pipeline.compare_terrain import compare_terrain
 from pipeline.validate_geospatial_inputs import validate
 import numpy as np
 import pyvista as pv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi import (
@@ -17,6 +23,7 @@ from fastapi import (
     UploadFile,
     File,
     HTTPException,
+    Response,
 )
 from pipeline.uploads import (
     save_uploaded_file,
@@ -72,6 +79,386 @@ NZ_BUILDING_POINTS_FILE = (
 )
 
 NZ_LIDAR_CRS = "EPSG:2193"
+
+# =========================================================
+# IN-MEMORY CACHE FOR NEW ZEALAND ASSETS
+# =========================================================
+
+logger = logging.getLogger("uvicorn.error")
+
+_nz_cache_lock = threading.Lock()
+_cached_nz_terrain_bytes: bytes | None = None
+_cached_nz_terrain_gzip: bytes | None = None
+_cached_nz_buildings_bytes: bytes | None = None
+_cached_nz_buildings_gzip: bytes | None = None
+
+
+def invalidate_nz_cache():
+    global _cached_nz_terrain_bytes, _cached_nz_terrain_gzip
+    global _cached_nz_buildings_bytes, _cached_nz_buildings_gzip
+    with _nz_cache_lock:
+        _cached_nz_terrain_bytes = None
+        _cached_nz_terrain_gzip = None
+        _cached_nz_buildings_bytes = None
+        _cached_nz_buildings_gzip = None
+    logger.info("[PERF:CACHE] NZ in-memory cache invalidated.")
+
+
+def prepare_nz_terrain_cache() -> bytes:
+    global _cached_nz_terrain_bytes, _cached_nz_terrain_gzip
+    if _cached_nz_terrain_bytes is not None:
+        return _cached_nz_terrain_bytes
+
+    with _nz_cache_lock:
+        if _cached_nz_terrain_bytes is not None:
+            return _cached_nz_terrain_bytes
+
+        if not NZ_TERRAIN_FILE.exists():
+            return b'{"error": "New Zealand terrain mesh not found"}'
+
+        t0 = time.perf_counter()
+        logger.info("[PERF:CACHE] Warming NZ terrain cache...")
+        mesh = pv.read(NZ_TERRAIN_FILE)
+
+        points = np.asarray(
+            mesh.points,
+            dtype=np.float32
+        )
+
+        elevation = np.asarray(
+            mesh.point_data.get(
+                "Elevation",
+                points[:, 2]
+            ),
+            dtype=np.float32
+        )
+
+        points = np.nan_to_num(
+            points,
+            nan=0.0,
+            posinf=0.0,
+            neginf=0.0
+        )
+
+        elevation = np.nan_to_num(
+            elevation,
+            nan=0.0,
+            posinf=0.0,
+            neginf=0.0
+        )
+
+        slope = np.asarray(
+            mesh.point_data.get(
+                "Slope",
+                np.zeros(mesh.n_points)
+            ),
+            dtype=np.float32
+        )
+
+        slope = np.nan_to_num(
+            slope,
+            nan=0.0,
+            posinf=0.0,
+            neginf=0.0
+        )
+
+        relative_elevation = np.asarray(
+            mesh.point_data.get(
+                "RelativeElevation",
+                np.zeros(mesh.n_points)
+            ),
+            dtype=np.float32
+        )
+
+        relative_elevation = np.nan_to_num(
+            relative_elevation,
+            nan=0.0,
+            posinf=0.0,
+            neginf=0.0
+        )
+
+        raw_faces = np.asarray(
+            mesh.faces,
+            dtype=np.uint32
+        )
+
+        triangle_faces = []
+        offset = 0
+        raw_faces_len = len(raw_faces)
+
+        while offset < raw_faces_len:
+            vertex_count = int(raw_faces[offset])
+            vertices = raw_faces[offset + 1: offset + 1 + vertex_count]
+            if vertex_count >= 3:
+                for i in range(1, vertex_count - 1):
+                    triangle_faces.append([
+                        int(vertices[0]),
+                        int(vertices[i]),
+                        int(vertices[i + 1]),
+                    ])
+            offset += vertex_count + 1
+
+        faces = np.asarray(
+            triangle_faces,
+            dtype=np.uint32
+        )
+
+        rgb = np.asarray(
+            mesh.point_data.get(
+                "RGB",
+                np.zeros((mesh.n_points, 3))
+            ),
+            dtype=np.float32
+        )
+
+        rgb = np.nan_to_num(
+            rgb,
+            nan=0.0,
+            posinf=0.0,
+            neginf=0.0
+        )
+
+        ndvi = np.asarray(
+            mesh.point_data.get(
+                "NDVI",
+                np.zeros(mesh.n_points)
+            ),
+            dtype=np.float32
+        )
+
+        ndvi = np.nan_to_num(
+            ndvi,
+            nan=0.0,
+            posinf=0.0,
+            neginf=0.0
+        )
+
+        payload = {
+            "vertices": points.tolist(),
+            "faces": faces.tolist(),
+            "elevation": elevation.tolist(),
+            "slope": slope.tolist(),
+            "relative_elevation": relative_elevation.tolist(),
+            "rgb": rgb.tolist(),
+            "ndvi": ndvi.tolist(),
+            "vertex_count": int(mesh.n_points),
+            "triangle_count": int(mesh.n_cells),
+            "crs": NZ_LIDAR_CRS,
+            "dataset": "New Zealand LiDAR",
+        }
+
+        json_str = json.dumps(payload)
+        _cached_nz_terrain_bytes = json_str.encode("utf-8")
+        _cached_nz_terrain_gzip = gzip.compress(_cached_nz_terrain_bytes, compresslevel=6)
+        elapsed = time.perf_counter() - t0
+        logger.info(
+            f"[PERF:CACHE] NZ terrain cached in {elapsed:.3f}s: "
+            f"{len(_cached_nz_terrain_bytes) / 1024 / 1024:.2f} MB raw, "
+            f"{len(_cached_nz_terrain_gzip) / 1024 / 1024:.2f} MB gzip"
+        )
+        return _cached_nz_terrain_bytes
+
+
+def prepare_nz_buildings_cache() -> bytes:
+    global _cached_nz_buildings_bytes, _cached_nz_buildings_gzip
+    if _cached_nz_buildings_bytes is not None:
+        return _cached_nz_buildings_bytes
+
+    with _nz_cache_lock:
+        if _cached_nz_buildings_bytes is not None:
+            return _cached_nz_buildings_bytes
+
+        building_file = NZ_OUTPUT_DIR / "building_fused.vtp"
+        if not building_file.exists():
+            return b'{"error": "Fused New Zealand building mesh not found"}'
+
+        t0 = time.perf_counter()
+        logger.info("[PERF:CACHE] Warming NZ buildings cache...")
+        mesh = pv.read(building_file)
+
+        points = np.asarray(
+            mesh.points,
+            dtype=np.float32
+        )
+
+        points = np.nan_to_num(
+            points,
+            nan=0.0,
+            posinf=0.0,
+            neginf=0.0
+        )
+
+        building_ids = np.asarray(
+            mesh.point_data["BuildingID"],
+            dtype=np.int32
+        )
+
+        rgb_all = np.asarray(
+            mesh.point_data.get(
+                "RGB",
+                np.zeros((mesh.n_points, 3), dtype=np.float32)
+            ),
+            dtype=np.float32
+        )
+
+        ndvi_all = np.asarray(
+            mesh.point_data.get(
+                "NDVI",
+                np.zeros(mesh.n_points, dtype=np.float32)
+            ),
+            dtype=np.float32
+        )
+
+        height_all = np.asarray(
+            mesh.point_data.get(
+                "Height",
+                np.zeros(mesh.n_points, dtype=np.float32)
+            ),
+            dtype=np.float32
+        )
+
+        ground_all = np.asarray(
+            mesh.point_data.get(
+                "GroundElevation",
+                np.zeros(mesh.n_points, dtype=np.float32)
+            ),
+            dtype=np.float32
+        )
+
+        roof_all = np.asarray(
+            mesh.point_data.get(
+                "RoofElevation",
+                np.zeros(mesh.n_points, dtype=np.float32)
+            ),
+            dtype=np.float32
+        )
+
+        rgb_all = np.nan_to_num(rgb_all, nan=0.0, posinf=0.0, neginf=0.0)
+        ndvi_all = np.nan_to_num(ndvi_all, nan=0.0, posinf=0.0, neginf=0.0)
+        height_all = np.nan_to_num(height_all, nan=0.0, posinf=0.0, neginf=0.0)
+        ground_all = np.nan_to_num(ground_all, nan=0.0, posinf=0.0, neginf=0.0)
+        roof_all = np.nan_to_num(roof_all, nan=0.0, posinf=0.0, neginf=0.0)
+
+        raw_faces = np.asarray(mesh.faces, dtype=np.uint32)
+        triangle_faces = []
+        offset = 0
+        raw_faces_len = len(raw_faces)
+
+        while offset < raw_faces_len:
+            vertex_count = int(raw_faces[offset])
+            vertices = raw_faces[offset + 1: offset + 1 + vertex_count]
+            if vertex_count >= 3:
+                for i in range(1, vertex_count - 1):
+                    triangle_faces.append([
+                        int(vertices[0]),
+                        int(vertices[i]),
+                        int(vertices[i + 1]),
+                    ])
+            offset += vertex_count + 1
+
+        triangle_faces = np.asarray(triangle_faces, dtype=np.uint32)
+
+        buildings = []
+        unique_ids = np.unique(building_ids)
+
+        for building_number in unique_ids:
+            point_indices = np.where(building_ids == building_number)[0]
+            if len(point_indices) < 3:
+                continue
+
+            local_index = {
+                int(global_index): local_idx
+                for local_idx, global_index in enumerate(point_indices)
+            }
+
+            building_faces = []
+            for face in triangle_faces:
+                a, b, c = map(int, face)
+                if a in local_index and b in local_index and c in local_index:
+                    building_faces.append([
+                        local_index[a],
+                        local_index[b],
+                        local_index[c],
+                    ])
+
+            if not building_faces:
+                continue
+
+            building_points = points[point_indices]
+            building_rgb = rgb_all[point_indices]
+            building_ndvi = ndvi_all[point_indices]
+            building_heights = height_all[point_indices]
+            building_ground = ground_all[point_indices]
+            building_roof = roof_all[point_indices]
+
+            buildings.append({
+                "id": f"NZ-B{int(building_number):03d}",
+                "vertices": building_points.tolist(),
+                "faces": np.asarray(building_faces, dtype=np.uint32).tolist(),
+                "rgb": building_rgb.tolist(),
+                "ndvi": building_ndvi.tolist(),
+                "height": float(np.max(building_heights)),
+                "ground_elevation": float(np.mean(building_ground)),
+                "roof_elevation": float(np.max(building_roof)),
+                "point_count": int(len(building_points)),
+                "triangle_count": int(len(building_faces)),
+                "min_elevation": float(building_points[:, 2].min()),
+                "max_elevation": float(building_points[:, 2].max()),
+                "height_range": float(
+                    building_points[:, 2].max() - building_points[:, 2].min()
+                ),
+                "bounds": {
+                    "min_x": float(building_points[:, 0].min()),
+                    "max_x": float(building_points[:, 0].max()),
+                    "min_y": float(building_points[:, 1].min()),
+                    "max_y": float(building_points[:, 1].max()),
+                },
+            })
+
+        payload = {
+            "buildings": buildings,
+            "building_count": len(buildings),
+            "crs": NZ_LIDAR_CRS,
+            "dataset": "New Zealand LiDAR + Sentinel-2",
+        }
+
+        json_str = json.dumps(payload)
+        _cached_nz_buildings_bytes = json_str.encode("utf-8")
+        _cached_nz_buildings_gzip = gzip.compress(_cached_nz_buildings_bytes, compresslevel=6)
+        elapsed = time.perf_counter() - t0
+        logger.info(
+            f"[PERF:CACHE] NZ buildings cached in {elapsed:.3f}s: "
+            f"{len(_cached_nz_buildings_bytes) / 1024 / 1024:.2f} MB raw, "
+            f"{len(_cached_nz_buildings_gzip) / 1024 / 1024:.2f} MB gzip ({len(buildings)} buildings)"
+        )
+        return _cached_nz_buildings_bytes
+
+
+def get_nz_terrain_payload(wants_gzip: bool) -> tuple[bytes, bool]:
+    prepare_nz_terrain_cache()
+    if wants_gzip and _cached_nz_terrain_gzip is not None:
+        return _cached_nz_terrain_gzip, True
+    return _cached_nz_terrain_bytes or b"{}", False
+
+
+def get_nz_buildings_payload(wants_gzip: bool) -> tuple[bytes, bool]:
+    prepare_nz_buildings_cache()
+    if wants_gzip and _cached_nz_buildings_gzip is not None:
+        return _cached_nz_buildings_gzip, True
+    return _cached_nz_buildings_bytes or b"{}", False
+
+
+@asynccontextmanager
+async def lifespan(app_instance: FastAPI):
+    logger.info("[STARTUP] Pre-warming NZ Digital Twin in-memory cache...")
+    try:
+        prepare_nz_terrain_cache()
+        prepare_nz_buildings_cache()
+    except Exception as exc:
+        logger.error(f"[ERROR] Failed to initialize NZ cache during startup: {exc}")
+    yield
+
+
 # =========================================================
 # APPLICATION
 # =========================================================
@@ -80,6 +467,7 @@ app = FastAPI(
     title="Bilaspur Digital Twin API",
     description="Terrain, slope, elevation and NDVI analytics API",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # =========================================================
@@ -281,6 +669,7 @@ def run_full_pipeline():
     try:
 
         result = run_pipeline()
+        invalidate_nz_cache()
 
         return {
             "success": True,
@@ -303,6 +692,11 @@ FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
 # =========================================================
 # CORS
 # =========================================================
+
+app.add_middleware(
+    GZipMiddleware,
+    minimum_size=1000,
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -329,36 +723,6 @@ def root():
             FRONTEND_DIST / "index.html"
         )
 
-    rgb = np.asarray(
-        mesh.point_data.get(
-            "RGB",
-            np.zeros((mesh.n_points, 3))
-        ),
-        dtype=np.float32
-    )
-
-    rgb = np.nan_to_num(
-        rgb,
-        nan=0.0,
-        posinf=0.0,
-        neginf=0.0
-    )
-
-    ndvi = np.asarray(
-        mesh.point_data.get(
-            "NDVI",
-            np.zeros(mesh.n_points)
-        ),
-        dtype=np.float32
-    )
-
-    ndvi = np.nan_to_num(
-        ndvi,
-        nan=0.0,
-        posinf=0.0,
-        neginf=0.0
-    )
-
     return {
         "project": "Bilaspur Digital Twin",
         "status": "running",
@@ -368,40 +732,13 @@ def root():
 
 @app.get("/health")
 def health():
-    rgb = np.asarray(
-        mesh.point_data.get(
-            "RGB",
-            np.zeros((mesh.n_points, 3))
-        ),
-        dtype=np.float32
-    )
-
-    rgb = np.nan_to_num(
-        rgb,
-        nan=0.0,
-        posinf=0.0,
-        neginf=0.0
-    )
-
-    ndvi = np.asarray(
-        mesh.point_data.get(
-            "NDVI",
-            np.zeros(mesh.n_points)
-        ),
-        dtype=np.float32
-    )
-
-    ndvi = np.nan_to_num(
-        ndvi,
-        nan=0.0,
-        posinf=0.0,
-        neginf=0.0
-    )
-
     return {
         "status": "healthy",
         "terrain_available": TERRAIN_FILE.exists(),
         "analytics_available": ANALYTICS_FILE.exists(),
+        "nz_terrain_available": NZ_TERRAIN_FILE.exists(),
+        "nz_building_mesh_available": NZ_BUILDING_FILE.exists(),
+        "nz_building_points_available": NZ_BUILDING_POINTS_FILE.exists(),
     }
 
 
@@ -431,6 +768,7 @@ def get_analytics():
 def build_pipeline():
     try:
         result = build_digital_twin()
+        invalidate_nz_cache()
 
         return {
             "success": True,
@@ -745,467 +1083,50 @@ def get_nz_metadata():
 
 
 @app.get("/api/nz/terrain")
-def get_nz_terrain():
+def get_nz_terrain(request: Request):
 
     if not NZ_TERRAIN_FILE.exists():
-        return {
-            "error": "New Zealand terrain mesh not found"
-        }
-
-    mesh = pv.read(NZ_TERRAIN_FILE)
-
-    points = np.asarray(
-        mesh.points,
-        dtype=np.float32
-    )
-
-    elevation = np.asarray(
-        mesh.point_data.get(
-            "Elevation",
-            points[:, 2]
-        ),
-        dtype=np.float32
-    )
-
-    points = np.nan_to_num(
-        points,
-        nan=0.0,
-        posinf=0.0,
-        neginf=0.0
-    )
-
-    elevation = np.nan_to_num(
-        elevation,
-        nan=0.0,
-        posinf=0.0,
-        neginf=0.0
-    )
-
-    slope = np.asarray(
-        mesh.point_data.get(
-            "Slope",
-            np.zeros(mesh.n_points)
-        ),
-        dtype=np.float32
-    )
-
-    slope = np.nan_to_num(
-        slope,
-        nan=0.0,
-        posinf=0.0,
-        neginf=0.0
-    )
-
-    relative_elevation = np.asarray(
-        mesh.point_data.get(
-            "RelativeElevation",
-            np.zeros(mesh.n_points)
-        ),
-        dtype=np.float32
-    )
-
-    relative_elevation = np.nan_to_num(
-        relative_elevation,
-        nan=0.0,
-        posinf=0.0,
-        neginf=0.0
-    )
-
-    # -------------------------------------------------
-    # Convert PyVista mixed polygon faces to triangles.
-    #
-    # PyVista stores faces as:
-    # [N, v1, v2, ... vN, N, v1, ...]
-    #
-    # The building mesh contains both quads and
-    # triangles, while the frontend expects triangles.
-    # -------------------------------------------------
-
-    raw_faces = np.asarray(
-        mesh.faces,
-        dtype=np.uint32
-    )
-
-    triangle_faces = []
-
-    offset = 0
-
-    while offset < len(raw_faces):
-
-        vertex_count = int(
-            raw_faces[offset]
+        return Response(
+            content=b'{"error": "New Zealand terrain mesh not found"}',
+            status_code=404,
+            media_type="application/json",
         )
 
-        vertices = raw_faces[
-            offset + 1:
-            offset + 1 + vertex_count
-        ]
-
-        if vertex_count >= 3:
-
-            # Fan triangulation:
-            # quad [0,1,2,3]
-            # becomes:
-            # [0,1,2]
-            # [0,2,3]
-
-            for i in range(
-                1,
-                vertex_count - 1
-            ):
-
-                triangle_faces.append([
-                    int(vertices[0]),
-                    int(vertices[i]),
-                    int(vertices[i + 1]),
-                ])
-
-        offset += vertex_count + 1
-
-    faces = np.asarray(
-        triangle_faces,
-        dtype=np.uint32
+    accept_encoding = request.headers.get("accept-encoding", "").lower()
+    content_bytes, is_gzip = get_nz_terrain_payload("gzip" in accept_encoding)
+    headers = {"Content-Encoding": "gzip"} if is_gzip else {}
+    return Response(
+        content=content_bytes,
+        media_type="application/json",
+        headers=headers,
     )
 
-    rgb = np.asarray(
-        mesh.point_data.get(
-            "RGB",
-            np.zeros((mesh.n_points, 3))
-        ),
-        dtype=np.float32
-    )
-
-    rgb = np.nan_to_num(
-        rgb,
-        nan=0.0,
-        posinf=0.0,
-        neginf=0.0
-    )
-
-    ndvi = np.asarray(
-        mesh.point_data.get(
-            "NDVI",
-            np.zeros(mesh.n_points)
-        ),
-        dtype=np.float32
-    )
-
-    ndvi = np.nan_to_num(
-        ndvi,
-        nan=0.0,
-        posinf=0.0,
-        neginf=0.0
-    )
-
-    return {
-        "vertices": points.tolist(),
-        "faces": faces.tolist(),
-        "elevation": elevation.tolist(),
-        "slope": slope.tolist(),
-        "relative_elevation": relative_elevation.tolist(),
-        "rgb": rgb.tolist(),
-        "ndvi": ndvi.tolist(),
-        "vertex_count": mesh.n_points,
-        "triangle_count": mesh.n_cells,
-        "crs": NZ_LIDAR_CRS,
-        "dataset": "New Zealand LiDAR"
-    }
 
 # =========================================================
 # NEW ZEALAND LiDAR BUILDINGS
 # =========================================================
 
 @app.get("/api/nz/buildings")
-def get_nz_buildings():
+def get_nz_buildings(request: Request):
 
     building_file = NZ_OUTPUT_DIR / "building_fused.vtp"
 
     if not building_file.exists():
-        return {
-            "error": "Fused New Zealand building mesh not found"
-        }
-
-    mesh = pv.read(building_file)
-
-    points = np.asarray(
-        mesh.points,
-        dtype=np.float32
-    )
-
-    points = np.nan_to_num(
-        points,
-        nan=0.0,
-        posinf=0.0,
-        neginf=0.0
-    )
-
-    building_ids = np.asarray(
-        mesh.point_data["BuildingID"],
-        dtype=np.int32
-    )
-
-    rgb_all = np.asarray(
-        mesh.point_data.get(
-            "RGB",
-            np.zeros((mesh.n_points, 3), dtype=np.float32)
-        ),
-        dtype=np.float32
-    )
-
-    ndvi_all = np.asarray(
-        mesh.point_data.get(
-            "NDVI",
-            np.zeros(mesh.n_points, dtype=np.float32)
-        ),
-        dtype=np.float32
-    )
-
-    height_all = np.asarray(
-        mesh.point_data.get(
-            "Height",
-            np.zeros(mesh.n_points, dtype=np.float32)
-        ),
-        dtype=np.float32
-    )
-
-    ground_all = np.asarray(
-        mesh.point_data.get(
-            "GroundElevation",
-            np.zeros(mesh.n_points, dtype=np.float32)
-        ),
-        dtype=np.float32
-    )
-
-    roof_all = np.asarray(
-        mesh.point_data.get(
-            "RoofElevation",
-            np.zeros(mesh.n_points, dtype=np.float32)
-        ),
-        dtype=np.float32
-    )
-
-    rgb_all = np.nan_to_num(
-        rgb_all,
-        nan=0.0,
-        posinf=0.0,
-        neginf=0.0
-    )
-
-    ndvi_all = np.nan_to_num(
-        ndvi_all,
-        nan=0.0,
-        posinf=0.0,
-        neginf=0.0
-    )
-
-    height_all = np.nan_to_num(
-        height_all,
-        nan=0.0,
-        posinf=0.0,
-        neginf=0.0
-    )
-
-    ground_all = np.nan_to_num(
-        ground_all,
-        nan=0.0,
-        posinf=0.0,
-        neginf=0.0
-    )
-
-    roof_all = np.nan_to_num(
-        roof_all,
-        nan=0.0,
-        posinf=0.0,
-        neginf=0.0
-    )
-
-    # -------------------------------------------------
-    # Convert PyVista faces to triangles
-    # -------------------------------------------------
-
-    raw_faces = np.asarray(
-        mesh.faces,
-        dtype=np.uint32
-    )
-
-    triangle_faces = []
-
-    offset = 0
-
-    while offset < len(raw_faces):
-
-        vertex_count = int(
-            raw_faces[offset]
+        return Response(
+            content=b'{"error": "Fused New Zealand building mesh not found"}',
+            status_code=404,
+            media_type="application/json",
         )
 
-        vertices = raw_faces[
-            offset + 1:
-            offset + 1 + vertex_count
-        ]
-
-        if vertex_count >= 3:
-
-            for i in range(
-                1,
-                vertex_count - 1
-            ):
-
-                triangle_faces.append([
-                    int(vertices[0]),
-                    int(vertices[i]),
-                    int(vertices[i + 1]),
-                ])
-
-        offset += vertex_count + 1
-
-    triangle_faces = np.asarray(
-        triangle_faces,
-        dtype=np.uint32
+    accept_encoding = request.headers.get("accept-encoding", "").lower()
+    content_bytes, is_gzip = get_nz_buildings_payload("gzip" in accept_encoding)
+    headers = {"Content-Encoding": "gzip"} if is_gzip else {}
+    return Response(
+        content=content_bytes,
+        media_type="application/json",
+        headers=headers,
     )
 
-    # -------------------------------------------------
-    # Split mesh by BuildingID
-    # -------------------------------------------------
-
-    buildings = []
-
-    unique_ids = np.unique(
-        building_ids
-    )
-
-    for building_number in unique_ids:
-
-        point_indices = np.where(
-            building_ids == building_number
-        )[0]
-
-        if len(point_indices) < 3:
-            continue
-
-        # Global -> local vertex index
-        local_index = {
-            int(global_index): local_index
-            for local_index, global_index
-            in enumerate(point_indices)
-        }
-
-        building_faces = []
-
-        for face in triangle_faces:
-
-            a, b, c = map(
-                int,
-                face
-            )
-
-            if (
-                a in local_index
-                and b in local_index
-                and c in local_index
-            ):
-
-                building_faces.append([
-                    local_index[a],
-                    local_index[b],
-                    local_index[c]
-                ])
-
-        if not building_faces:
-            continue
-
-        building_points = points[
-            point_indices
-        ]
-
-        building_rgb = rgb_all[
-            point_indices
-        ]
-
-        building_ndvi = ndvi_all[
-            point_indices
-        ]
-
-        building_heights = height_all[
-            point_indices
-        ]
-
-        building_ground = ground_all[
-            point_indices
-        ]
-
-        building_roof = roof_all[
-            point_indices
-        ]
-
-        buildings.append({
-            "id": f"NZ-B{int(building_number):03d}",
-
-            "vertices": building_points.tolist(),
-
-            "faces": np.asarray(
-                building_faces,
-                dtype=np.uint32
-            ).tolist(),
-
-            "rgb": building_rgb.tolist(),
-
-            "ndvi": building_ndvi.tolist(),
-
-            "height": float(
-                np.max(building_heights)
-            ),
-
-            "ground_elevation": float(
-                np.mean(building_ground)
-            ),
-
-            "roof_elevation": float(
-                np.max(building_roof)
-            ),
-
-            "point_count": int(
-                len(building_points)
-            ),
-
-            "triangle_count": int(
-                len(building_faces)
-            ),
-
-            "min_elevation": float(
-                building_points[:, 2].min()
-            ),
-
-            "max_elevation": float(
-                building_points[:, 2].max()
-            ),
-
-            "height_range": float(
-                building_points[:, 2].max()
-                - building_points[:, 2].min()
-            ),
-
-            "bounds": {
-                "min_x": float(
-                    building_points[:, 0].min()
-                ),
-                "max_x": float(
-                    building_points[:, 0].max()
-                ),
-                "min_y": float(
-                    building_points[:, 1].min()
-                ),
-                "max_y": float(
-                    building_points[:, 1].max()
-                )
-            }
-        })
-
-    return {
-        "buildings": buildings,
-        "building_count": len(buildings),
-        "crs": NZ_LIDAR_CRS,
-        "dataset": "New Zealand LiDAR + Sentinel-2"
-    }
 
 
 @app.get("/api/nz/buildings/points")

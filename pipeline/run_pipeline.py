@@ -43,7 +43,8 @@ EXISTING_SATELLITE_DIR = (
 COPERNICUS_DEM = next(
     BASE_DIR.rglob(
         "Copernicus_DSM_10_N22_00_E082_00_DEM.tif"
-    )
+    ),
+    None
 )
 
 REFERENCE_RGB = (
