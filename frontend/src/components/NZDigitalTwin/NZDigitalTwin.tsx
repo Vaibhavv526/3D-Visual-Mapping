@@ -695,6 +695,69 @@ function computeConvexHull2D(points: [number, number][]): [number, number][] {
     return lower.concat(upper);
 }
 
+function createFloorPrismGeometry(hull: [number, number][], height: number): THREE.BufferGeometry {
+    const N = hull.length;
+    const positions: number[] = [];
+
+    // Top face (y = height, normal pointing +Y, counter-clockwise)
+    for (let i = 1; i < N - 1; i++) {
+        positions.push(hull[0][0], height, hull[0][1]);
+        positions.push(hull[i][0], height, hull[i][1]);
+        positions.push(hull[i + 1][0], height, hull[i + 1][1]);
+    }
+
+    // Bottom face (y = 0, normal pointing -Y, clockwise from above)
+    for (let i = 1; i < N - 1; i++) {
+        positions.push(hull[0][0], 0, hull[0][1]);
+        positions.push(hull[i + 1][0], 0, hull[i + 1][1]);
+        positions.push(hull[i][0], 0, hull[i][1]);
+    }
+
+    // Vertical side walls connecting perimeter
+    for (let i = 0; i < N; i++) {
+        const pA = hull[i];
+        const pB = hull[(i + 1) % N];
+
+        // Triangle 1: pA_bot, pB_bot, pB_top
+        positions.push(pA[0], 0, pA[1]);
+        positions.push(pB[0], 0, pB[1]);
+        positions.push(pB[0], height, pB[1]);
+
+        // Triangle 2: pA_bot, pB_top, pA_top
+        positions.push(pA[0], 0, pA[1]);
+        positions.push(pB[0], height, pB[1]);
+        positions.push(pA[0], height, pA[1]);
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geo.computeVertexNormals();
+    return geo;
+}
+
+function createFloorLineGeometry(hull: [number, number][], height: number): THREE.BufferGeometry {
+    const N = hull.length;
+    const lines: number[] = [];
+
+    for (let i = 0; i < N; i++) {
+        const pA = hull[i];
+        const pB = hull[(i + 1) % N];
+
+        // Bottom perimeter segment
+        lines.push(pA[0], 0, pA[1], pB[0], 0, pB[1]);
+
+        // Top perimeter segment
+        lines.push(pA[0], height, pA[1], pB[0], height, pB[1]);
+
+        // Vertical corner edge
+        lines.push(pA[0], 0, pA[1], pA[0], height, pA[1]);
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(lines, 3));
+    return geo;
+}
+
 interface NZVerticalLevelGuidesProps {
     building: NZBuilding;
     verticalStructure: NZVerticalStructure | null;
@@ -827,6 +890,186 @@ function NZVerticalLevelGuides({
     );
 }
 
+interface NZExplodedBuildingProps {
+    building: NZBuilding;
+    verticalStructure: NZVerticalStructure;
+    terrainVisualGroundY: number;
+    terrainMeta: TerrainMeta;
+    selectedVerticalLevel?: NZFloorLevel | null;
+    isExploded?: boolean;
+    isCollapsingToBuilding?: boolean;
+    onSelectVerticalLevel: (floor: NZFloorLevel) => void;
+    onCollapseComplete?: () => void;
+}
+
+function NZExplodedBuilding({
+    building,
+    verticalStructure,
+    terrainVisualGroundY,
+    terrainMeta,
+    selectedVerticalLevel = null,
+    isExploded = true,
+    isCollapsingToBuilding = false,
+    onSelectVerticalLevel,
+    onCollapseComplete
+}: NZExplodedBuildingProps) {
+    const [hoveredFloorIndex, setHoveredFloorIndex] = useState<number | null>(null);
+    const floorGroupRefs = useRef<(THREE.Group | null)[]>([]);
+    const animProgress = useRef<number>(0);
+
+    const { hull, floorGeometries, buildingBaseElevation } = useMemo(() => {
+        const points = building.vertices;
+        const { centerX, centerY } = terrainMeta;
+        const pts2D: [number, number][] = points.map((pt) => [
+            pt[0] - centerX,
+            pt[1] - centerY
+        ]);
+        const computedHull = computeConvexHull2D(pts2D);
+        const bBaseElev = building.min_elevation;
+
+        const geometries = (verticalStructure.floors || []).map((floor) => {
+            const floorHeight = Math.max(0.3, (floor.top_elevation - floor.base_elevation) * 1.0);
+            const prismGeo = createFloorPrismGeometry(computedHull, floorHeight);
+            const lineGeo = createFloorLineGeometry(computedHull, floorHeight);
+            return {
+                floor,
+                floorHeight,
+                prismGeo,
+                lineGeo
+            };
+        });
+
+        return {
+            hull: computedHull,
+            floorGeometries: geometries,
+            buildingBaseElevation: bBaseElev
+        };
+    }, [building, verticalStructure, terrainMeta]);
+
+    useEffect(() => {
+        (window as any).__nzGetExplodedInfo = () => {
+            return floorGroupRefs.current.map((grp) => {
+                if (!grp) return null;
+                return {
+                    name: grp.name,
+                    userData: grp.userData,
+                    y: grp.position.y,
+                    x: grp.position.x,
+                    z: grp.position.z,
+                    childrenCount: grp.children.length
+                };
+            }).filter(Boolean);
+        };
+        return () => {
+            floorGeometries.forEach((g) => {
+                g.prismGeo.dispose();
+                g.lineGeo.dispose();
+            });
+            delete (window as any).__nzGetExplodedInfo;
+        };
+    }, [floorGeometries]);
+
+    useFrame((_, delta) => {
+        const target = isCollapsingToBuilding ? 0 : (isExploded ? 1 : 0);
+        const speed = 1.25; // 800ms full duration (1.0 / 0.8)
+
+        if (animProgress.current < target) {
+            animProgress.current = Math.min(target, animProgress.current + delta * speed);
+        } else if (animProgress.current > target) {
+            animProgress.current = Math.max(target, animProgress.current - delta * speed);
+            if (animProgress.current === 0 && isCollapsingToBuilding) {
+                onCollapseComplete?.();
+            }
+        }
+
+        const easeT = easeInOutCubic(animProgress.current);
+
+        floorGeometries.forEach((item, i) => {
+            const grp = floorGroupRefs.current[i];
+            if (grp) {
+                const floor = item.floor;
+                const floorBaseY = terrainVisualGroundY + (floor.base_elevation - buildingBaseElevation) * 1.0;
+                const gap = i * 4.0 * easeT;
+                grp.position.set(0, floorBaseY + gap, 0);
+                grp.userData = {
+                    floorIndex: floor.floor_index,
+                    label: floor.label,
+                    gap,
+                    currentY: grp.position.y,
+                    progress: animProgress.current
+                };
+            }
+        });
+    });
+
+    if (floorGeometries.length === 0 || hull.length < 3) return null;
+
+    return (
+        <group name={`exploded-building-${building.id}`} renderOrder={50}>
+            {floorGeometries.map((item, i) => {
+                const { floor, prismGeo, lineGeo } = item;
+                const isSelected = selectedVerticalLevel?.floor_index === floor.floor_index;
+                const isHovered = hoveredFloorIndex === floor.floor_index;
+                const initialBaseY = terrainVisualGroundY + (floor.base_elevation - buildingBaseElevation) * 1.0;
+
+                return (
+                    <group
+                        key={floor.floor_index}
+                        ref={(el) => (floorGroupRefs.current[i] = el)}
+                        position={[0, initialBaseY, 0]}
+                        name={`exploded-floor-${floor.floor_index}`}
+                    >
+                        {/* Interactive Solid Slab */}
+                        <mesh
+                            geometry={prismGeo}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onSelectVerticalLevel(floor);
+                            }}
+                            onPointerOver={(e) => {
+                                e.stopPropagation();
+                                document.body.style.cursor = "pointer";
+                                setHoveredFloorIndex(floor.floor_index);
+                            }}
+                            onPointerOut={(e) => {
+                                e.stopPropagation();
+                                document.body.style.cursor = "auto";
+                                setHoveredFloorIndex(null);
+                            }}
+                        >
+                            <meshStandardMaterial
+                                color={isSelected ? "#0284c7" : isHovered ? "#2563eb" : "#1e293b"}
+                                transparent
+                                opacity={isSelected ? 0.94 : isHovered ? 0.88 : 0.82}
+                                emissive={isSelected ? "#38bdf8" : isHovered ? "#0284c7" : "#0ea5e9"}
+                                emissiveIntensity={isSelected ? 0.55 : isHovered ? 0.35 : 0.12}
+                                roughness={isSelected ? 0.2 : 0.35}
+                                metalness={0.15}
+                                depthWrite={true}
+                                side={THREE.DoubleSide}
+                                polygonOffset
+                                polygonOffsetFactor={1}
+                                polygonOffsetUnits={1}
+                            />
+                        </mesh>
+
+                        {/* Architectural Wireframe Edge Cage */}
+                        <lineSegments geometry={lineGeo} raycast={() => null}>
+                            <lineBasicMaterial
+                                color={isSelected ? "#38bdf8" : isHovered ? "#93c5fd" : "#38bdf8"}
+                                transparent
+                                opacity={isSelected ? 1.0 : isHovered ? 0.95 : 0.85}
+                                depthTest={true}
+                                depthWrite={false}
+                            />
+                        </lineSegments>
+                    </group>
+                );
+            })}
+        </group>
+    );
+}
+
 function NZBuildingMesh({
     building,
     terrain,
@@ -838,7 +1081,10 @@ function NZBuildingMesh({
     verticalStructure,
     explorationMode = "building",
     selectedVerticalLevel = null,
+    isExploded = true,
+    isCollapsingToBuilding = false,
     onSelectVerticalLevel,
+    onCollapseComplete,
     onSelect,
     onMeasureSelect
 }: {
@@ -852,7 +1098,10 @@ function NZBuildingMesh({
     verticalStructure?: NZVerticalStructure | null;
     explorationMode?: VerticalExplorationMode;
     selectedVerticalLevel?: NZFloorLevel | null;
+    isExploded?: boolean;
+    isCollapsingToBuilding?: boolean;
     onSelectVerticalLevel?: (floor: NZFloorLevel) => void;
+    onCollapseComplete?: () => void;
     onSelect: (
         building: NZBuilding
     ) => void;
@@ -1254,6 +1503,27 @@ function NZBuildingMesh({
             terrainMeta
         ]);
 
+    const activeVerticalStructure = verticalStructure ?? building.vertical_structure ?? null;
+    const hasFloors = (activeVerticalStructure?.floors?.length ?? 0) > 0;
+    const isExplodedActive = isOrigin && explorationMode === "exploring" && hasFloors;
+
+    if (isExplodedActive) {
+        return (
+            <group>
+                <NZExplodedBuilding
+                    building={building}
+                    verticalStructure={activeVerticalStructure!}
+                    terrainVisualGroundY={terrainVisualGroundY}
+                    terrainMeta={terrainMeta}
+                    selectedVerticalLevel={selectedVerticalLevel}
+                    isExploded={isExploded}
+                    isCollapsingToBuilding={isCollapsingToBuilding}
+                    onSelectVerticalLevel={onSelectVerticalLevel!}
+                    onCollapseComplete={onCollapseComplete}
+                />
+            </group>
+        );
+    }
 
     return (
         <group>
@@ -1551,8 +1821,8 @@ function CameraController({
 
         // Framing distance calculation:
         const boundingDiameter = Math.max(info.radius * 2, info.size.x, info.size.y, info.size.z);
-        let targetDistance = boundingDiameter * 2.3;
-        targetDistance = THREE.MathUtils.clamp(targetDistance, 90, 220);
+        let targetDistance = boundingDiameter * 1.55;
+        targetDistance = THREE.MathUtils.clamp(targetDistance, 60, 140);
 
         // Determine camera offset direction:
         // Preserve user's current azimuth (horizontal angle) with an elevated 3D perspective pitch
@@ -1714,8 +1984,11 @@ function PropertyIntelligencePanel({
     parcelsAvailable,
     explorationMode,
     selectedVerticalLevel,
+    isExploded = true,
     onEnterExploration,
     onExitExploration,
+    onToggleExplodedView,
+    onStartCollapse,
     onSelectVerticalLevel,
     onSelectParcel,
     onStartMeasure,
@@ -1734,8 +2007,11 @@ function PropertyIntelligencePanel({
     parcelsAvailable?: boolean;
     explorationMode: VerticalExplorationMode;
     selectedVerticalLevel: NZFloorLevel | null;
+    isExploded?: boolean;
     onEnterExploration: () => void;
     onExitExploration: () => void;
+    onToggleExplodedView?: () => void;
+    onStartCollapse?: () => void;
     onSelectVerticalLevel: (floor: NZFloorLevel) => void;
     onSelectParcel?: (parcel: NZParcel) => void;
     onStartMeasure: () => void;
@@ -1877,10 +2153,20 @@ function PropertyIntelligencePanel({
                     <button
                         type="button"
                         className="nz-btn-back-building"
-                        onClick={onExitExploration}
+                        onClick={onStartCollapse ?? onExitExploration}
                     >
                         ← Back to Building
                     </button>
+                    {onToggleExplodedView && (
+                        <button
+                            type="button"
+                            className={`nz-btn-toggle-exploded ${isExploded ? "active" : "collapsed"}`}
+                            onClick={onToggleExplodedView}
+                            title={isExploded ? "Collapse vertical levels" : "Explode vertical levels"}
+                        >
+                            {isExploded ? "⬡ Exploded View: Active" : "⬡ Exploded View: Collapsed"}
+                        </button>
+                    )}
                 </div>
 
                 <div className="nz-section-title" style={{ marginTop: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1993,6 +2279,26 @@ function PropertyIntelligencePanel({
                 <h3>{building.id}</h3>
                 <span className="nz-class-badge">Class 6 · Structure</span>
             </div>
+
+            {/* Primary Action Banner: 3D Exploded Vertical Exploration */}
+            {verticalStructure?.floors && verticalStructure.floors.length > 0 && (
+                <div className="nz-explore-top-banner">
+                    <button
+                        type="button"
+                        className="nz-btn-explore-prominent"
+                        onClick={onEnterExploration}
+                        disabled={measureMode}
+                        title={measureMode ? "Finish the current measurement first" : "Enter 3D vertical level explosion view"}
+                    >
+                        <span className="nz-explore-icon">🏢</span>
+                        <div className="nz-explore-text-group">
+                            <span className="nz-explore-btn-title">Explore Vertical Levels</span>
+                            <span className="nz-explore-btn-desc">{verticalStructure.floors.length} estimated levels · 3D Exploded View</span>
+                        </div>
+                        <span className="nz-explore-arrow">→</span>
+                    </button>
+                </div>
+            )}
 
             {/* 1. PROPERTY */}
             <div className="nz-section-title">1. PROPERTY</div>
@@ -4005,7 +4311,24 @@ export default function NZDigitalTwin() {
     ] =
         useState<NZFloorLevel | null>(null);
 
+    const [
+        isExploded,
+        setIsExploded
+    ] =
+        useState<boolean>(true);
+
+    const [
+        isCollapsingToBuilding,
+        setIsCollapsingToBuilding
+    ] =
+        useState<boolean>(false);
+
+    const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     const handleSelectBuilding = (b: NZBuilding) => {
+        if (selectedBuilding?.id === b.id && explorationMode === "exploring") {
+            return;
+        }
         setActivePreset(null);
         setSelectedBuilding(b);
         setSelectedParcel(null);
@@ -4014,6 +4337,12 @@ export default function NZDigitalTwin() {
         setIsDossierOpen(false);
         setExplorationMode("building");
         setSelectedVerticalLevel(null);
+        setIsExploded(true);
+        setIsCollapsingToBuilding(false);
+        if (collapseTimerRef.current) {
+            clearTimeout(collapseTimerRef.current);
+            collapseTimerRef.current = null;
+        }
         document.body.style.cursor = "auto";
     };
 
@@ -4023,6 +4352,12 @@ export default function NZDigitalTwin() {
             setMeasureTarget(null);
             setExplorationMode("building");
             setSelectedVerticalLevel(null);
+            setIsExploded(true);
+            setIsCollapsingToBuilding(false);
+            if (collapseTimerRef.current) {
+                clearTimeout(collapseTimerRef.current);
+                collapseTimerRef.current = null;
+            }
             document.body.style.cursor = "auto";
         }
     }, [selectedBuilding]);
@@ -4634,6 +4969,8 @@ export default function NZDigitalTwin() {
         if (!vStruct || !vStruct.floors || vStruct.floors.length === 0) return;
 
         setExplorationMode("exploring");
+        setIsExploded(true);
+        setIsCollapsingToBuilding(false);
         const level01 = vStruct.floors.find((f) => f.floor_index === 1) ?? vStruct.floors[0];
         setSelectedVerticalLevel(level01);
     };
@@ -4641,6 +4978,39 @@ export default function NZDigitalTwin() {
     const handleExitExploration = () => {
         setExplorationMode("building");
         setSelectedVerticalLevel(null);
+        setIsExploded(true);
+        setIsCollapsingToBuilding(false);
+        if (collapseTimerRef.current) {
+            clearTimeout(collapseTimerRef.current);
+            collapseTimerRef.current = null;
+        }
+    };
+
+    const handleToggleExplodedView = () => {
+        setIsExploded((prev) => !prev);
+    };
+
+    const handleCollapseComplete = () => {
+        if (collapseTimerRef.current) {
+            clearTimeout(collapseTimerRef.current);
+            collapseTimerRef.current = null;
+        }
+        setIsCollapsingToBuilding(false);
+        handleExitExploration();
+    };
+
+    const handleStartCollapse = () => {
+        if (!isExploded) {
+            handleExitExploration();
+            return;
+        }
+        setIsCollapsingToBuilding(true);
+        if (collapseTimerRef.current) {
+            clearTimeout(collapseTimerRef.current);
+        }
+        collapseTimerRef.current = setTimeout(() => {
+            handleCollapseComplete();
+        }, 1100);
     };
 
     const handleSelectVerticalLevel = (floor: NZFloorLevel) => {
@@ -4674,12 +5044,20 @@ export default function NZDigitalTwin() {
             setExplorationMode,
             selectedVerticalLevel,
             setSelectedVerticalLevel,
+            isExploded,
+            setIsExploded,
+            isCollapsingToBuilding,
             handleEnterExploration,
             handleExitExploration,
+            handleToggleExplodedView,
+            handleStartCollapse,
+            handleCollapseComplete,
             handleSelectVerticalLevel
         };
         (window as any).__nzEnterExploration = handleEnterExploration;
         (window as any).__nzExitExploration = handleExitExploration;
+        (window as any).__nzToggleExplodedView = handleToggleExplodedView;
+        (window as any).__nzStartCollapse = handleStartCollapse;
         (window as any).__nzSelectVerticalLevel = (floorIndexOrLabel: number | string) => {
             const vStruct = activeBuildingCadastralAssoc?.vertical_structure ?? selectedBuilding?.vertical_structure;
             if (!vStruct || !vStruct.floors) return;
@@ -4690,7 +5068,7 @@ export default function NZDigitalTwin() {
                 handleSelectVerticalLevel(floor);
             }
         };
-    }, [selectedBuilding, measureMode, measureTarget, activeFilter, matchedBuildingData, buildings, terrain, terrainMeta, siteAnalysisMap, areaIntelligence, layer, isDossierOpen, explorationMode, selectedVerticalLevel, activeBuildingCadastralAssoc]);
+    }, [selectedBuilding, measureMode, measureTarget, activeFilter, matchedBuildingData, buildings, terrain, terrainMeta, siteAnalysisMap, areaIntelligence, layer, isDossierOpen, explorationMode, selectedVerticalLevel, isExploded, isCollapsingToBuilding, activeBuildingCadastralAssoc]);
 
 
     if (error) {
@@ -4827,7 +5205,10 @@ export default function NZDigitalTwin() {
                                     verticalStructure={isOrigin ? (activeBuildingCadastralAssoc?.vertical_structure ?? building.vertical_structure) : null}
                                     explorationMode={isOrigin ? explorationMode : "building"}
                                     selectedVerticalLevel={isOrigin ? selectedVerticalLevel : null}
+                                    isExploded={isOrigin ? isExploded : true}
+                                    isCollapsingToBuilding={isOrigin ? isCollapsingToBuilding : false}
                                     onSelectVerticalLevel={handleSelectVerticalLevel}
+                                    onCollapseComplete={handleCollapseComplete}
                                     onSelect={
                                         handleSelectBuilding
                                     }
@@ -5247,8 +5628,11 @@ export default function NZDigitalTwin() {
                     parcelsAvailable={parcelsData?.available ?? false}
                     explorationMode={explorationMode}
                     selectedVerticalLevel={selectedVerticalLevel}
+                    isExploded={isExploded}
                     onEnterExploration={handleEnterExploration}
                     onExitExploration={handleExitExploration}
+                    onToggleExplodedView={handleToggleExplodedView}
+                    onStartCollapse={handleStartCollapse}
                     onSelectVerticalLevel={handleSelectVerticalLevel}
                     onSelectParcel={setSelectedParcel}
                     onStartMeasure={() => {
