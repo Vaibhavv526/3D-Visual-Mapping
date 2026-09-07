@@ -11,6 +11,7 @@ from pipeline.process_satellite import build_satellite_products
 from pipeline.run_pipeline import run_pipeline
 from pipeline.compare_terrain import compare_terrain
 from pipeline.validate_geospatial_inputs import validate
+from pipeline.vertical_structure import estimate_vertical_structure
 import numpy as np
 import pyvista as pv
 from fastapi import FastAPI, Request
@@ -78,6 +79,11 @@ NZ_BUILDING_POINTS_FILE = (
     / "building_points.vtp"
 )
 
+NZ_PARCELS_FILE = (
+    NZ_OUTPUT_DIR
+    / "parcels.json"
+)
+
 NZ_LIDAR_CRS = "EPSG:2193"
 
 # =========================================================
@@ -91,16 +97,21 @@ _cached_nz_terrain_bytes: bytes | None = None
 _cached_nz_terrain_gzip: bytes | None = None
 _cached_nz_buildings_bytes: bytes | None = None
 _cached_nz_buildings_gzip: bytes | None = None
+_cached_nz_parcels_bytes: bytes | None = None
+_cached_nz_parcels_gzip: bytes | None = None
 
 
 def invalidate_nz_cache():
     global _cached_nz_terrain_bytes, _cached_nz_terrain_gzip
     global _cached_nz_buildings_bytes, _cached_nz_buildings_gzip
+    global _cached_nz_parcels_bytes, _cached_nz_parcels_gzip
     with _nz_cache_lock:
         _cached_nz_terrain_bytes = None
         _cached_nz_terrain_gzip = None
         _cached_nz_buildings_bytes = None
         _cached_nz_buildings_gzip = None
+        _cached_nz_parcels_bytes = None
+        _cached_nz_parcels_gzip = None
     logger.info("[PERF:CACHE] NZ in-memory cache invalidated.")
 
 
@@ -391,15 +402,28 @@ def prepare_nz_buildings_cache() -> bytes:
             building_ground = ground_all[point_indices]
             building_roof = roof_all[point_indices]
 
+            b_id = f"NZ-B{int(building_number):03d}"
+            b_height = float(np.max(building_heights))
+            b_ground = float(np.mean(building_ground))
+            b_roof = float(np.max(building_roof))
+
+            vert_struct = estimate_vertical_structure(
+                building_id=b_id,
+                building_height=b_height,
+                ground_elevation=b_ground,
+                roof_elevation=b_roof,
+                property_id_3d=None,
+            )
+
             buildings.append({
-                "id": f"NZ-B{int(building_number):03d}",
+                "id": b_id,
                 "vertices": building_points.tolist(),
                 "faces": np.asarray(building_faces, dtype=np.uint32).tolist(),
                 "rgb": building_rgb.tolist(),
                 "ndvi": building_ndvi.tolist(),
-                "height": float(np.max(building_heights)),
-                "ground_elevation": float(np.mean(building_ground)),
-                "roof_elevation": float(np.max(building_roof)),
+                "height": b_height,
+                "ground_elevation": b_ground,
+                "roof_elevation": b_roof,
                 "point_count": int(len(building_points)),
                 "triangle_count": int(len(building_faces)),
                 "min_elevation": float(building_points[:, 2].min()),
@@ -413,6 +437,7 @@ def prepare_nz_buildings_cache() -> bytes:
                     "min_y": float(building_points[:, 1].min()),
                     "max_y": float(building_points[:, 1].max()),
                 },
+                "vertical_structure": vert_struct,
             })
 
         payload = {
@@ -448,12 +473,104 @@ def get_nz_buildings_payload(wants_gzip: bool) -> tuple[bytes, bool]:
     return _cached_nz_buildings_bytes or b"{}", False
 
 
+def prepare_nz_parcels_cache() -> bytes:
+    global _cached_nz_parcels_bytes, _cached_nz_parcels_gzip
+    if _cached_nz_parcels_bytes is not None:
+        return _cached_nz_parcels_bytes
+
+    with _nz_cache_lock:
+        if _cached_nz_parcels_bytes is not None:
+            return _cached_nz_parcels_bytes
+
+        if not NZ_PARCELS_FILE.exists():
+            payload = {
+                "available": False,
+                "message": "Cadastral parcels dataset not loaded",
+                "parcels": [],
+                "associations": [],
+                "summary": None,
+                "crs": NZ_LIDAR_CRS,
+            }
+            json_bytes = json.dumps(payload).encode("utf-8")
+            _cached_nz_parcels_bytes = json_bytes
+            _cached_nz_parcels_gzip = gzip.compress(json_bytes, compresslevel=6)
+            return _cached_nz_parcels_bytes
+
+        t0 = time.perf_counter()
+        logger.info("[PERF:CACHE] Warming NZ parcels cache...")
+        try:
+            with open(NZ_PARCELS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            data["available"] = True
+
+            associations = data.get("associations", [])
+            for assoc in associations:
+                primary_id = assoc.get("primary_parcel_id")
+                b_id = assoc.get("building_id")
+                is_multi = assoc.get("is_multi_parcel", False)
+
+                if primary_id and b_id:
+                    assoc.setdefault("property_id_3d", f"3DP-{primary_id}-{b_id}")
+                    assoc.setdefault("vertical_unit_id", None)
+                    assoc.setdefault("identity_status", "Multi-parcel" if is_multi else "Parcel associated")
+                else:
+                    assoc.setdefault("property_id_3d", None)
+                    assoc.setdefault("vertical_unit_id", None)
+                    assoc.setdefault("identity_status", "Unassociated building")
+
+                vert = assoc.get("vertical_structure")
+                prop_id = assoc.get("property_id_3d")
+                if vert and isinstance(vert, dict):
+                    vert["property_id_3d"] = prop_id
+                    for f in vert.get("floors", []):
+                        f_idx = f.get("floor_index", 1)
+                        f["vertical_unit_id"] = f"{prop_id}-L{f_idx:02d}" if prop_id else None
+
+            summary = data.get("summary")
+            if summary and "identities_generated" not in summary:
+                summary["identities_generated"] = summary.get("associated_buildings", 0)
+
+            json_bytes = json.dumps(data).encode("utf-8")
+            _cached_nz_parcels_bytes = json_bytes
+            _cached_nz_parcels_gzip = gzip.compress(json_bytes, compresslevel=6)
+            elapsed = time.perf_counter() - t0
+            parcel_count = len(data.get("parcels", []))
+            logger.info(
+                f"[PERF:CACHE] NZ parcels cached in {elapsed:.3f}s: "
+                f"{len(_cached_nz_parcels_bytes) / 1024:.1f} KB raw, "
+                f"{len(_cached_nz_parcels_gzip) / 1024:.1f} KB gzip ({parcel_count} parcels)"
+            )
+            return _cached_nz_parcels_bytes
+        except Exception as exc:
+            logger.error(f"[ERROR] Failed to load NZ parcels: {exc}")
+            payload = {
+                "available": False,
+                "message": f"Error loading parcels: {exc}",
+                "parcels": [],
+                "associations": [],
+                "summary": None,
+                "crs": NZ_LIDAR_CRS,
+            }
+            json_bytes = json.dumps(payload).encode("utf-8")
+            _cached_nz_parcels_bytes = json_bytes
+            _cached_nz_parcels_gzip = gzip.compress(json_bytes, compresslevel=6)
+            return _cached_nz_parcels_bytes
+
+
+def get_nz_parcels_payload(wants_gzip: bool) -> tuple[bytes, bool]:
+    prepare_nz_parcels_cache()
+    if wants_gzip and _cached_nz_parcels_gzip is not None:
+        return _cached_nz_parcels_gzip, True
+    return _cached_nz_parcels_bytes or b"{}", False
+
+
 @asynccontextmanager
 async def lifespan(app_instance: FastAPI):
     logger.info("[STARTUP] Pre-warming NZ Digital Twin in-memory cache...")
     try:
         prepare_nz_terrain_cache()
         prepare_nz_buildings_cache()
+        prepare_nz_parcels_cache()
     except Exception as exc:
         logger.error(f"[ERROR] Failed to initialize NZ cache during startup: {exc}")
     yield
@@ -1127,6 +1244,21 @@ def get_nz_buildings(request: Request):
         headers=headers,
     )
 
+
+# =========================================================
+# NEW ZEALAND CADASTRAL PARCELS
+# =========================================================
+
+@app.get("/api/nz/parcels")
+def get_nz_parcels(request: Request):
+    accept_encoding = request.headers.get("accept-encoding", "").lower()
+    content_bytes, is_gzip = get_nz_parcels_payload("gzip" in accept_encoding)
+    headers = {"Content-Encoding": "gzip"} if is_gzip else {}
+    return Response(
+        content=content_bytes,
+        media_type="application/json",
+        headers=headers,
+    )
 
 
 @app.get("/api/nz/buildings/points")
