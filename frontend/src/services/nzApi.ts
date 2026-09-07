@@ -45,6 +45,10 @@ export interface NZBuilding {
     vertical_structure?: NZVerticalStructure | null;
 }
 
+export type VerticalExplorationMode =
+    | "building"
+    | "exploring";
+
 export interface NZFloorLevel {
     floor_index: number;
     label: string;
