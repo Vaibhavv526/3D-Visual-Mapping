@@ -223,6 +223,37 @@ export async function getNZParcels(): Promise<NZParcelsData> {
 
 export type ValidationStatus = "PASS" | "WARNING" | "ERROR" | "NOT_AVAILABLE";
 
+export interface NZBuildingMLProfile {
+    building_id: string;
+    anomaly_score: number;
+    normalized_deviation: number;
+    classification: "Typical" | "Moderately unusual" | "Highly unusual";
+    feature_summary: {
+        Height: number;
+        "Estimated Levels": number;
+        "Footprint Area (bbox)": number;
+        "Ground Elevation": number;
+        "Roof Elevation": number;
+    };
+}
+
+export interface NZBuildingMLSummary {
+    model_type: string;
+    feature_names: string[];
+    training_sample_count: number;
+    dataset: string;
+    disclaimer: string;
+    profiles: NZBuildingMLProfile[];
+}
+
+export async function getNZMLBuildings(): Promise<NZBuildingMLSummary> {
+    const res = await fetch(`${API_BASE_URL}/api/nz/ml/buildings`);
+    if (!res.ok) {
+        throw new Error(`Failed to fetch NZ ML buildings: ${res.statusText}`);
+    }
+    return res.json();
+}
+
 export interface ValidationCheck {
     rule: string;
     status: ValidationStatus;

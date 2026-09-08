@@ -99,12 +99,14 @@ _cached_nz_buildings_bytes: bytes | None = None
 _cached_nz_buildings_gzip: bytes | None = None
 _cached_nz_parcels_bytes: bytes | None = None
 _cached_nz_parcels_gzip: bytes | None = None
-
+_cached_nz_ml_bytes: bytes | None = None
+_cached_nz_ml_gzip: bytes | None = None
 
 def invalidate_nz_cache():
     global _cached_nz_terrain_bytes, _cached_nz_terrain_gzip
     global _cached_nz_buildings_bytes, _cached_nz_buildings_gzip
     global _cached_nz_parcels_bytes, _cached_nz_parcels_gzip
+    global _cached_nz_ml_bytes, _cached_nz_ml_gzip
     with _nz_cache_lock:
         _cached_nz_terrain_bytes = None
         _cached_nz_terrain_gzip = None
@@ -112,6 +114,8 @@ def invalidate_nz_cache():
         _cached_nz_buildings_gzip = None
         _cached_nz_parcels_bytes = None
         _cached_nz_parcels_gzip = None
+        _cached_nz_ml_bytes = None
+        _cached_nz_ml_gzip = None
     logger.info("[PERF:CACHE] NZ in-memory cache invalidated.")
 
 
@@ -471,6 +475,104 @@ def get_nz_buildings_payload(wants_gzip: bool) -> tuple[bytes, bool]:
     if wants_gzip and _cached_nz_buildings_gzip is not None:
         return _cached_nz_buildings_gzip, True
     return _cached_nz_buildings_bytes or b"{}", False
+
+def get_nz_ml_payload(wants_gzip: bool) -> tuple[bytes, bool]:
+    global _cached_nz_ml_bytes, _cached_nz_ml_gzip
+    if _cached_nz_ml_bytes is not None:
+        if wants_gzip and _cached_nz_ml_gzip is not None:
+            return _cached_nz_ml_gzip, True
+        return _cached_nz_ml_bytes, False
+        
+    with _nz_cache_lock:
+        if _cached_nz_ml_bytes is not None:
+            if wants_gzip and _cached_nz_ml_gzip is not None:
+                return _cached_nz_ml_gzip, True
+            return _cached_nz_ml_bytes, False
+            
+        b_bytes = prepare_nz_buildings_cache()
+        try:
+            data = json.loads(b_bytes)
+            buildings = data.get("buildings", [])
+            
+            X = []
+            b_ids = []
+            for b in buildings:
+                b_id = b["id"]
+                w = b["bounds"]["max_x"] - b["bounds"]["min_x"]
+                d = b["bounds"]["max_y"] - b["bounds"]["min_y"]
+                area = w * d
+                h = b["height"]
+                g = b["ground_elevation"]
+                r = b["roof_elevation"]
+                floors = 1
+                if "vertical_structure" in b and b["vertical_structure"]:
+                    floors = b["vertical_structure"].get("estimated_floor_count", 1)
+                    
+                X.append([h, floors, area, g, r, w, d])
+                b_ids.append(b_id)
+                
+            if len(X) > 0:
+                X_np = np.array(X, dtype=np.float64)
+                mu = np.mean(X_np, axis=0)
+                cov = np.cov(X_np, rowvar=False) + np.eye(X_np.shape[1]) * 1e-6
+                inv_cov = np.linalg.pinv(cov)
+                diff = X_np - mu
+                md2 = np.sum(np.dot(diff, inv_cov) * diff, axis=1)
+                anomaly_scores = np.sqrt(np.maximum(md2, 0))
+                
+                max_md = np.max(anomaly_scores)
+                min_md = np.min(anomaly_scores)
+                norm_dev = (anomaly_scores - min_md) / (max_md - min_md + 1e-6)
+                
+                p75 = np.percentile(anomaly_scores, 75)
+                p90 = np.percentile(anomaly_scores, 90)
+                
+                profiles = []
+                for i, b_id in enumerate(b_ids):
+                    score = float(anomaly_scores[i])
+                    ndev = float(norm_dev[i])
+                    if score > p90:
+                        cls = "Highly unusual"
+                    elif score > p75:
+                        cls = "Moderately unusual"
+                    else:
+                        cls = "Typical"
+                        
+                    profiles.append({
+                        "building_id": b_id,
+                        "anomaly_score": score,
+                        "normalized_deviation": ndev,
+                        "classification": cls,
+                        "feature_summary": {
+                            "Height": float(X_np[i, 0]),
+                            "Estimated Levels": int(X_np[i, 1]),
+                            "Footprint Area (bbox)": float(X_np[i, 2]),
+                            "Ground Elevation": float(X_np[i, 3]),
+                            "Roof Elevation": float(X_np[i, 4])
+                        }
+                    })
+            else:
+                profiles = []
+                
+            payload = {
+                "model_type": "Mahalanobis Distance (Multivariate Gaussian)",
+                "feature_names": ["height", "estimated_floor_count", "bbox_area", "ground_elevation", "roof_elevation", "footprint_width", "footprint_depth"],
+                "training_sample_count": len(buildings),
+                "dataset": "New Zealand LiDAR Building Distributions",
+                "disclaimer": "ML analysis is relative to the available NZ LiDAR building dataset and is not a general building classifier. Unusual does not mean incorrect or unsafe.",
+                "profiles": profiles
+            }
+            
+            _cached_nz_ml_bytes = json.dumps(payload).encode("utf-8")
+            _cached_nz_ml_gzip = gzip.compress(_cached_nz_ml_bytes, compresslevel=6)
+            
+            if wants_gzip:
+                return _cached_nz_ml_gzip, True
+            return _cached_nz_ml_bytes, False
+        except Exception as e:
+            logger.error(f"Error computing ML payload: {e}")
+            err_bytes = b'{"error": "ML computation failed"}'
+            return err_bytes, False
 
 
 def prepare_nz_parcels_cache() -> bytes:
@@ -1248,6 +1350,17 @@ def get_nz_buildings(request: Request):
 # =========================================================
 # NEW ZEALAND CADASTRAL PARCELS
 # =========================================================
+
+@app.get("/api/nz/ml/buildings")
+def get_nz_ml_buildings(request: Request):
+    accept_encoding = request.headers.get("accept-encoding", "").lower()
+    content_bytes, is_gzip = get_nz_ml_payload("gzip" in accept_encoding)
+    headers = {"Content-Encoding": "gzip"} if is_gzip else {}
+    return Response(
+        content=content_bytes,
+        media_type="application/json",
+        headers=headers
+    )
 
 @app.get("/api/nz/parcels")
 def get_nz_parcels(request: Request):

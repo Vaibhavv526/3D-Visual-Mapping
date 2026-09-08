@@ -30,7 +30,10 @@ import {
     type NZVerticalStructure,
     type NZFloorLevel,
     type VerticalExplorationMode,
-    validate3DProperty
+    validate3DProperty,
+    getNZMLBuildings,
+    type NZBuildingMLSummary,
+    type NZBuildingMLProfile
 } from "../../services/nzApi";
 
 import {
@@ -1996,7 +1999,9 @@ function PropertyIntelligencePanel({
     onClearMeasure,
     onSelectDifferentTarget,
     onOpenDossier,
-    onClose
+    onClose,
+    mlSummary,
+    mlProfile
 }: {
     building: NZBuilding;
     analysis?: BuildingSiteAnalysis;
@@ -2015,6 +2020,8 @@ function PropertyIntelligencePanel({
     onStartCollapse?: () => void;
     onSelectVerticalLevel: (floor: NZFloorLevel) => void;
     onSelectParcel?: (parcel: NZParcel) => void;
+    mlSummary?: NZBuildingMLSummary | null;
+    mlProfile?: NZBuildingMLProfile | null;
     onStartMeasure: () => void;
     onClearMeasure: () => void;
     onSelectDifferentTarget: () => void;
@@ -2751,6 +2758,77 @@ function PropertyIntelligencePanel({
                 </div>
             </div>
 
+            {/* ML STRUCTURAL PROFILE */}
+            {mlProfile && (
+                <>
+                    <div className="nz-section-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span>ML STRUCTURAL PROFILE</span>
+                        <span className="nz-est-badge" style={{ 
+                            backgroundColor: mlProfile.classification === "Typical" ? "rgba(34, 197, 94, 0.15)" :
+                                             mlProfile.classification === "Moderately unusual" ? "rgba(245, 158, 11, 0.15)" :
+                                             "rgba(239, 68, 68, 0.15)",
+                            color: mlProfile.classification === "Typical" ? "#4ade80" :
+                                   mlProfile.classification === "Moderately unusual" ? "#fbbf24" :
+                                   "#f87171"
+                        }}>
+                            {mlProfile.classification.toUpperCase()}
+                        </span>
+                    </div>
+                    <div className="nz-property-grid">
+                        <div className="nz-prop-item nz-prop-full">
+                            <div style={{ fontFamily: "monospace", fontSize: "14px", whiteSpace: "pre-wrap", color: 
+                                mlProfile.classification === "Typical" ? "#4ade80" :
+                                mlProfile.classification === "Moderately unusual" ? "#fbbf24" : "#f87171"
+                            }}>
+                                {mlProfile.classification === "Typical" ? "──────────────\n██████░░░░" :
+                                 mlProfile.classification === "Moderately unusual" ? "──────────────\n████████░░" :
+                                 "──────────────\n██████████"}
+                            </div>
+                        </div>
+                        <div className="nz-prop-item">
+                            <span>Structural Deviation</span>
+                            <strong className={mlProfile.classification !== "Typical" ? "nz-text-amber" : ""}>
+                                {(mlProfile.normalized_deviation * 100).toFixed(1)}%
+                            </strong>
+                        </div>
+                        <div className="nz-prop-item">
+                            <span>Model</span>
+                            <strong>Mahalanobis Distance</strong>
+                        </div>
+                        <div className="nz-prop-item">
+                            <span>Training Set</span>
+                            <strong>{mlSummary?.training_sample_count} structures</strong>
+                        </div>
+                        <div className="nz-prop-item nz-prop-full" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "8px", marginTop: "4px" }}>
+                            <div style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "8px" }}>FEATURE VECTORS</div>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                                <div>
+                                    <span style={{ fontSize: "10px", color: "#64748b", display: "block" }}>Height</span>
+                                    <strong style={{ fontSize: "12px", color: "#e2e8f0" }}>{mlProfile.feature_summary.Height.toFixed(1)} m</strong>
+                                </div>
+                                <div>
+                                    <span style={{ fontSize: "10px", color: "#64748b", display: "block" }}>Estimated Levels</span>
+                                    <strong style={{ fontSize: "12px", color: "#e2e8f0" }}>{mlProfile.feature_summary["Estimated Levels"]}</strong>
+                                </div>
+                                <div>
+                                    <span style={{ fontSize: "10px", color: "#64748b", display: "block" }}>Footprint Area</span>
+                                    <strong style={{ fontSize: "12px", color: "#e2e8f0" }}>{mlProfile.feature_summary["Footprint Area (bbox)"].toFixed(0)} m²</strong>
+                                </div>
+                                <div>
+                                    <span style={{ fontSize: "10px", color: "#64748b", display: "block" }}>Ground Elevation</span>
+                                    <strong style={{ fontSize: "12px", color: "#e2e8f0" }}>{mlProfile.feature_summary["Ground Elevation"].toFixed(1)} m</strong>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="nz-prop-item nz-prop-full" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "4px" }}>
+                            <div className="nz-unspecified-text" style={{ fontSize: "10px", letterSpacing: "0.02em" }}>
+                                {mlSummary?.disclaimer}
+                            </div>
+                        </div>
+                    </div>
+                </>
+            )}
+
             {/* 5. SITE ANALYSIS */}
             <div className="nz-section-title">5. SITE ANALYSIS</div>
             {analysis && (
@@ -3138,6 +3216,7 @@ interface AreaIntelligencePanelProps {
     buildingAssociationMap?: Map<string, NZBuildingCadastralAssociation>;
     buildings: NZBuilding[];
     parcelsAvailable: boolean;
+    mlSummary?: NZBuildingMLSummary | null;
 }
 
 function AreaIntelligencePanel({
@@ -3150,7 +3229,8 @@ function AreaIntelligencePanel({
     parcelsSummary,
     buildingAssociationMap,
     buildings,
-    parcelsAvailable
+    parcelsAvailable,
+    mlSummary
 }: AreaIntelligencePanelProps) {
     const totalBldgs = data.totalBuildings;
     let identitiesCount = 0;
@@ -3488,6 +3568,35 @@ function AreaIntelligencePanel({
                         </strong>
                     </div>
                 </div>
+
+                {/* SECTION 6: ML STRUCTURAL ANALYSIS */}
+                {mlSummary && (
+                    <>
+                        <div className="nz-prop-section-title">6. ML STRUCTURAL ANALYSIS</div>
+                        <div className="nz-prop-grid">
+                            <div className="nz-prop-item nz-prop-full">
+                                <span>{mlSummary.training_sample_count} structures analyzed</span>
+                                <div className="nz-prop-note">Relative to available NZ LiDAR structures</div>
+                            </div>
+                            <div className="nz-prop-item">
+                                <span>Typical</span>
+                                <strong className="nz-text-cyan">{mlSummary.profiles.filter(p => p.classification === "Typical").length}</strong>
+                            </div>
+                            <div className="nz-prop-item">
+                                <span>Moderately unusual</span>
+                                <strong className="nz-text-amber">{mlSummary.profiles.filter(p => p.classification === "Moderately unusual").length}</strong>
+                            </div>
+                            <div className="nz-prop-item">
+                                <span>Highly unusual</span>
+                                <strong style={{ color: "#f87171" }}>{mlSummary.profiles.filter(p => p.classification === "Highly unusual").length}</strong>
+                            </div>
+                            <div className="nz-prop-item">
+                                <span>Model</span>
+                                <strong>Mahalanobis Distance</strong>
+                            </div>
+                        </div>
+                    </>
+                )}
 
                 {/* INTERACTION PROMPT */}
                 <div className="nz-area-prompt">
@@ -4471,6 +4580,12 @@ export default function NZDigitalTwin() {
         useState<NZParcelsData | null>(null);
 
     const [
+        mlSummary,
+        setMlSummary
+    ] =
+        useState<NZBuildingMLSummary | null>(null);
+
+    const [
         selectedParcel,
         setSelectedParcel
     ] =
@@ -4617,13 +4732,18 @@ export default function NZDigitalTwin() {
         Promise.all([
             getNZTerrain(),
             getNZBuildings(),
-            getNZParcels()
+            getNZParcels(),
+            getNZMLBuildings().catch(e => {
+                console.error("ML analysis unavailable:", e);
+                return null;
+            })
         ])
 
         .then(([
             terrainData,
             buildingData,
-            parcelsResult
+            parcelsResult,
+            mlResult
         ]) => {
 
             const tRecv = performance.now();
@@ -4641,6 +4761,9 @@ export default function NZDigitalTwin() {
             setParcelsData(
                 parcelsResult
             );
+            if (mlResult) {
+                setMlSummary(mlResult);
+            }
 
         })
 
@@ -5856,8 +5979,9 @@ export default function NZDigitalTwin() {
                         setIsDossierOpen(false);
                         setExplorationMode("building");
                         setSelectedVerticalLevel(null);
-                        document.body.style.cursor = "auto";
                     }}
+                    mlSummary={mlSummary}
+                    mlProfile={mlSummary?.profiles.find(p => p.building_id === selectedBuilding.id) || null}
                 />
             ) : areaIntelligence ? (
                 <AreaIntelligencePanel
@@ -5871,6 +5995,7 @@ export default function NZDigitalTwin() {
                     buildingAssociationMap={buildingAssociationMap}
                     buildings={buildings}
                     parcelsAvailable={parcelsData?.available ?? false}
+                    mlSummary={mlSummary}
                 />
             ) : null}
 
