@@ -20,8 +20,17 @@ import {
 import {
     getNZTerrain,
     getNZBuildings,
+    getNZParcels,
     type NZTerrainData,
-    type NZBuilding
+    type NZBuilding,
+    type NZParcel,
+    type NZParcelsData,
+    type NZBuildingCadastralAssociation,
+    type NZParcelsSummary,
+    type NZVerticalStructure,
+    type NZFloorLevel,
+    type VerticalExplorationMode,
+    validate3DProperty
 } from "../../services/nzApi";
 
 import {
@@ -659,6 +668,409 @@ function SpatialMeasurementLine({
     );
 }
 
+function computeConvexHull2D(points: [number, number][]): [number, number][] {
+    if (points.length <= 2) return points.slice();
+    const sorted = points.slice().sort((a, b) => (a[0] === b[0] ? a[1] - b[1] : a[0] - b[0]));
+    const cross = (o: [number, number], a: [number, number], b: [number, number]) =>
+        (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+
+    const lower: [number, number][] = [];
+    for (const p of sorted) {
+        while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) {
+            lower.pop();
+        }
+        lower.push(p);
+    }
+
+    const upper: [number, number][] = [];
+    for (let i = sorted.length - 1; i >= 0; i--) {
+        const p = sorted[i];
+        while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) {
+            upper.pop();
+        }
+        upper.push(p);
+    }
+
+    lower.pop();
+    upper.pop();
+    return lower.concat(upper);
+}
+
+function createFloorPrismGeometry(hull: [number, number][], height: number): THREE.BufferGeometry {
+    const N = hull.length;
+    const positions: number[] = [];
+
+    // Top face (y = height, normal pointing +Y, counter-clockwise)
+    for (let i = 1; i < N - 1; i++) {
+        positions.push(hull[0][0], height, hull[0][1]);
+        positions.push(hull[i][0], height, hull[i][1]);
+        positions.push(hull[i + 1][0], height, hull[i + 1][1]);
+    }
+
+    // Bottom face (y = 0, normal pointing -Y, clockwise from above)
+    for (let i = 1; i < N - 1; i++) {
+        positions.push(hull[0][0], 0, hull[0][1]);
+        positions.push(hull[i + 1][0], 0, hull[i + 1][1]);
+        positions.push(hull[i][0], 0, hull[i][1]);
+    }
+
+    // Vertical side walls connecting perimeter
+    for (let i = 0; i < N; i++) {
+        const pA = hull[i];
+        const pB = hull[(i + 1) % N];
+
+        // Triangle 1: pA_bot, pB_bot, pB_top
+        positions.push(pA[0], 0, pA[1]);
+        positions.push(pB[0], 0, pB[1]);
+        positions.push(pB[0], height, pB[1]);
+
+        // Triangle 2: pA_bot, pB_top, pA_top
+        positions.push(pA[0], 0, pA[1]);
+        positions.push(pB[0], height, pB[1]);
+        positions.push(pA[0], height, pA[1]);
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geo.computeVertexNormals();
+    return geo;
+}
+
+function createFloorLineGeometry(hull: [number, number][], height: number): THREE.BufferGeometry {
+    const N = hull.length;
+    const lines: number[] = [];
+
+    for (let i = 0; i < N; i++) {
+        const pA = hull[i];
+        const pB = hull[(i + 1) % N];
+
+        // Bottom perimeter segment
+        lines.push(pA[0], 0, pA[1], pB[0], 0, pB[1]);
+
+        // Top perimeter segment
+        lines.push(pA[0], height, pA[1], pB[0], height, pB[1]);
+
+        // Vertical corner edge
+        lines.push(pA[0], 0, pA[1], pA[0], height, pA[1]);
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(lines, 3));
+    return geo;
+}
+
+interface NZVerticalLevelGuidesProps {
+    building: NZBuilding;
+    verticalStructure: NZVerticalStructure | null;
+    terrainVisualGroundY: number;
+    terrainMeta: TerrainMeta;
+    explorationMode?: VerticalExplorationMode;
+    selectedVerticalLevel?: NZFloorLevel | null;
+    onSelectVerticalLevel?: (floor: NZFloorLevel) => void;
+}
+
+function NZVerticalLevelGuides({
+    building,
+    verticalStructure,
+    terrainVisualGroundY,
+    terrainMeta,
+    explorationMode = "building",
+    selectedVerticalLevel = null,
+    onSelectVerticalLevel
+}: NZVerticalLevelGuidesProps) {
+    // Prepared for Phase 10B interactive level explosion
+    void explorationMode;
+    void selectedVerticalLevel;
+    void onSelectVerticalLevel;
+
+    const { lineGeometry } = useMemo(() => {
+        if (
+            !verticalStructure ||
+            !verticalStructure.floors ||
+            verticalStructure.floors.length === 0
+        ) {
+            return { lineGeometry: null };
+        }
+
+        const points = building.vertices;
+        if (!points || points.length < 3) {
+            return { lineGeometry: null };
+        }
+
+        // 1. Calculate 2D analytical footprint contour (convex hull) in Three.js coordinates
+        const { centerX, centerY } = terrainMeta;
+        const pts2D: [number, number][] = points.map((pt) => [
+            pt[0] - centerX,
+            pt[1] - centerY
+        ]);
+
+        const hull = computeConvexHull2D(pts2D);
+        if (hull.length < 3) {
+            return { lineGeometry: null };
+        }
+
+        // Slightly expand hull (18cm outward) to prevent z-fighting with building walls
+        const cx = hull.reduce((s, p) => s + p[0], 0) / hull.length;
+        const cz = hull.reduce((s, p) => s + p[1], 0) / hull.length;
+
+        const expandedHull: [number, number][] = hull.map(([x, z]) => {
+            const dx = x - cx;
+            const dz = z - cz;
+            const dist = Math.hypot(dx, dz) || 1.0;
+            return [x + (dx / dist) * 0.18, z + (dz / dist) * 0.18];
+        });
+
+        // 2. Identify distinct elevation boundary levels (base of each level + roof of top level)
+        const buildingBaseElevation = building.min_elevation;
+        const boundaryElevations: number[] = [];
+
+        for (const floor of verticalStructure.floors) {
+            if (Number.isFinite(floor.base_elevation)) {
+                boundaryElevations.push(floor.base_elevation);
+            }
+        }
+
+        const topFloor = verticalStructure.floors[verticalStructure.floors.length - 1];
+        if (topFloor && Number.isFinite(topFloor.top_elevation)) {
+            boundaryElevations.push(topFloor.top_elevation);
+        }
+
+        // 3. Assemble line segments for horizontal boundary loops and corner ticks
+        const segmentVertices: number[] = [];
+        const tickHalfHeight = 0.12; // 24cm vertical tick at hull corners
+
+        for (const elev of boundaryElevations) {
+            // Transform elevation using the exact building vertical scale:
+            // 1.5x terrain offset + 1.0x physical elevation above building base
+            const sceneY = terrainVisualGroundY + (elev - buildingBaseElevation) * 1.0;
+
+            // Closed horizontal loop around envelope
+            const numPts = expandedHull.length;
+            for (let i = 0; i < numPts; i++) {
+                const pA = expandedHull[i];
+                const pB = expandedHull[(i + 1) % numPts];
+
+                // Horizontal loop segment
+                segmentVertices.push(pA[0], sceneY, pA[1]);
+                segmentVertices.push(pB[0], sceneY, pB[1]);
+
+                // Subtle corner tick
+                segmentVertices.push(pA[0], sceneY - tickHalfHeight, pA[1]);
+                segmentVertices.push(pA[0], sceneY + tickHalfHeight, pA[1]);
+            }
+        }
+
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute("position", new THREE.Float32BufferAttribute(segmentVertices, 3));
+
+        return { lineGeometry: geo };
+    }, [building, verticalStructure, terrainVisualGroundY, terrainMeta]);
+
+    useEffect(() => {
+        return () => {
+            if (lineGeometry) {
+                lineGeometry.dispose();
+            }
+        };
+    }, [lineGeometry]);
+
+    if (!lineGeometry) return null;
+
+    return (
+        <group renderOrder={60}>
+            <lineSegments geometry={lineGeometry} raycast={() => null}>
+                <lineBasicMaterial
+                    color="#38bdf8"
+                    transparent
+                    opacity={0.65}
+                    depthTest={true}
+                    depthWrite={false}
+                />
+            </lineSegments>
+        </group>
+    );
+}
+
+interface NZExplodedBuildingProps {
+    building: NZBuilding;
+    verticalStructure: NZVerticalStructure;
+    terrainVisualGroundY: number;
+    terrainMeta: TerrainMeta;
+    selectedVerticalLevel?: NZFloorLevel | null;
+    isExploded?: boolean;
+    isCollapsingToBuilding?: boolean;
+    onSelectVerticalLevel: (floor: NZFloorLevel) => void;
+    onCollapseComplete?: () => void;
+}
+
+function NZExplodedBuilding({
+    building,
+    verticalStructure,
+    terrainVisualGroundY,
+    terrainMeta,
+    selectedVerticalLevel = null,
+    isExploded = true,
+    isCollapsingToBuilding = false,
+    onSelectVerticalLevel,
+    onCollapseComplete
+}: NZExplodedBuildingProps) {
+    const [hoveredFloorIndex, setHoveredFloorIndex] = useState<number | null>(null);
+    const floorGroupRefs = useRef<(THREE.Group | null)[]>([]);
+    const animProgress = useRef<number>(0);
+
+    const { hull, floorGeometries, buildingBaseElevation } = useMemo(() => {
+        const points = building.vertices;
+        const { centerX, centerY } = terrainMeta;
+        const pts2D: [number, number][] = points.map((pt) => [
+            pt[0] - centerX,
+            pt[1] - centerY
+        ]);
+        const computedHull = computeConvexHull2D(pts2D);
+        const bBaseElev = building.min_elevation;
+
+        const geometries = (verticalStructure.floors || []).map((floor) => {
+            const floorHeight = Math.max(0.3, (floor.top_elevation - floor.base_elevation) * 1.0);
+            const prismGeo = createFloorPrismGeometry(computedHull, floorHeight);
+            const lineGeo = createFloorLineGeometry(computedHull, floorHeight);
+            return {
+                floor,
+                floorHeight,
+                prismGeo,
+                lineGeo
+            };
+        });
+
+        return {
+            hull: computedHull,
+            floorGeometries: geometries,
+            buildingBaseElevation: bBaseElev
+        };
+    }, [building, verticalStructure, terrainMeta]);
+
+    useEffect(() => {
+        (window as any).__nzGetExplodedInfo = () => {
+            return floorGroupRefs.current.map((grp) => {
+                if (!grp) return null;
+                return {
+                    name: grp.name,
+                    userData: grp.userData,
+                    y: grp.position.y,
+                    x: grp.position.x,
+                    z: grp.position.z,
+                    childrenCount: grp.children.length
+                };
+            }).filter(Boolean);
+        };
+        return () => {
+            floorGeometries.forEach((g) => {
+                g.prismGeo.dispose();
+                g.lineGeo.dispose();
+            });
+            delete (window as any).__nzGetExplodedInfo;
+        };
+    }, [floorGeometries]);
+
+    useFrame((_, delta) => {
+        const target = isCollapsingToBuilding ? 0 : (isExploded ? 1 : 0);
+        const speed = 1.25; // 800ms full duration (1.0 / 0.8)
+
+        if (animProgress.current < target) {
+            animProgress.current = Math.min(target, animProgress.current + delta * speed);
+        } else if (animProgress.current > target) {
+            animProgress.current = Math.max(target, animProgress.current - delta * speed);
+            if (animProgress.current === 0 && isCollapsingToBuilding) {
+                onCollapseComplete?.();
+            }
+        }
+
+        const easeT = easeInOutCubic(animProgress.current);
+
+        floorGeometries.forEach((item, i) => {
+            const grp = floorGroupRefs.current[i];
+            if (grp) {
+                const floor = item.floor;
+                const floorBaseY = terrainVisualGroundY + (floor.base_elevation - buildingBaseElevation) * 1.0;
+                const gap = i * 4.0 * easeT;
+                grp.position.set(0, floorBaseY + gap, 0);
+                grp.userData = {
+                    floorIndex: floor.floor_index,
+                    label: floor.label,
+                    gap,
+                    currentY: grp.position.y,
+                    progress: animProgress.current
+                };
+            }
+        });
+    });
+
+    if (floorGeometries.length === 0 || hull.length < 3) return null;
+
+    return (
+        <group name={`exploded-building-${building.id}`} renderOrder={50}>
+            {floorGeometries.map((item, i) => {
+                const { floor, prismGeo, lineGeo } = item;
+                const isSelected = selectedVerticalLevel?.floor_index === floor.floor_index;
+                const isHovered = hoveredFloorIndex === floor.floor_index;
+                const initialBaseY = terrainVisualGroundY + (floor.base_elevation - buildingBaseElevation) * 1.0;
+
+                return (
+                    <group
+                        key={floor.floor_index}
+                        ref={(el) => (floorGroupRefs.current[i] = el)}
+                        position={[0, initialBaseY, 0]}
+                        name={`exploded-floor-${floor.floor_index}`}
+                    >
+                        {/* Interactive Solid Slab */}
+                        <mesh
+                            geometry={prismGeo}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onSelectVerticalLevel(floor);
+                            }}
+                            onPointerOver={(e) => {
+                                e.stopPropagation();
+                                document.body.style.cursor = "pointer";
+                                setHoveredFloorIndex(floor.floor_index);
+                            }}
+                            onPointerOut={(e) => {
+                                e.stopPropagation();
+                                document.body.style.cursor = "auto";
+                                setHoveredFloorIndex(null);
+                            }}
+                        >
+                            <meshStandardMaterial
+                                color={isSelected ? "#0284c7" : isHovered ? "#2563eb" : "#1e293b"}
+                                transparent
+                                opacity={isSelected ? 0.94 : isHovered ? 0.88 : 0.82}
+                                emissive={isSelected ? "#38bdf8" : isHovered ? "#0284c7" : "#0ea5e9"}
+                                emissiveIntensity={isSelected ? 0.55 : isHovered ? 0.35 : 0.12}
+                                roughness={isSelected ? 0.2 : 0.35}
+                                metalness={0.15}
+                                depthWrite={true}
+                                side={THREE.DoubleSide}
+                                polygonOffset
+                                polygonOffsetFactor={1}
+                                polygonOffsetUnits={1}
+                            />
+                        </mesh>
+
+                        {/* Architectural Wireframe Edge Cage */}
+                        <lineSegments geometry={lineGeo} raycast={() => null}>
+                            <lineBasicMaterial
+                                color={isSelected ? "#38bdf8" : isHovered ? "#93c5fd" : "#38bdf8"}
+                                transparent
+                                opacity={isSelected ? 1.0 : isHovered ? 0.95 : 0.85}
+                                depthTest={true}
+                                depthWrite={false}
+                            />
+                        </lineSegments>
+                    </group>
+                );
+            })}
+        </group>
+    );
+}
+
 function NZBuildingMesh({
     building,
     terrain,
@@ -667,6 +1079,13 @@ function NZBuildingMesh({
     isTarget,
     isDeemphasized,
     measureMode,
+    verticalStructure,
+    explorationMode = "building",
+    selectedVerticalLevel = null,
+    isExploded = true,
+    isCollapsingToBuilding = false,
+    onSelectVerticalLevel,
+    onCollapseComplete,
     onSelect,
     onMeasureSelect
 }: {
@@ -677,6 +1096,13 @@ function NZBuildingMesh({
     isTarget: boolean;
     isDeemphasized: boolean;
     measureMode: boolean;
+    verticalStructure?: NZVerticalStructure | null;
+    explorationMode?: VerticalExplorationMode;
+    selectedVerticalLevel?: NZFloorLevel | null;
+    isExploded?: boolean;
+    isCollapsingToBuilding?: boolean;
+    onSelectVerticalLevel?: (floor: NZFloorLevel) => void;
+    onCollapseComplete?: () => void;
     onSelect: (
         building: NZBuilding
     ) => void;
@@ -685,7 +1111,7 @@ function NZBuildingMesh({
     ) => void;
 }) {
 
-    const geometry =
+    const { geometry, terrainVisualGroundY } =
         useMemo(() => {
 
             const t0 = performance.now();
@@ -1070,7 +1496,7 @@ function NZBuildingMesh({
                 console.log(`[PERF:BUILDINGS_GEO] All 56 building geometries created in ${w.__nzBuildingsPerf.totalTime.toFixed(2)}ms`);
             }
 
-            return geo;
+            return { geometry: geo, terrainVisualGroundY };
 
         }, [
             building,
@@ -1078,6 +1504,27 @@ function NZBuildingMesh({
             terrainMeta
         ]);
 
+    const activeVerticalStructure = verticalStructure ?? building.vertical_structure ?? null;
+    const hasFloors = (activeVerticalStructure?.floors?.length ?? 0) > 0;
+    const isExplodedActive = isOrigin && explorationMode === "exploring" && hasFloors;
+
+    if (isExplodedActive) {
+        return (
+            <group>
+                <NZExplodedBuilding
+                    building={building}
+                    verticalStructure={activeVerticalStructure!}
+                    terrainVisualGroundY={terrainVisualGroundY}
+                    terrainMeta={terrainMeta}
+                    selectedVerticalLevel={selectedVerticalLevel}
+                    isExploded={isExploded}
+                    isCollapsingToBuilding={isCollapsingToBuilding}
+                    onSelectVerticalLevel={onSelectVerticalLevel!}
+                    onCollapseComplete={onCollapseComplete}
+                />
+            </group>
+        );
+    }
 
     return (
         <group>
@@ -1130,6 +1577,132 @@ function NZBuildingMesh({
                         depthTest={true}
                     />
                 </mesh>
+            )}
+
+            {isOrigin && (
+                <NZVerticalLevelGuides
+                    building={building}
+                    verticalStructure={verticalStructure ?? building.vertical_structure ?? null}
+                    terrainVisualGroundY={terrainVisualGroundY}
+                    terrainMeta={terrainMeta}
+                    explorationMode={explorationMode}
+                    selectedVerticalLevel={selectedVerticalLevel}
+                    onSelectVerticalLevel={onSelectVerticalLevel}
+                />
+            )}
+        </group>
+    );
+}
+
+interface ParcelsOverlayProps {
+    parcels: NZParcel[];
+    terrain: NZTerrainData;
+    terrainMeta: TerrainMeta;
+    selectedParcelId?: string | null;
+    activeBuildingParcelId?: string | null;
+}
+
+function NZParcelsOverlay({
+    parcels,
+    terrain,
+    terrainMeta,
+    selectedParcelId,
+    activeBuildingParcelId
+}: ParcelsOverlayProps) {
+    const { centerX, centerY, elevationMean } = terrainMeta;
+
+    const sampleElevation = (x: number, y: number): number => {
+        const ix = Math.min(480, Math.max(0, Math.round((x - 1774720.0) / 2.0)));
+        const iy = Math.min(720, Math.max(0, Math.round((y - 5882640.0) / 2.0)));
+        const idx = iy * 481 + ix;
+        const rawZ = terrain.elevation[idx];
+        return Number.isFinite(rawZ) ? rawZ : elevationMean;
+    };
+
+    const { normalGeo, highlightGeo } = useMemo(() => {
+        const normalPoints: number[] = [];
+        const highlightPoints: number[] = [];
+
+        for (const parcel of parcels) {
+            const isHighlighted =
+                parcel.parcel_id === selectedParcelId ||
+                parcel.parcel_id === activeBuildingParcelId;
+
+            const targetArray = isHighlighted ? highlightPoints : normalPoints;
+            const yOffset = isHighlighted ? 0.35 : 0.18;
+
+            for (const ring of parcel.rings) {
+                if (ring.length < 2) continue;
+
+                for (let i = 0; i < ring.length - 1; i++) {
+                    const p0 = ring[i];
+                    const p1 = ring[i + 1];
+
+                    const dx = p1[0] - p0[0];
+                    const dy = p1[1] - p0[1];
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    const steps = Math.max(1, Math.ceil(dist / 4.0));
+
+                    for (let s = 0; s < steps; s++) {
+                        const tStart = s / steps;
+                        const tEnd = (s + 1) / steps;
+
+                        const xA = p0[0] + dx * tStart;
+                        const yA = p0[1] + dy * tStart;
+                        const elevA = sampleElevation(xA, yA);
+                        const sceneXA = xA - centerX;
+                        const sceneYA = (elevA - elevationMean) * 1.5 + yOffset;
+                        const sceneZA = yA - centerY;
+
+                        const xB = p0[0] + dx * tEnd;
+                        const yB = p0[1] + dy * tEnd;
+                        const elevB = sampleElevation(xB, yB);
+                        const sceneXB = xB - centerX;
+                        const sceneYB = (elevB - elevationMean) * 1.5 + yOffset;
+                        const sceneZB = yB - centerY;
+
+                        targetArray.push(sceneXA, sceneYA, sceneZA);
+                        targetArray.push(sceneXB, sceneYB, sceneZB);
+                    }
+                }
+            }
+        }
+
+        const normGeo = new THREE.BufferGeometry();
+        if (normalPoints.length > 0) {
+            normGeo.setAttribute("position", new THREE.Float32BufferAttribute(normalPoints, 3));
+        }
+
+        const hiGeo = new THREE.BufferGeometry();
+        if (highlightPoints.length > 0) {
+            hiGeo.setAttribute("position", new THREE.Float32BufferAttribute(highlightPoints, 3));
+        }
+
+        return { normalGeo: normGeo, highlightGeo: hiGeo };
+    }, [parcels, terrain, terrainMeta, selectedParcelId, activeBuildingParcelId]);
+
+    return (
+        <group renderOrder={50}>
+            {normalGeo.attributes.position && (
+                <lineSegments geometry={normalGeo}>
+                    <lineBasicMaterial
+                        color="#38bdf8"
+                        transparent
+                        opacity={0.5}
+                        depthWrite={false}
+                    />
+                </lineSegments>
+            )}
+
+            {highlightGeo.attributes.position && (
+                <lineSegments geometry={highlightGeo}>
+                    <lineBasicMaterial
+                        color="#f59e0b"
+                        transparent
+                        opacity={0.95}
+                        depthWrite={false}
+                    />
+                </lineSegments>
             )}
         </group>
     );
@@ -1249,8 +1822,8 @@ function CameraController({
 
         // Framing distance calculation:
         const boundingDiameter = Math.max(info.radius * 2, info.size.x, info.size.y, info.size.z);
-        let targetDistance = boundingDiameter * 2.3;
-        targetDistance = THREE.MathUtils.clamp(targetDistance, 90, 220);
+        let targetDistance = boundingDiameter * 1.55;
+        targetDistance = THREE.MathUtils.clamp(targetDistance, 60, 140);
 
         // Determine camera offset direction:
         // Preserve user's current azimuth (horizontal angle) with an elevated 3D perspective pitch
@@ -1407,6 +1980,18 @@ function PropertyIntelligencePanel({
     measureMode,
     measureTarget,
     targetAnalysis,
+    cadastralAssoc,
+    associatedParcel,
+    parcelsAvailable,
+    explorationMode,
+    selectedVerticalLevel,
+    isExploded = true,
+    onEnterExploration,
+    onExitExploration,
+    onToggleExplodedView,
+    onStartCollapse,
+    onSelectVerticalLevel,
+    onSelectParcel,
     onStartMeasure,
     onClearMeasure,
     onSelectDifferentTarget,
@@ -1418,6 +2003,18 @@ function PropertyIntelligencePanel({
     measureMode: boolean;
     measureTarget: NZBuilding | null;
     targetAnalysis?: BuildingSiteAnalysis;
+    cadastralAssoc?: NZBuildingCadastralAssociation;
+    associatedParcel?: NZParcel;
+    parcelsAvailable?: boolean;
+    explorationMode: VerticalExplorationMode;
+    selectedVerticalLevel: NZFloorLevel | null;
+    isExploded?: boolean;
+    onEnterExploration: () => void;
+    onExitExploration: () => void;
+    onToggleExplodedView?: () => void;
+    onStartCollapse?: () => void;
+    onSelectVerticalLevel: (floor: NZFloorLevel) => void;
+    onSelectParcel?: (parcel: NZParcel) => void;
     onStartMeasure: () => void;
     onClearMeasure: () => void;
     onSelectDifferentTarget: () => void;
@@ -1426,6 +2023,16 @@ function PropertyIntelligencePanel({
 }) {
     const [isExportingPdf, setIsExportingPdf] = useState(false);
     const [exportPdfSuccess, setExportPdfSuccess] = useState(false);
+    const [isLevelsExpanded, setIsLevelsExpanded] = useState(false);
+    const [isValidationExpanded, setIsValidationExpanded] = useState(false);
+
+    const validationResult = useMemo(() => {
+        return validate3DProperty(building, cadastralAssoc, !!parcelsAvailable);
+    }, [building, cadastralAssoc, parcelsAvailable]);
+
+    useEffect(() => {
+        setIsLevelsExpanded(false);
+    }, [building.id]);
 
     const handleExportDossierPdf = () => {
         setIsExportingPdf(true);
@@ -1476,6 +2083,10 @@ function PropertyIntelligencePanel({
     const centroidY = (building.bounds.min_y + building.bounds.max_y) / 2;
     const bboxArea = width * depth;
 
+    const verticalStructure = (parcelsAvailable && cadastralAssoc?.vertical_structure)
+        ? cadastralAssoc.vertical_structure
+        : building.vertical_structure;
+
     // 2. ELEVATION
     const estimatedStoreys = Math.max(1, Math.round(building.height / 3.2));
 
@@ -1518,6 +2129,207 @@ function PropertyIntelligencePanel({
     const swatchB = Math.round(enhanceSrgb(meanRgb[2]) * 255);
     const swatchCss = `rgb(${swatchR}, ${swatchG}, ${swatchB})`;
 
+    if (explorationMode === "exploring") {
+        const floors = verticalStructure?.floors ?? [];
+        const isLevelSelected = !!selectedVerticalLevel;
+        const relHeight = selectedVerticalLevel ? (selectedVerticalLevel.base_elevation - building.ground_elevation) : 0;
+        
+        return (
+            <div className="nz-overlay nz-property nz-exploration-panel">
+                <button
+                    className="nz-close"
+                    onClick={onClose}
+                    aria-label="Close Property Intelligence"
+                >
+                    ×
+                </button>
+
+                <div className="nz-kicker">
+                    {isLevelSelected ? "VERTICAL LEVEL INTELLIGENCE" : "VERTICAL EXPLORATION"}
+                </div>
+
+                <div className="nz-property-header">
+                    <div>
+                        <span className="nz-prop-subheading">{building.id}</span>
+                        <h3>
+                            {isLevelSelected 
+                                ? `${selectedVerticalLevel.label} of ${floors.length}` 
+                                : `${floors.length} estimated levels`
+                            }
+                        </h3>
+                    </div>
+                    <span className="nz-class-badge nz-est-badge" style={{ alignSelf: "flex-start", marginTop: "4px" }}>
+                        Estimated · LiDAR-derived
+                    </span>
+                </div>
+
+                <div className="nz-back-building-wrap" style={{ marginBottom: "16px" }}>
+                    <button
+                        type="button"
+                        className="nz-btn-back-building"
+                        onClick={onStartCollapse ?? onExitExploration}
+                    >
+                        ← Back to Building
+                    </button>
+                    {onToggleExplodedView && (
+                        <button
+                            type="button"
+                            className={`nz-btn-toggle-exploded ${isExploded ? "active" : "collapsed"}`}
+                            onClick={onToggleExplodedView}
+                            title={isExploded ? "Collapse vertical levels" : "Explode vertical levels"}
+                        >
+                            {isExploded ? "⬡ Exploded View: Active" : "⬡ Exploded View: Collapsed"}
+                        </button>
+                    )}
+                </div>
+
+                <div className="nz-section-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span>VERTICAL LEVELS</span>
+                    <span className="nz-levels-badge">{floors.length} levels</span>
+                </div>
+
+                <div className="nz-levels-list nz-exploration-levels-list" style={{ maxHeight: "250px", overflowY: "auto", marginBottom: "16px" }}>
+                    {floors.length === 0 ? (
+                        <div className="nz-unspecified-text" style={{ padding: "8px" }}>
+                            No vertical levels recorded
+                        </div>
+                    ) : (
+                        floors.map((floor) => {
+                            const isSelected = selectedVerticalLevel?.floor_index === floor.floor_index;
+                            return (
+                                <div
+                                    key={floor.floor_index}
+                                    className={`nz-level-card nz-level-card-selectable ${isSelected ? "selected" : ""}`}
+                                    onClick={() => onSelectVerticalLevel(floor)}
+                                    role="button"
+                                    tabIndex={0}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter" || e.key === " ") {
+                                            e.preventDefault();
+                                            onSelectVerticalLevel(floor);
+                                        }
+                                    }}
+                                >
+                                    <div className="nz-level-header-row">
+                                        <div className="nz-level-name-wrap">
+                                            <span className="nz-level-idx">{String(floor.floor_index).padStart(2, "0")}</span>
+                                            <span className="nz-level-label">{floor.label}</span>
+                                            {isSelected && <span className="nz-level-active-indicator">Selected</span>}
+                                        </div>
+                                        <span className="nz-level-elev">
+                                            {floor.base_elevation.toFixed(2)} → {floor.top_elevation.toFixed(2)} m
+                                        </span>
+                                    </div>
+                                    <div className="nz-level-id-row">
+                                        <span
+                                            className={floor.vertical_unit_id ? "nz-level-unit-id" : "nz-unassociated-text"}
+                                            title={floor.vertical_unit_id ?? "Vertical ID unavailable"}
+                                        >
+                                            {floor.vertical_unit_id ?? "Vertical ID unavailable"}
+                                        </span>
+                                        <span className="nz-level-height-tag">
+                                            Δ {floor.height.toFixed(2)} m
+                                        </span>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+
+                {isLevelSelected && (
+                    <>
+                        <div className="nz-section-title">1. LEVEL IDENTITY</div>
+                        <div className="nz-property-grid">
+                            <div className="nz-prop-item">
+                                <span>Level</span>
+                                <strong>{selectedVerticalLevel.floor_index} of {floors.length}</strong>
+                            </div>
+                            <div className="nz-prop-item">
+                                <span>Vertical Unit ID</span>
+                                <span className={selectedVerticalLevel.vertical_unit_id ? "nz-cadastral-id" : "nz-unassociated-text"} title={selectedVerticalLevel.vertical_unit_id ?? "Vertical ID unavailable"}>
+                                    {selectedVerticalLevel.vertical_unit_id ?? "Vertical ID unavailable"}
+                                </span>
+                            </div>
+                            <div className="nz-prop-item nz-prop-full">
+                                <span>3D Property ID</span>
+                                <strong className={verticalStructure?.property_id_3d ? "nz-cadastral-id" : "nz-unassociated-text"}>{verticalStructure?.property_id_3d ?? "Unavailable"}</strong>
+                            </div>
+                        </div>
+
+                        <div className="nz-section-title">2. ELEVATION PROFILE</div>
+                        <div className="nz-property-grid">
+                            <div className="nz-prop-item">
+                                <span>Base</span>
+                                <strong>{selectedVerticalLevel.base_elevation.toFixed(2)} m</strong>
+                            </div>
+                            <div className="nz-prop-item">
+                                <span>Top</span>
+                                <strong>{selectedVerticalLevel.top_elevation.toFixed(2)} m</strong>
+                            </div>
+                            <div className="nz-prop-item nz-prop-full">
+                                <span>Height</span>
+                                <strong>{selectedVerticalLevel.height.toFixed(2)} m</strong>
+                            </div>
+                        </div>
+
+                        <div className="nz-section-title">3. ESTIMATED FOOTPRINT</div>
+                        <div className="nz-property-grid">
+                            <div className="nz-prop-item">
+                                <span>Estimated Width</span>
+                                <strong>{width.toFixed(1)} m</strong>
+                            </div>
+                            <div className="nz-prop-item">
+                                <span>Estimated Depth</span>
+                                <strong>{depth.toFixed(1)} m</strong>
+                            </div>
+                            <div className="nz-prop-item nz-prop-full">
+                                <span>Estimated Footprint Area</span>
+                                <strong>{Math.round(bboxArea).toLocaleString()} m²</strong>
+                            </div>
+                            <div className="nz-disclaimer" style={{ marginTop: "4px", gridColumn: "1 / -1" }}>
+                                Derived from the building footprint envelope. Not an architectural floor-plan area.
+                            </div>
+                        </div>
+
+                        <div className="nz-section-title">4. VERTICAL POSITION</div>
+                        <div className="nz-level-position-indicator">
+                            <div className="nz-level-position-details">
+                                <div className="nz-prop-item">
+                                    <span>Relative Level Position</span>
+                                    <strong>Level {String(selectedVerticalLevel.floor_index).padStart(2, "0")} / {floors.length}</strong>
+                                </div>
+                                <div className="nz-prop-item">
+                                    <span>Height above building base</span>
+                                    <strong>{relHeight > 0 ? relHeight.toFixed(2) : "0.00"} m</strong>
+                                </div>
+                            </div>
+                            <div className="nz-level-visualizer">
+                                {[...floors].reverse().map((floor, i) => {
+                                    const isSelected = selectedVerticalLevel.floor_index === floor.floor_index;
+                                    const isLast = i === floors.length - 1;
+                                    // Visualizer is passive indicator, not a nav control
+                                    return (
+                                        <div key={floor.floor_index} className={`nz-level-vis-node ${isSelected ? "selected" : ""}`}>
+                                            <div className="nz-level-vis-label">{floor.label.toUpperCase()}</div>
+                                            <div className="nz-level-vis-dot"></div>
+                                            {!isLast && <div className="nz-level-vis-line"></div>}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        <div className="nz-section-title">5. DATA NOTE</div>
+                        <div className="nz-disclaimer">
+                            Level structure estimated from LiDAR-derived building height using the 3.2m/floor assumption. LiDAR-derived estimated vertical level.
+                        </div>
+                    </>
+                )}
+            </div>
+        );
+    }
+
     return (
         <div className="nz-overlay nz-property">
             <button
@@ -1537,6 +2349,26 @@ function PropertyIntelligencePanel({
                 <span className="nz-class-badge">Class 6 · Structure</span>
             </div>
 
+            {/* Primary Action Banner: 3D Exploded Vertical Exploration */}
+            {verticalStructure?.floors && verticalStructure.floors.length > 0 && (
+                <div className="nz-explore-top-banner">
+                    <button
+                        type="button"
+                        className="nz-btn-explore-prominent"
+                        onClick={onEnterExploration}
+                        disabled={measureMode}
+                        title={measureMode ? "Finish the current measurement first" : "Enter 3D vertical level explosion view"}
+                    >
+                        <span className="nz-explore-icon">🏢</span>
+                        <div className="nz-explore-text-group">
+                            <span className="nz-explore-btn-title">Explore Vertical Levels</span>
+                            <span className="nz-explore-btn-desc">{verticalStructure.floors.length} estimated levels · 3D Exploded View</span>
+                        </div>
+                        <span className="nz-explore-arrow">→</span>
+                    </button>
+                </div>
+            )}
+
             {/* 1. PROPERTY */}
             <div className="nz-section-title">1. PROPERTY</div>
             <div className="nz-property-grid">
@@ -1555,6 +2387,307 @@ function PropertyIntelligencePanel({
                     <strong>{Math.round(bboxArea).toLocaleString()} m²</strong>
                 </div>
             </div>
+
+            {/* CADASTRAL PARCEL */}
+            <div className="nz-section-title">CADASTRAL PARCEL</div>
+            {cadastralAssoc && associatedParcel ? (
+                <div className="nz-property-grid">
+                    <div className="nz-prop-item nz-prop-full">
+                        <span>Parcel Reference</span>
+                        <div className="nz-parcel-ref-row">
+                            <strong className="nz-cadastral-id">
+                                {associatedParcel.parcel_id}
+                            </strong>
+                            {associatedParcel.parcel_intent && (
+                                <span className="nz-intent-badge">{associatedParcel.parcel_intent}</span>
+                            )}
+                            {onSelectParcel && (
+                                <button
+                                    type="button"
+                                    className="nz-btn-view-parcel"
+                                    onClick={() => onSelectParcel(associatedParcel)}
+                                    title="Inspect cadastral parcel boundaries and attributes"
+                                >
+                                    Inspect
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                    {associatedParcel.appellation && (
+                        <div className="nz-prop-item nz-prop-full">
+                            <span>Appellation</span>
+                            <strong>{associatedParcel.appellation}</strong>
+                        </div>
+                    )}
+                    <div className="nz-prop-item">
+                        <span>Calculated Area</span>
+                        <strong>{Math.round(associatedParcel.calculated_area).toLocaleString()} m²</strong>
+                    </div>
+                    {associatedParcel.survey_area !== null && associatedParcel.survey_area !== undefined ? (
+                        <div className="nz-prop-item">
+                            <span>Survey Area (LINZ)</span>
+                            <strong>{Math.round(associatedParcel.survey_area).toLocaleString()} m²</strong>
+                        </div>
+                    ) : (
+                        <div className="nz-prop-item">
+                            <span>Survey Area (LINZ)</span>
+                            <span className="nz-unspecified-text">Not recorded in survey</span>
+                        </div>
+                    )}
+                    <div className="nz-prop-item">
+                        <span>Association</span>
+                        <strong className="nz-highlight-text">{cadastralAssoc.association_type}</strong>
+                        {cadastralAssoc.overlap_fraction !== null && (
+                            <div className="nz-prop-note">{(cadastralAssoc.overlap_fraction * 100).toFixed(1)}% overlap (analytical footprint)</div>
+                        )}
+                    </div>
+                    <div className="nz-prop-item">
+                        <span>Buildings on Parcel</span>
+                        <strong>{associatedParcel.associated_building_ids.length}</strong>
+                        <div className="nz-prop-note">
+                            {associatedParcel.associated_building_ids.join(", ")}
+                        </div>
+                    </div>
+                    {cadastralAssoc.is_multi_parcel && (
+                        <div className="nz-prop-item nz-prop-full nz-cadastral-multi-note">
+                            <span>Analytical Geometric Condition</span>
+                            <div className="nz-prop-note">{cadastralAssoc.notes}</div>
+                        </div>
+                    )}
+                    <div className="nz-prop-item nz-prop-full" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "4px" }}>
+                        <div className="nz-unspecified-text">
+                            LiDAR-derived analytical footprint (not a legal building footprint).
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                <div className="nz-property-grid">
+                    <div className="nz-prop-item nz-prop-full">
+                        <span>Parcel Association</span>
+                        <strong className="nz-unassociated-text">
+                            {cadastralAssoc ? "Unassociated (No parcel intersection detected)" : "Cadastral dataset not loaded"}
+                        </strong>
+                    </div>
+                </div>
+            )}
+
+            {/* 3D PROPERTY IDENTITY */}
+            <div className="nz-section-title">3D PROPERTY IDENTITY</div>
+            <div className="nz-property-grid">
+                <div className="nz-prop-item nz-prop-full">
+                    <span>3D Property ID</span>
+                    <strong className={parcelsAvailable && cadastralAssoc?.property_id_3d ? "nz-cadastral-id" : "nz-unassociated-text"}>
+                        {parcelsAvailable && cadastralAssoc?.property_id_3d ? cadastralAssoc.property_id_3d : "None"}
+                    </strong>
+                </div>
+                <div className="nz-prop-item">
+                    <span>Primary Parcel</span>
+                    <strong>{parcelsAvailable && cadastralAssoc?.primary_parcel_id ? cadastralAssoc.primary_parcel_id : "None"}</strong>
+                </div>
+                <div className="nz-prop-item">
+                    <span>Status</span>
+                    <strong className={
+                        parcelsAvailable && (cadastralAssoc?.identity_status === "Parcel associated" || cadastralAssoc?.identity_status === "Multi-parcel")
+                            ? "nz-highlight-text"
+                            : "nz-unassociated-text"
+                    }>
+                        {!parcelsAvailable
+                            ? "Cadastral dataset not loaded"
+                            : cadastralAssoc?.identity_status ?? "Unassociated building"}
+                    </strong>
+                </div>
+                <div className="nz-prop-item nz-prop-full">
+                    <span>Vertical Unit</span>
+                    <span className="nz-unspecified-text">
+                        {parcelsAvailable && cadastralAssoc?.vertical_unit_id ? cadastralAssoc.vertical_unit_id : "Not assigned"}
+                    </span>
+                </div>
+                <div className="nz-prop-item nz-prop-full" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "4px" }}>
+                    <div className="nz-unspecified-text" style={{ fontSize: "10px", letterSpacing: "0.02em" }}>
+                        Project-defined ID · Not an official ULPIN
+                    </div>
+                </div>
+            </div>
+
+            {/* TOPOLOGY & VALIDATION */}
+            <div className="nz-section-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>TOPOLOGY & VALIDATION</span>
+                <span className="nz-est-badge" style={{ 
+                    backgroundColor: validationResult.overallStatus === "PASS" ? "rgba(34, 197, 94, 0.15)" :
+                                     validationResult.overallStatus === "WARNING" ? "rgba(245, 158, 11, 0.15)" :
+                                     validationResult.overallStatus === "ERROR" ? "rgba(239, 68, 68, 0.15)" : undefined,
+                    color: validationResult.overallStatus === "PASS" ? "#4ade80" :
+                           validationResult.overallStatus === "WARNING" ? "#fbbf24" :
+                           validationResult.overallStatus === "ERROR" ? "#f87171" : undefined
+                }}>
+                    {validationResult.overallStatus === "PASS" ? "VALID" :
+                     validationResult.overallStatus === "WARNING" ? "REVIEW" :
+                     validationResult.overallStatus === "ERROR" ? "ATTENTION" : "NOT AVAILABLE"}
+                </span>
+            </div>
+            <div className="nz-property-grid">
+                <div className="nz-prop-item nz-prop-full" style={{ paddingBottom: "4px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#94a3b8" }}>
+                        <span>Checks: {validationResult.passCount} passed · {validationResult.unavailableCount} unavailable</span>
+                        <button 
+                            className="nz-btn-link"
+                            onClick={() => setIsValidationExpanded(!isValidationExpanded)}
+                            style={{ background: "none", border: "none", color: "#38bdf8", cursor: "pointer", fontSize: "11px", padding: 0 }}
+                        >
+                            {isValidationExpanded ? "Hide details" : "Show details"}
+                        </button>
+                    </div>
+                </div>
+                {isValidationExpanded && validationResult.checks.map((chk, i) => (
+                    <div key={i} className="nz-prop-item nz-prop-full" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "6px" }}>
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: "6px" }}>
+                            <span style={{ 
+                                color: chk.status === "PASS" ? "#22c55e" : 
+                                       chk.status === "WARNING" ? "#f59e0b" : 
+                                       chk.status === "ERROR" ? "#ef4444" : "#64748b",
+                                marginTop: "2px"
+                            }}>
+                                {chk.status === "PASS" ? "✓" : chk.status === "WARNING" ? "⚠" : chk.status === "ERROR" ? "✗" : "○"}
+                            </span>
+                            <div>
+                                <strong style={{ color: "#e2e8f0", display: "block", marginBottom: "2px" }}>{chk.title}</strong>
+                                <span className="nz-unspecified-text" style={{ fontSize: "11px", display: "block" }}>{chk.message}</span>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* VERTICAL STRUCTURE */}
+            <div className="nz-section-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>VERTICAL STRUCTURE</span>
+                <span className="nz-est-badge">Estimated · LiDAR-derived</span>
+            </div>
+            {verticalStructure ? (
+                <>
+                    <div className="nz-property-grid">
+                        <div className="nz-prop-item">
+                            <span>Estimated Levels</span>
+                            <strong>{verticalStructure.estimated_floor_count}</strong>
+                        </div>
+                        <div className="nz-prop-item">
+                            <span>Estimated Level Height</span>
+                            <strong>{verticalStructure.estimated_floor_height.toFixed(2)} m</strong>
+                        </div>
+                        <div className="nz-prop-item">
+                            <span>Vertical Extent</span>
+                            <strong>{(verticalStructure.roof_elevation - verticalStructure.ground_elevation).toFixed(2)} m</strong>
+                        </div>
+                        <div className="nz-prop-item">
+                            <span>Ground Elevation</span>
+                            <strong>{verticalStructure.ground_elevation.toFixed(2)} m</strong>
+                        </div>
+                        <div className="nz-prop-item nz-prop-full">
+                            <span>Roof Elevation</span>
+                            <strong>{verticalStructure.roof_elevation.toFixed(2)} m</strong>
+                        </div>
+                        <div className="nz-prop-item nz-prop-full" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "4px" }}>
+                            <div className="nz-unspecified-text" style={{ fontSize: "10px", letterSpacing: "0.02em" }}>
+                                Estimated from LiDAR-derived building height · 3.2m/floor assumption
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Explore Levels Action */}
+                    <div className="nz-explore-trigger-wrap">
+                        <button
+                            type="button"
+                            className="nz-btn-explore-trigger"
+                            onClick={onEnterExploration}
+                            disabled={measureMode || !verticalStructure.floors || verticalStructure.floors.length === 0}
+                            title={
+                                measureMode
+                                    ? "Finish the current measurement first"
+                                    : (!verticalStructure.floors || verticalStructure.floors.length === 0)
+                                    ? "No estimated vertical levels recorded"
+                                    : "Enter vertical exploration mode"
+                            }
+                        >
+                            🏢 Explore Levels
+                        </button>
+                        {measureMode && (
+                            <div className="nz-explore-disabled-msg">
+                                Finish the current measurement first
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Expandable VERTICAL LEVELS */}
+                    <button
+                        type="button"
+                        className="nz-levels-toggle-bar"
+                        onClick={() => setIsLevelsExpanded((prev) => !prev)}
+                        aria-expanded={isLevelsExpanded}
+                    >
+                        <span style={{ display: "flex", alignItems: "center" }}>
+                            <span>Vertical Levels</span>
+                            <span className="nz-levels-badge">{verticalStructure.floors.length} estimated levels</span>
+                        </span>
+                        <span className={`nz-levels-arrow ${isLevelsExpanded ? "expanded" : ""}`}>
+                            {isLevelsExpanded ? "▲" : "▼"}
+                        </span>
+                    </button>
+
+                    {isLevelsExpanded && (
+                        <div className="nz-levels-list">
+                            {verticalStructure.floors.length === 0 ? (
+                                <div className="nz-unspecified-text" style={{ padding: "8px" }}>
+                                    No vertical levels recorded
+                                </div>
+                            ) : (
+                                verticalStructure.floors.map((floor) => (
+                                    <div
+                                        key={floor.floor_index}
+                                        className="nz-level-card nz-level-card-selectable"
+                                        onClick={() => onSelectVerticalLevel(floor)}
+                                        role="button"
+                                        tabIndex={0}
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter" || e.key === " ") {
+                                                e.preventDefault();
+                                                onSelectVerticalLevel(floor);
+                                            }
+                                        }}
+                                    >
+                                        <div className="nz-level-header-row">
+                                            <div className="nz-level-name-wrap">
+                                                <span className="nz-level-idx">{String(floor.floor_index).padStart(2, "0")}</span>
+                                                <span className="nz-level-label">{floor.label}</span>
+                                            </div>
+                                            <span className="nz-level-elev">
+                                                {floor.base_elevation.toFixed(2)} → {floor.top_elevation.toFixed(2)} m
+                                            </span>
+                                        </div>
+                                        <div className="nz-level-id-row">
+                                            <span
+                                                className={floor.vertical_unit_id ? "nz-level-unit-id" : "nz-unassociated-text"}
+                                                title={floor.vertical_unit_id ?? "Vertical ID unavailable"}
+                                            >
+                                                {floor.vertical_unit_id ?? "Vertical ID unavailable"}
+                                            </span>
+                                            <span className="nz-level-height-tag">
+                                                Δ {floor.height.toFixed(2)} m
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    )}
+                </>
+            ) : (
+                <div className="nz-property-grid">
+                    <div className="nz-prop-item nz-prop-full">
+                        <span>Vertical Structure</span>
+                        <strong className="nz-unassociated-text">Vertical structure unavailable</strong>
+                    </div>
+                </div>
+            )}
 
             {/* 2. ELEVATION */}
             <div className="nz-section-title">2. ELEVATION</div>
@@ -2001,6 +3134,10 @@ interface AreaIntelligencePanelProps {
     matchedBuildings: { building: NZBuilding; metricText: string }[];
     onFocusBuilding: (building: NZBuilding) => void;
     onOpenDossier: () => void;
+    parcelsSummary?: NZParcelsSummary | null;
+    buildingAssociationMap?: Map<string, NZBuildingCadastralAssociation>;
+    buildings: NZBuilding[];
+    parcelsAvailable: boolean;
 }
 
 function AreaIntelligencePanel({
@@ -2009,8 +3146,65 @@ function AreaIntelligencePanel({
     onSelectFilter,
     matchedBuildings,
     onFocusBuilding,
-    onOpenDossier
+    onOpenDossier,
+    parcelsSummary,
+    buildingAssociationMap,
+    buildings,
+    parcelsAvailable
 }: AreaIntelligencePanelProps) {
+    const totalBldgs = data.totalBuildings;
+    let identitiesCount = 0;
+    let associatedCount = 0;
+    let unassociatedCount = totalBldgs;
+    let multiParcelCount = 0;
+
+    if (buildingAssociationMap && buildingAssociationMap.size > 0) {
+        for (const assoc of buildingAssociationMap.values()) {
+            if (assoc.property_id_3d) identitiesCount++;
+            if (assoc.primary_parcel_id) associatedCount++;
+            if (assoc.is_multi_parcel) multiParcelCount++;
+        }
+        unassociatedCount = Math.max(0, totalBldgs - associatedCount);
+    } else if (parcelsSummary) {
+        identitiesCount = parcelsSummary.identities_generated ?? parcelsSummary.associated_buildings;
+        associatedCount = parcelsSummary.associated_buildings;
+        unassociatedCount = parcelsSummary.unassociated_buildings;
+        multiParcelCount = parcelsSummary.multi_parcel_buildings;
+    }
+    const areaValidation = useMemo(() => {
+        let validGeom = 0;
+        let validVert = 0;
+        let validIdentity = 0;
+        let validTopology = 0;
+        let idInconsistencies = 0;
+
+        for (const b of buildings) {
+            const assoc = buildingAssociationMap?.get(b.id);
+            const res = validate3DProperty(b, assoc, parcelsAvailable);
+            
+            const geomCheck = res.checks.find(c => c.rule === "geometry_integrity");
+            if (geomCheck && geomCheck.status === "PASS") validGeom++;
+
+            const vertCheck = res.checks.find(c => c.rule === "vertical_structure");
+            if (vertCheck && (vertCheck.status === "PASS" || vertCheck.status === "WARNING")) validVert++;
+
+            const idCheck = res.checks.find(c => c.rule === "property_identity");
+            if (idCheck && idCheck.status === "PASS") validIdentity++;
+            if (idCheck && idCheck.status === "ERROR") idInconsistencies++;
+
+            const topCheck = res.checks.find(c => c.rule === "cadastral_topology");
+            if (topCheck && (topCheck.status === "PASS" || topCheck.status === "WARNING")) validTopology++;
+        }
+
+        return {
+            validGeom,
+            validVert,
+            validIdentity,
+            validTopology,
+            idInconsistencies
+        };
+    }, [buildings, buildingAssociationMap, parcelsAvailable]);
+
     return (
         <div className="nz-overlay nz-area-intel">
             <div className="nz-area-header">
@@ -2066,8 +3260,54 @@ function AreaIntelligencePanel({
                     </div>
                 </div>
 
+                {/* SECTION 2.1: CADASTRAL OVERVIEW */}
+                {parcelsSummary && (
+                    <>
+                        <div className="nz-prop-section-title">3. CADASTRAL OVERVIEW (LINZ)</div>
+                        <div className="nz-prop-grid">
+                            <div className="nz-prop-item">
+                                <span>Total Parcels</span>
+                                <strong>{parcelsSummary.total_parcels}</strong>
+                            </div>
+                            <div className="nz-prop-item">
+                                <span>Parcels w/ Buildings</span>
+                                <strong>{parcelsSummary.parcels_with_buildings}</strong>
+                            </div>
+                            <div className="nz-prop-item">
+                                <span>Vacant Parcels</span>
+                                <strong>{parcelsSummary.vacant_parcels}</strong>
+                            </div>
+                            <div className="nz-prop-item">
+                                <span>Multi-Bldg Parcels</span>
+                                <strong>{parcelsSummary.multi_building_parcels}</strong>
+                            </div>
+                        </div>
+                    </>
+                )}
+
+                {/* 3D PROPERTY IDENTITIES */}
+                <div className="nz-prop-section-title">3D PROPERTY IDENTITIES</div>
+                <div className="nz-prop-grid">
+                    <div className="nz-prop-item">
+                        <span>Identities generated</span>
+                        <strong>{identitiesCount}</strong>
+                    </div>
+                    <div className="nz-prop-item">
+                        <span>Associated buildings</span>
+                        <strong>{associatedCount} / {totalBldgs}</strong>
+                    </div>
+                    <div className="nz-prop-item">
+                        <span>Unassociated</span>
+                        <strong>{unassociatedCount}</strong>
+                    </div>
+                    <div className="nz-prop-item">
+                        <span>Multi-parcel</span>
+                        <strong>{multiParcelCount}</strong>
+                    </div>
+                </div>
+
                 {/* SECTION 3: TERRAIN & SPATIAL CONTEXT */}
-                <div className="nz-prop-section-title">3. TERRAIN & SPATIAL CONTEXT</div>
+                <div className="nz-prop-section-title">{parcelsSummary ? "4. TERRAIN & SPATIAL CONTEXT" : "3. TERRAIN & SPATIAL CONTEXT"}</div>
 
                 <div className="nz-distrib-block">
                     <div className="nz-distrib-label">
@@ -2221,6 +3461,34 @@ function AreaIntelligencePanel({
                     </div>
                 )}
 
+                {/* SECTION 5: STRUCTURAL VALIDATION */}
+                <div className="nz-prop-section-title">5. STRUCTURAL VALIDATION</div>
+                <div className="nz-prop-grid">
+                    <div className="nz-prop-item">
+                        <span>Geometry Consistent</span>
+                        <strong className="nz-text-cyan">{areaValidation.validGeom} / {buildings.length}</strong>
+                    </div>
+                    <div className="nz-prop-item">
+                        <span>Vertical Sequence</span>
+                        <strong>{areaValidation.validVert} / {buildings.length}</strong>
+                    </div>
+                    <div className="nz-prop-item">
+                        <span>Identity Consistency</span>
+                        <strong className={areaValidation.idInconsistencies > 0 ? "nz-text-amber" : ""}>
+                            {areaValidation.validIdentity} / {buildings.length}
+                        </strong>
+                    </div>
+                    <div className="nz-prop-item">
+                        <span>Cadastral Topology</span>
+                        <strong>
+                            {!parcelsAvailable 
+                                ? <span className="nz-unassociated-text">Cadastral dataset not loaded</span>
+                                : areaValidation.validTopology + " / " + buildings.length
+                            }
+                        </strong>
+                    </div>
+                </div>
+
                 {/* INTERACTION PROMPT */}
                 <div className="nz-area-prompt">
                     <span className="nz-prompt-icon">📍</span>
@@ -2263,6 +3531,126 @@ function AreaIntelligencePanel({
                 <div className="nz-property-disclaimer" style={{ marginTop: "8px" }}>
                     NDVI and Sentinel-2 true-color values are derived from satellite reflectance mapped onto airborne LiDAR terrain. Vegetation classes are indicative and sample-based, not a certified environmental or land-cover survey.
                 </div>
+            </div>
+        </div>
+    );
+}
+
+function ParcelInspectorPanel({
+    parcel,
+    buildings,
+    buildingMap,
+    onFocusBuilding,
+    onClose
+}: {
+    parcel: NZParcel;
+    buildings?: NZBuilding[];
+    buildingMap?: Map<string, NZBuilding>;
+    onFocusBuilding: (b: NZBuilding) => void;
+    onClose: () => void;
+}) {
+    return (
+        <div className="nz-overlay nz-property nz-parcel-inspector">
+            <button
+                className="nz-close"
+                onClick={onClose}
+                aria-label="Close Cadastral Parcel Inspector"
+            >
+                ×
+            </button>
+
+            <div className="nz-kicker">CADASTRAL PARCEL INSPECTOR</div>
+
+            <div className="nz-property-header">
+                <h3>{parcel.parcel_id}</h3>
+                {parcel.parcel_intent ? (
+                    <span className="nz-class-badge">{parcel.parcel_intent}</span>
+                ) : (
+                    <span className="nz-class-badge">LINZ Primary Parcel</span>
+                )}
+            </div>
+
+            <div className="nz-section-title">1. CADASTRAL ATTRIBUTES</div>
+            <div className="nz-property-grid">
+                {parcel.appellation && (
+                    <div className="nz-prop-item nz-prop-full">
+                        <span>Legal Description (Appellation)</span>
+                        <strong>{parcel.appellation}</strong>
+                    </div>
+                )}
+                {parcel.land_district && (
+                    <div className="nz-prop-item">
+                        <span>Land District</span>
+                        <strong>{parcel.land_district}</strong>
+                    </div>
+                )}
+                <div className="nz-prop-item">
+                    <span>Calculated Area</span>
+                    <strong>{Math.round(parcel.calculated_area).toLocaleString()} m²</strong>
+                </div>
+                {parcel.survey_area !== null && parcel.survey_area !== undefined ? (
+                    <div className="nz-prop-item">
+                        <span>Survey Area (LINZ)</span>
+                        <strong>{Math.round(parcel.survey_area).toLocaleString()} m²</strong>
+                    </div>
+                ) : (
+                    <div className="nz-prop-item">
+                        <span>Survey Area (LINZ)</span>
+                        <span className="nz-unspecified-text">Not recorded in survey records</span>
+                    </div>
+                )}
+                <div className="nz-prop-item nz-prop-full">
+                    <span>Centroid (NZTM2000)</span>
+                    <strong>
+                        {parcel.centroid[0].toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} E ·{" "}
+                        {parcel.centroid[1].toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} N
+                    </strong>
+                </div>
+                {parcel.titles && (
+                    <div className="nz-prop-item nz-prop-full">
+                        <span>Title Reference(s)</span>
+                        <strong>{parcel.titles}</strong>
+                    </div>
+                )}
+            </div>
+
+            <div className="nz-section-title">2. ASSOCIATED STRUCTURES</div>
+            <div className="nz-property-grid">
+                <div className="nz-prop-item nz-prop-full">
+                    <span>Buildings on Parcel</span>
+                    <strong>
+                        {parcel.associated_building_ids.length > 0
+                            ? `${parcel.associated_building_ids.length} structure(s)`
+                            : "Vacant (No structures associated)"}
+                    </strong>
+                    {parcel.associated_building_ids.length > 0 && (
+                        <div className="nz-parcel-bldgs-list">
+                            {parcel.associated_building_ids.map((bId) => {
+                                const bObj = buildingMap ? buildingMap.get(bId) : buildings?.find((b) => b.id === bId);
+                                return (
+                                    <button
+                                        key={bId}
+                                        type="button"
+                                        className="nz-btn-parcel-bldg"
+                                        onClick={() => {
+                                            if (bObj) {
+                                                onFocusBuilding(bObj);
+                                            }
+                                        }}
+                                        title={`Focus on building ${bId}`}
+                                    >
+                                        {bId} →
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            <div className="nz-disclaimer" style={{ marginTop: "10px" }}>
+                Cadastral parcel boundaries and attributes sourced from Land Information New Zealand (LINZ) Data Service Layer 50772.
+                This viewer provides analytical spatial integration only and does not establish legal title, official ownership, or official ULPIN status.
             </div>
         </div>
     );
@@ -3076,12 +4464,68 @@ export default function NZDigitalTwin() {
     const [activeFilter, setActiveFilter] = useState<SpatialFilterType>("all");
     const [isDossierOpen, setIsDossierOpen] = useState<boolean>(false);
 
+    const [
+        parcelsData,
+        setParcelsData
+    ] =
+        useState<NZParcelsData | null>(null);
+
+    const [
+        selectedParcel,
+        setSelectedParcel
+    ] =
+        useState<NZParcel | null>(null);
+
+    const [
+        showParcels,
+        setShowParcels
+    ] =
+        useState<boolean>(true);
+
+    const [
+        explorationMode,
+        setExplorationMode
+    ] =
+        useState<VerticalExplorationMode>("building");
+
+    const [
+        selectedVerticalLevel,
+        setSelectedVerticalLevel
+    ] =
+        useState<NZFloorLevel | null>(null);
+
+    const [
+        isExploded,
+        setIsExploded
+    ] =
+        useState<boolean>(true);
+
+    const [
+        isCollapsingToBuilding,
+        setIsCollapsingToBuilding
+    ] =
+        useState<boolean>(false);
+
+    const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     const handleSelectBuilding = (b: NZBuilding) => {
+        if (selectedBuilding?.id === b.id && explorationMode === "exploring") {
+            return;
+        }
         setActivePreset(null);
         setSelectedBuilding(b);
+        setSelectedParcel(null);
         setMeasureMode(false);
         setMeasureTarget(null);
         setIsDossierOpen(false);
+        setExplorationMode("building");
+        setSelectedVerticalLevel(null);
+        setIsExploded(true);
+        setIsCollapsingToBuilding(false);
+        if (collapseTimerRef.current) {
+            clearTimeout(collapseTimerRef.current);
+            collapseTimerRef.current = null;
+        }
         document.body.style.cursor = "auto";
     };
 
@@ -3089,9 +4533,33 @@ export default function NZDigitalTwin() {
         if (!selectedBuilding) {
             setMeasureMode(false);
             setMeasureTarget(null);
+            setExplorationMode("building");
+            setSelectedVerticalLevel(null);
+            setIsExploded(true);
+            setIsCollapsingToBuilding(false);
+            if (collapseTimerRef.current) {
+                clearTimeout(collapseTimerRef.current);
+                collapseTimerRef.current = null;
+            }
             document.body.style.cursor = "auto";
         }
     }, [selectedBuilding]);
+
+    useEffect(() => {
+        (window as any).__nzSelectBuilding = (bId: string) => {
+            const b = buildings.find((bld) => bld.id === bId);
+            if (b) handleSelectBuilding(b);
+        };
+        (window as any).__nzDeselectBuilding = () => {
+            setSelectedBuilding(null);
+            setExplorationMode("building");
+            setSelectedVerticalLevel(null);
+        };
+        (window as any).__nzSetMeasureTarget = (targetId: string) => {
+            const b = buildings.find((bld) => bld.id === targetId);
+            if (b) setMeasureTarget(b);
+        };
+    }, [buildings]);
 
 
     const [
@@ -3148,17 +4616,19 @@ export default function NZDigitalTwin() {
 
         Promise.all([
             getNZTerrain(),
-            getNZBuildings()
+            getNZBuildings(),
+            getNZParcels()
         ])
 
         .then(([
             terrainData,
-            buildingData
+            buildingData,
+            parcelsResult
         ]) => {
 
             const tRecv = performance.now();
             const start = (window as any).__nzStartTime || tRecv;
-            console.log(`[PERF:REACT_STATE] Both datasets received and parsed in ${(tRecv - start).toFixed(2)}ms. Triggering state update & render...`);
+            console.log(`[PERF:REACT_STATE] All datasets received and parsed in ${(tRecv - start).toFixed(2)}ms. Triggering state update & render...`);
 
             setTerrain(
                 terrainData
@@ -3166,6 +4636,10 @@ export default function NZDigitalTwin() {
 
             setBuildings(
                 buildingData.buildings
+            );
+
+            setParcelsData(
+                parcelsResult
             );
 
         })
@@ -3632,6 +5106,101 @@ export default function NZDigitalTwin() {
         return new Set(matchedBuildingData.map(item => item.building.id));
     }, [matchedBuildingData, activeFilter]);
 
+    const buildingMap = useMemo(() => {
+        const map = new Map<string, NZBuilding>();
+        for (const b of buildings) {
+            map.set(b.id, b);
+        }
+        return map;
+    }, [buildings]);
+
+    const buildingAssociationMap = useMemo(() => {
+        const map = new Map<string, NZBuildingCadastralAssociation>();
+        if (!parcelsData?.associations) return map;
+        if (Array.isArray(parcelsData.associations)) {
+            for (const a of parcelsData.associations) {
+                map.set(a.building_id, a);
+            }
+        } else {
+            for (const [k, v] of Object.entries(parcelsData.associations)) {
+                map.set(k, v);
+            }
+        }
+        return map;
+    }, [parcelsData?.associations]);
+
+    const parcelMap = useMemo(() => {
+        const map = new Map<string, NZParcel>();
+        if (!parcelsData?.parcels) return map;
+        for (const p of parcelsData.parcels) {
+            map.set(p.parcel_id, p);
+        }
+        return map;
+    }, [parcelsData?.parcels]);
+
+    const activeBuildingCadastralAssoc = selectedBuilding
+        ? buildingAssociationMap.get(selectedBuilding.id)
+        : undefined;
+
+    const activeBuildingParcel = activeBuildingCadastralAssoc?.primary_parcel_id
+        ? parcelMap.get(activeBuildingCadastralAssoc.primary_parcel_id)
+        : undefined;
+
+    const handleEnterExploration = () => {
+        if (measureMode || !selectedBuilding) return;
+        const vStruct = activeBuildingCadastralAssoc?.vertical_structure ?? selectedBuilding?.vertical_structure;
+        if (!vStruct || !vStruct.floors || vStruct.floors.length === 0) return;
+
+        setExplorationMode("exploring");
+        setIsExploded(true);
+        setIsCollapsingToBuilding(false);
+        const level01 = vStruct.floors.find((f) => f.floor_index === 1) ?? vStruct.floors[0];
+        setSelectedVerticalLevel(level01);
+    };
+
+    const handleExitExploration = () => {
+        setExplorationMode("building");
+        setSelectedVerticalLevel(null);
+        setIsExploded(true);
+        setIsCollapsingToBuilding(false);
+        if (collapseTimerRef.current) {
+            clearTimeout(collapseTimerRef.current);
+            collapseTimerRef.current = null;
+        }
+    };
+
+    const handleToggleExplodedView = () => {
+        setIsExploded((prev) => !prev);
+    };
+
+    const handleCollapseComplete = () => {
+        if (collapseTimerRef.current) {
+            clearTimeout(collapseTimerRef.current);
+            collapseTimerRef.current = null;
+        }
+        setIsCollapsingToBuilding(false);
+        handleExitExploration();
+    };
+
+    const handleStartCollapse = () => {
+        if (!isExploded) {
+            handleExitExploration();
+            return;
+        }
+        setIsCollapsingToBuilding(true);
+        if (collapseTimerRef.current) {
+            clearTimeout(collapseTimerRef.current);
+        }
+        collapseTimerRef.current = setTimeout(() => {
+            handleCollapseComplete();
+        }, 1100);
+    };
+
+    const handleSelectVerticalLevel = (floor: NZFloorLevel) => {
+        setExplorationMode("exploring");
+        setSelectedVerticalLevel(floor);
+    };
+
     useEffect(() => {
         (window as any).__nzTwinState = {
             selectedBuilding,
@@ -3648,14 +5217,59 @@ export default function NZDigitalTwin() {
             terrainMeta,
             siteAnalysisMap,
             areaIntelligence,
+            getValidationSummary: () => {
+                let validGeom = 0;
+                let validVert = 0;
+                let idInconsistencies = 0;
+                let validIdentity = 0;
+                const pa = parcelsData?.available ?? false;
+                for (const b of buildings) {
+                    const assoc = buildingAssociationMap?.get(b.id);
+                    const res = validate3DProperty(b, assoc, pa);
+                    if (res.checks.find(c => c.rule === "geometry_integrity")?.status === "PASS") validGeom++;
+                    const vert = res.checks.find(c => c.rule === "vertical_structure");
+                    if (vert && (vert.status === "PASS" || vert.status === "WARNING")) validVert++;
+                    const idCheck = res.checks.find(c => c.rule === "property_identity");
+                    if (idCheck?.status === "ERROR") idInconsistencies++;
+                    if (idCheck?.status === "PASS") validIdentity++;
+                }
+                return { validGeom, validVert, idInconsistencies, validIdentity, total: buildings.length };
+            },
             layer,
             setLayer,
             isDossierOpen,
             setIsDossierOpen,
             exportBuildingDossierPdf,
-            exportAreaSummaryPdf
+            exportAreaSummaryPdf,
+            explorationMode,
+            setExplorationMode,
+            selectedVerticalLevel,
+            setSelectedVerticalLevel,
+            isExploded,
+            setIsExploded,
+            isCollapsingToBuilding,
+            handleEnterExploration,
+            handleExitExploration,
+            handleToggleExplodedView,
+            handleStartCollapse,
+            handleCollapseComplete,
+            handleSelectVerticalLevel
         };
-    }, [selectedBuilding, measureMode, measureTarget, activeFilter, matchedBuildingData, buildings, terrain, terrainMeta, siteAnalysisMap, areaIntelligence, layer, isDossierOpen]);
+        (window as any).__nzEnterExploration = handleEnterExploration;
+        (window as any).__nzExitExploration = handleExitExploration;
+        (window as any).__nzToggleExplodedView = handleToggleExplodedView;
+        (window as any).__nzStartCollapse = handleStartCollapse;
+        (window as any).__nzSelectVerticalLevel = (floorIndexOrLabel: number | string) => {
+            const vStruct = activeBuildingCadastralAssoc?.vertical_structure ?? selectedBuilding?.vertical_structure;
+            if (!vStruct || !vStruct.floors) return;
+            const floor = typeof floorIndexOrLabel === "number"
+                ? vStruct.floors.find((f) => f.floor_index === floorIndexOrLabel)
+                : vStruct.floors.find((f) => f.label.toLowerCase() === String(floorIndexOrLabel).toLowerCase());
+            if (floor) {
+                handleSelectVerticalLevel(floor);
+            }
+        };
+    }, [selectedBuilding, measureMode, measureTarget, activeFilter, matchedBuildingData, buildings, terrain, terrainMeta, siteAnalysisMap, areaIntelligence, layer, isDossierOpen, explorationMode, selectedVerticalLevel, isExploded, isCollapsingToBuilding, activeBuildingCadastralAssoc]);
 
 
     if (error) {
@@ -3756,6 +5370,19 @@ export default function NZDigitalTwin() {
                     layer={layer}
                 />
 
+                {showParcels &&
+                    parcelsData?.available &&
+                    parcelsData.parcels.length > 0 &&
+                    terrainMeta && (
+                        <NZParcelsOverlay
+                            parcels={parcelsData.parcels}
+                            terrain={terrain}
+                            terrainMeta={terrainMeta}
+                            selectedParcelId={selectedParcel?.parcel_id}
+                            activeBuildingParcelId={activeBuildingCadastralAssoc?.primary_parcel_id}
+                        />
+                    )}
+
 
                 {showBuildings &&
                     terrainMeta &&
@@ -3776,6 +5403,13 @@ export default function NZDigitalTwin() {
                                     isTarget={isTarget}
                                     isDeemphasized={isDeemphasized}
                                     measureMode={measureMode}
+                                    verticalStructure={isOrigin ? (activeBuildingCadastralAssoc?.vertical_structure ?? building.vertical_structure) : null}
+                                    explorationMode={isOrigin ? explorationMode : "building"}
+                                    selectedVerticalLevel={isOrigin ? selectedVerticalLevel : null}
+                                    isExploded={isOrigin ? isExploded : true}
+                                    isCollapsingToBuilding={isOrigin ? isCollapsingToBuilding : false}
+                                    onSelectVerticalLevel={handleSelectVerticalLevel}
+                                    onCollapseComplete={handleCollapseComplete}
                                     onSelect={
                                         handleSelectBuilding
                                     }
@@ -4085,6 +5719,28 @@ export default function NZDigitalTwin() {
 
                 </label>
 
+                <label className="nz-toggle">
+
+                    <input
+                        type="checkbox"
+                        checked={showParcels}
+                        onChange={(event) =>
+                            setShowParcels(
+                                event.target.checked
+                            )
+                        }
+                    />
+
+                    <span>
+                        Cadastral Parcels
+                    </span>
+
+                    <b>
+                        {parcelsData?.parcels?.length ?? 0}
+                    </b>
+
+                </label>
+
             </div>
 
 
@@ -4168,6 +5824,18 @@ export default function NZDigitalTwin() {
                     measureMode={measureMode}
                     measureTarget={measureTarget}
                     targetAnalysis={measureTarget ? siteAnalysisMap.get(measureTarget.id) : undefined}
+                    cadastralAssoc={activeBuildingCadastralAssoc}
+                    associatedParcel={activeBuildingParcel}
+                    parcelsAvailable={parcelsData?.available ?? false}
+                    explorationMode={explorationMode}
+                    selectedVerticalLevel={selectedVerticalLevel}
+                    isExploded={isExploded}
+                    onEnterExploration={handleEnterExploration}
+                    onExitExploration={handleExitExploration}
+                    onToggleExplodedView={handleToggleExplodedView}
+                    onStartCollapse={handleStartCollapse}
+                    onSelectVerticalLevel={handleSelectVerticalLevel}
+                    onSelectParcel={setSelectedParcel}
                     onStartMeasure={() => {
                         setMeasureMode(true);
                         setMeasureTarget(null);
@@ -4186,6 +5854,8 @@ export default function NZDigitalTwin() {
                         setMeasureMode(false);
                         setMeasureTarget(null);
                         setIsDossierOpen(false);
+                        setExplorationMode("building");
+                        setSelectedVerticalLevel(null);
                         document.body.style.cursor = "auto";
                     }}
                 />
@@ -4197,8 +5867,23 @@ export default function NZDigitalTwin() {
                     matchedBuildings={matchedBuildingData}
                     onFocusBuilding={handleSelectBuilding}
                     onOpenDossier={() => setIsDossierOpen(true)}
+                    parcelsSummary={parcelsData?.summary}
+                    buildingAssociationMap={buildingAssociationMap}
+                    buildings={buildings}
+                    parcelsAvailable={parcelsData?.available ?? false}
                 />
             ) : null}
+
+            {/* CADASTRAL PARCEL INSPECTOR */}
+            {selectedParcel && (
+                <ParcelInspectorPanel
+                    parcel={selectedParcel}
+                    buildings={buildings}
+                    buildingMap={buildingMap}
+                    onFocusBuilding={handleSelectBuilding}
+                    onClose={() => setSelectedParcel(null)}
+                />
+            )}
 
             {isDossierOpen && (
                 <DossierModal
