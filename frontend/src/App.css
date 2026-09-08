@@ -3144,3 +3144,80 @@ footer {
 
 
 
+
+/* Vertical Level Position Visualizer */
+.nz-level-position-indicator {
+    display: flex;
+    flex-direction: row;
+    gap: 16px;
+    align-items: flex-start;
+}
+
+.nz-level-position-details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.nz-level-visualizer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid rgba(148, 163, 184, 0.1);
+    border-radius: 8px;
+    padding: 12px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.nz-level-vis-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: all 0.15s ease;
+}
+
+.nz-level-vis-node:hover {
+    opacity: 1;
+}
+
+.nz-level-vis-node.selected {
+    opacity: 1;
+}
+
+.nz-level-vis-label {
+    font-size: 10px;
+    font-family: var(--font-mono, monospace);
+    color: #94a3b8;
+    margin-bottom: 2px;
+}
+
+.nz-level-vis-node.selected .nz-level-vis-label {
+    color: #38bdf8;
+    font-weight: 600;
+}
+
+.nz-level-vis-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #64748b;
+    margin: 2px 0;
+}
+
+.nz-level-vis-node.selected .nz-level-vis-dot {
+    background: #38bdf8;
+    box-shadow: 0 0 6px rgba(56, 189, 248, 0.6);
+}
+
+.nz-level-vis-line {
+    width: 2px;
+    height: 12px;
+    background: #334155;
+    margin: 2px 0;
+}
+
