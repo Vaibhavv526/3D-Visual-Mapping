@@ -933,8 +933,9 @@ function NZExplodedBuilding({
 
         const geometries = (verticalStructure.floors || []).map((floor) => {
             const floorHeight = Math.max(0.3, (floor.top_elevation - floor.base_elevation) * 1.0);
-            const prismGeo = createFloorPrismGeometry(computedHull, floorHeight);
-            const lineGeo = createFloorLineGeometry(computedHull, floorHeight);
+            const levelHull = floor.footprint ? floor.footprint.map((p: number[]) => [p[0] - centerX, p[1] - centerY] as [number, number]) : computedHull;
+            const prismGeo = createFloorPrismGeometry(levelHull, floorHeight);
+            const lineGeo = createFloorLineGeometry(levelHull, floorHeight);
             return {
                 floor,
                 floorHeight,
@@ -2166,7 +2167,9 @@ function PropertyIntelligencePanel({
                         </h3>
                     </div>
                     <span className="nz-class-badge nz-est-badge" style={{ alignSelf: "flex-start", marginTop: "4px" }}>
-                        Estimated · LiDAR-derived
+                        {isLevelSelected && selectedVerticalLevel?.geometry_status
+                            ? `Geometry: ${selectedVerticalLevel.geometry_status}`
+                            : "Estimated · LiDAR-derived"}
                     </span>
                 </div>
 
@@ -2301,22 +2304,22 @@ function PropertyIntelligencePanel({
                             </div>
                         </div>
 
-                        <div className="nz-section-title">3. ESTIMATED FOOTPRINT</div>
+                        <div className="nz-section-title">3. BUILDING ENVELOPE</div>
                         <div className="nz-property-grid">
                             <div className="nz-prop-item">
-                                <span>Estimated Width</span>
+                                <span>Envelope Width</span>
                                 <strong>{width.toFixed(1)} m</strong>
                             </div>
                             <div className="nz-prop-item">
-                                <span>Estimated Depth</span>
+                                <span>Envelope Depth</span>
                                 <strong>{depth.toFixed(1)} m</strong>
                             </div>
                             <div className="nz-prop-item nz-prop-full">
-                                <span>Estimated Footprint Area</span>
+                                <span>Envelope Area</span>
                                 <strong>{Math.round(bboxArea).toLocaleString()} m²</strong>
                             </div>
                             <div className="nz-disclaimer" style={{ marginTop: "4px", gridColumn: "1 / -1" }}>
-                                Derived from the building footprint envelope. Not an architectural floor-plan area.
+                                Floor-specific architectural geometry is unavailable in the current LiDAR dataset. Levels are estimated vertical zones derived from LiDAR-based structural height.
                             </div>
                         </div>
 

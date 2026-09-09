@@ -417,6 +417,7 @@ def prepare_nz_buildings_cache() -> bytes:
                 ground_elevation=b_ground,
                 roof_elevation=b_roof,
                 property_id_3d=None,
+                building_points=building_points,
             )
 
             buildings.append({
@@ -425,9 +426,11 @@ def prepare_nz_buildings_cache() -> bytes:
                 "faces": np.asarray(building_faces, dtype=np.uint32).tolist(),
                 "rgb": building_rgb.tolist(),
                 "ndvi": building_ndvi.tolist(),
-                "height": b_height,
+                "height": b_height, # Raw
                 "ground_elevation": b_ground,
-                "roof_elevation": b_roof,
+                "roof_elevation": b_roof, # Raw
+                "structural_height": vert_struct["structural_height"] if vert_struct else b_height,
+                "structural_roof_elevation": vert_struct["structural_roof_elevation"] if vert_struct else b_roof,
                 "point_count": int(len(building_points)),
                 "triangle_count": int(len(building_faces)),
                 "min_elevation": float(building_points[:, 2].min()),
@@ -501,9 +504,9 @@ def get_nz_ml_payload(wants_gzip: bool) -> tuple[bytes, bool]:
                 w = b["bounds"]["max_x"] - b["bounds"]["min_x"]
                 d = b["bounds"]["max_y"] - b["bounds"]["min_y"]
                 area = w * d
-                h = b["height"]
+                h = b.get("structural_height", b["height"])
                 g = b["ground_elevation"]
-                r = b["roof_elevation"]
+                r = b.get("structural_roof_elevation", b["roof_elevation"])
                 floors = 1
                 if "vertical_structure" in b and b["vertical_structure"]:
                     floors = b["vertical_structure"].get("estimated_floor_count", 1)

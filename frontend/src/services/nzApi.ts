@@ -56,6 +56,14 @@ export interface NZFloorLevel {
     top_elevation: number;
     height: number;
     vertical_unit_id: string | null;
+    geometry_status?: string;
+    geometry_source?: string;
+    footprint?: number[][];
+    footprint_area?: number;
+    footprint_width?: number;
+    footprint_depth?: number;
+    point_count?: number;
+    support_ratio?: number;
 }
 
 export type NZVerticalConsistencyStatus = "HIGH" | "MODERATE" | "LIMITED" | "NOT_AVAILABLE";
