@@ -30,7 +30,10 @@ import {
     type NZVerticalStructure,
     type NZFloorLevel,
     type VerticalExplorationMode,
-    validate3DProperty
+    validate3DProperty,
+    getNZMLBuildings,
+    type NZBuildingMLSummary,
+    type NZBuildingMLProfile
 } from "../../services/nzApi";
 
 import {
@@ -1996,7 +1999,9 @@ function PropertyIntelligencePanel({
     onClearMeasure,
     onSelectDifferentTarget,
     onOpenDossier,
-    onClose
+    onClose,
+    mlSummary,
+    mlProfile
 }: {
     building: NZBuilding;
     analysis?: BuildingSiteAnalysis;
@@ -2015,6 +2020,8 @@ function PropertyIntelligencePanel({
     onStartCollapse?: () => void;
     onSelectVerticalLevel: (floor: NZFloorLevel) => void;
     onSelectParcel?: (parcel: NZParcel) => void;
+    mlSummary?: NZBuildingMLSummary | null;
+    mlProfile?: NZBuildingMLProfile | null;
     onStartMeasure: () => void;
     onClearMeasure: () => void;
     onSelectDifferentTarget: () => void;
@@ -2211,12 +2218,33 @@ function PropertyIntelligencePanel({
                                     }}
                                 >
                                     <div className="nz-level-header-row">
-                                        <div className="nz-level-name-wrap">
+                                        <div className="nz-level-name-wrap" style={{ flex: 1, display: "flex", alignItems: "center", gap: "6px" }}>
                                             <span className="nz-level-idx">{String(floor.floor_index).padStart(2, "0")}</span>
                                             <span className="nz-level-label">{floor.label}</span>
+                                            {verticalStructure?.consistency && (() => {
+                                                const ev = verticalStructure.consistency.levels.find(l => l.level_index === floor.floor_index);
+                                                if (!ev) return null;
+                                                return (
+                                                    <span style={{ 
+                                                        marginLeft: "auto", 
+                                                        fontSize: "10px", 
+                                                        fontWeight: 600,
+                                                        padding: "2px 4px",
+                                                        borderRadius: "3px",
+                                                        backgroundColor: ev.consistency_status === "HIGH" ? "rgba(34, 197, 94, 0.15)" :
+                                                                         ev.consistency_status === "MODERATE" ? "rgba(245, 158, 11, 0.15)" :
+                                                                         "rgba(239, 68, 68, 0.15)",
+                                                        color: ev.consistency_status === "HIGH" ? "#4ade80" :
+                                                               ev.consistency_status === "MODERATE" ? "#fbbf24" :
+                                                               "#f87171"
+                                                    }}>
+                                                        {ev.consistency_status === "HIGH" ? "CONSISTENT" : ev.consistency_status}
+                                                    </span>
+                                                );
+                                            })()}
                                             {isSelected && <span className="nz-level-active-indicator">Selected</span>}
                                         </div>
-                                        <span className="nz-level-elev">
+                                        <span className="nz-level-elev" style={{ marginLeft: "8px" }}>
                                             {floor.base_elevation.toFixed(2)} → {floor.top_elevation.toFixed(2)} m
                                         </span>
                                     </div>
@@ -2320,7 +2348,42 @@ function PropertyIntelligencePanel({
                             </div>
                         </div>
 
-                        <div className="nz-section-title">5. DATA NOTE</div>
+                        {verticalStructure?.consistency && (() => {
+                            const ev = verticalStructure.consistency.levels.find(l => l.level_index === selectedVerticalLevel.floor_index);
+                            if (!ev) return null;
+                            return (
+                                <>
+                                    <div className="nz-section-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                        <span>5. VERTICAL CONSISTENCY</span>
+                                        <span className="nz-est-badge" style={{
+                                            backgroundColor: ev.consistency_status === "HIGH" ? "rgba(34, 197, 94, 0.15)" :
+                                                             ev.consistency_status === "MODERATE" ? "rgba(245, 158, 11, 0.15)" :
+                                                             "rgba(239, 68, 68, 0.15)",
+                                            color: ev.consistency_status === "HIGH" ? "#4ade80" :
+                                                   ev.consistency_status === "MODERATE" ? "#fbbf24" :
+                                                   "#f87171"
+                                        }}>
+                                            {ev.consistency_status === "HIGH" ? "HIGH CONSISTENCY" : ev.consistency_status === "MODERATE" ? "MODERATE CONSISTENCY" : "LIMITED CONSISTENCY"}
+                                        </span>
+                                    </div>
+                                    <div className="nz-property-grid">
+                                        <div className="nz-prop-item">
+                                            <span>Vertical model consistency</span>
+                                            <strong style={{ color: ev.consistency_status === "HIGH" ? "#4ade80" : ev.consistency_status === "MODERATE" ? "#fbbf24" : "#f87171" }}>
+                                                {ev.consistency_status}
+                                            </strong>
+                                        </div>
+                                        <div className="nz-prop-item nz-prop-full">
+                                            <div className="nz-prop-note" style={{ color: "#e2e8f0" }}>
+                                                This level belongs to a vertical structure model that is consistent with the available LiDAR-derived building measurements.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            );
+                        })()}
+
+                        <div className="nz-section-title">{verticalStructure?.consistency ? "6. DATA NOTE" : "5. DATA NOTE"}</div>
                         <div className="nz-disclaimer">
                             Level structure estimated from LiDAR-derived building height using the 3.2m/floor assumption. LiDAR-derived estimated vertical level.
                         </div>
@@ -2593,6 +2656,43 @@ function PropertyIntelligencePanel({
                         </div>
                     </div>
 
+                    {verticalStructure.consistency && (
+                        <>
+                            <div className="nz-section-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <span>VERTICAL STRUCTURE CONSISTENCY</span>
+                                <span className="nz-est-badge" style={{
+                                    backgroundColor: verticalStructure.consistency.overall_status === "HIGH" ? "rgba(34, 197, 94, 0.15)" :
+                                                     verticalStructure.consistency.overall_status === "MODERATE" ? "rgba(245, 158, 11, 0.15)" :
+                                                     "rgba(239, 68, 68, 0.15)",
+                                    color: verticalStructure.consistency.overall_status === "HIGH" ? "#4ade80" :
+                                           verticalStructure.consistency.overall_status === "MODERATE" ? "#fbbf24" :
+                                           "#f87171"
+                                }}>
+                                    {verticalStructure.consistency.overall_status === "HIGH" ? "HIGH CONSISTENCY" : verticalStructure.consistency.overall_status === "MODERATE" ? "MODERATE CONSISTENCY" : "LIMITED CONSISTENCY"}
+                                </span>
+                            </div>
+                            <div className="nz-property-grid">
+                                <div className="nz-prop-item">
+                                    <span>Estimated levels</span>
+                                    <strong>{verticalStructure.estimated_floor_count}</strong>
+                                </div>
+                                <div className="nz-prop-item">
+                                    <span>Height residual</span>
+                                    <strong>{verticalStructure.consistency.levels[0]?.signals.find(s => s.name === "Height consistency")?.value.toFixed(2)} m</strong>
+                                </div>
+                                <div className="nz-prop-item nz-prop-full">
+                                    <span>Vertical extent</span>
+                                    <strong>{verticalStructure.consistency.overall_status === "HIGH" ? "Consistent" : verticalStructure.consistency.overall_status === "MODERATE" ? "Reasonably Consistent" : "Limited Consistency"}</strong>
+                                </div>
+                                <div className="nz-prop-item nz-prop-full" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "4px" }}>
+                                    <div className="nz-prop-note" style={{ color: "#e2e8f0", fontSize: "10px" }}>
+                                        Consistency measures agreement between the LiDAR-derived building height and the estimated level model. It does not confirm architectural floors.
+                                    </div>
+                                </div>
+                            </div>
+                        </>
+                    )}
+
                     {/* Explore Levels Action */}
                     <div className="nz-explore-trigger-wrap">
                         <button
@@ -2750,6 +2850,77 @@ function PropertyIntelligencePanel({
                     </div>
                 </div>
             </div>
+
+            {/* ML STRUCTURAL PROFILE */}
+            {mlProfile && (
+                <>
+                    <div className="nz-section-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span>ML STRUCTURAL PROFILE</span>
+                        <span className="nz-est-badge" style={{ 
+                            backgroundColor: mlProfile.classification === "Typical" ? "rgba(34, 197, 94, 0.15)" :
+                                             mlProfile.classification === "Moderately unusual" ? "rgba(245, 158, 11, 0.15)" :
+                                             "rgba(239, 68, 68, 0.15)",
+                            color: mlProfile.classification === "Typical" ? "#4ade80" :
+                                   mlProfile.classification === "Moderately unusual" ? "#fbbf24" :
+                                   "#f87171"
+                        }}>
+                            {mlProfile.classification.toUpperCase()}
+                        </span>
+                    </div>
+                    <div className="nz-property-grid">
+                        <div className="nz-prop-item nz-prop-full">
+                            <div style={{ fontFamily: "monospace", fontSize: "14px", whiteSpace: "pre-wrap", color: 
+                                mlProfile.classification === "Typical" ? "#4ade80" :
+                                mlProfile.classification === "Moderately unusual" ? "#fbbf24" : "#f87171"
+                            }}>
+                                {mlProfile.classification === "Typical" ? "──────────────\n██████░░░░" :
+                                 mlProfile.classification === "Moderately unusual" ? "──────────────\n████████░░" :
+                                 "──────────────\n██████████"}
+                            </div>
+                        </div>
+                        <div className="nz-prop-item">
+                            <span>Structural Deviation</span>
+                            <strong className={mlProfile.classification !== "Typical" ? "nz-text-amber" : ""}>
+                                {(mlProfile.normalized_deviation * 100).toFixed(1)}%
+                            </strong>
+                        </div>
+                        <div className="nz-prop-item">
+                            <span>Model</span>
+                            <strong>Mahalanobis Distance</strong>
+                        </div>
+                        <div className="nz-prop-item">
+                            <span>Training Set</span>
+                            <strong>{mlSummary?.training_sample_count} structures</strong>
+                        </div>
+                        <div className="nz-prop-item nz-prop-full" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "8px", marginTop: "4px" }}>
+                            <div style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "8px" }}>FEATURE VECTORS</div>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                                <div>
+                                    <span style={{ fontSize: "10px", color: "#64748b", display: "block" }}>Height</span>
+                                    <strong style={{ fontSize: "12px", color: "#e2e8f0" }}>{mlProfile.feature_summary.Height.toFixed(1)} m</strong>
+                                </div>
+                                <div>
+                                    <span style={{ fontSize: "10px", color: "#64748b", display: "block" }}>Estimated Levels</span>
+                                    <strong style={{ fontSize: "12px", color: "#e2e8f0" }}>{mlProfile.feature_summary["Estimated Levels"]}</strong>
+                                </div>
+                                <div>
+                                    <span style={{ fontSize: "10px", color: "#64748b", display: "block" }}>Footprint Area</span>
+                                    <strong style={{ fontSize: "12px", color: "#e2e8f0" }}>{mlProfile.feature_summary["Footprint Area (bbox)"].toFixed(0)} m²</strong>
+                                </div>
+                                <div>
+                                    <span style={{ fontSize: "10px", color: "#64748b", display: "block" }}>Ground Elevation</span>
+                                    <strong style={{ fontSize: "12px", color: "#e2e8f0" }}>{mlProfile.feature_summary["Ground Elevation"].toFixed(1)} m</strong>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="nz-prop-item nz-prop-full" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "4px" }}>
+                            <div className="nz-unspecified-text" style={{ fontSize: "10px", letterSpacing: "0.02em" }}>
+                                {mlSummary?.disclaimer}
+                            </div>
+                        </div>
+                    </div>
+                </>
+            )}
 
             {/* 5. SITE ANALYSIS */}
             <div className="nz-section-title">5. SITE ANALYSIS</div>
@@ -3138,6 +3309,7 @@ interface AreaIntelligencePanelProps {
     buildingAssociationMap?: Map<string, NZBuildingCadastralAssociation>;
     buildings: NZBuilding[];
     parcelsAvailable: boolean;
+    mlSummary?: NZBuildingMLSummary | null;
 }
 
 function AreaIntelligencePanel({
@@ -3150,7 +3322,8 @@ function AreaIntelligencePanel({
     parcelsSummary,
     buildingAssociationMap,
     buildings,
-    parcelsAvailable
+    parcelsAvailable,
+    mlSummary
 }: AreaIntelligencePanelProps) {
     const totalBldgs = data.totalBuildings;
     let identitiesCount = 0;
@@ -3306,6 +3479,54 @@ function AreaIntelligencePanel({
                     </div>
                 </div>
 
+                {/* VERTICAL STRUCTURE ANALYSIS */}
+                <div className="nz-prop-section-title">VERTICAL STRUCTURE ANALYSIS</div>
+                <div className="nz-prop-grid">
+                    <div className="nz-prop-item nz-prop-full">
+                        <span>Structures Analyzed</span>
+                        <strong>{totalBldgs}</strong>
+                        <div className="nz-prop-note">Based on available LiDAR-derived geometry.</div>
+                    </div>
+                    {(() => {
+                        let high = 0;
+                        let moderate = 0;
+                        let limited = 0;
+                        let notAvailable = 0;
+                        buildings.forEach(b => {
+                            const vs = b.vertical_structure;
+                            if (vs?.consistency) {
+                                if (vs.consistency.overall_status === "HIGH") high++;
+                                else if (vs.consistency.overall_status === "MODERATE") moderate++;
+                                else if (vs.consistency.overall_status === "LIMITED") limited++;
+                                else notAvailable++;
+                            } else {
+                                notAvailable++;
+                            }
+                        });
+                        return (
+                            <>
+                                <div className="nz-prop-item">
+                                    <span>High consistency</span>
+                                    <strong style={{ color: "#4ade80" }}>{high}</strong>
+                                </div>
+                                <div className="nz-prop-item">
+                                    <span>Moderate consistency</span>
+                                    <strong style={{ color: "#fbbf24" }}>{moderate}</strong>
+                                </div>
+                                <div className="nz-prop-item">
+                                    <span>Limited consistency</span>
+                                    <strong style={{ color: "#f87171" }}>{limited}</strong>
+                                </div>
+                                {notAvailable > 0 && (
+                                    <div className="nz-prop-item">
+                                        <span>Not Available</span>
+                                        <strong>{notAvailable}</strong>
+                                    </div>
+                                )}
+                            </>
+                        );
+                    })()}
+                </div>
                 {/* SECTION 3: TERRAIN & SPATIAL CONTEXT */}
                 <div className="nz-prop-section-title">{parcelsSummary ? "4. TERRAIN & SPATIAL CONTEXT" : "3. TERRAIN & SPATIAL CONTEXT"}</div>
 
@@ -3488,6 +3709,35 @@ function AreaIntelligencePanel({
                         </strong>
                     </div>
                 </div>
+
+                {/* SECTION 6: ML STRUCTURAL ANALYSIS */}
+                {mlSummary && (
+                    <>
+                        <div className="nz-prop-section-title">6. ML STRUCTURAL ANALYSIS</div>
+                        <div className="nz-prop-grid">
+                            <div className="nz-prop-item nz-prop-full">
+                                <span>{mlSummary.training_sample_count} structures analyzed</span>
+                                <div className="nz-prop-note">Relative to available NZ LiDAR structures</div>
+                            </div>
+                            <div className="nz-prop-item">
+                                <span>Typical</span>
+                                <strong className="nz-text-cyan">{mlSummary.profiles.filter(p => p.classification === "Typical").length}</strong>
+                            </div>
+                            <div className="nz-prop-item">
+                                <span>Moderately unusual</span>
+                                <strong className="nz-text-amber">{mlSummary.profiles.filter(p => p.classification === "Moderately unusual").length}</strong>
+                            </div>
+                            <div className="nz-prop-item">
+                                <span>Highly unusual</span>
+                                <strong style={{ color: "#f87171" }}>{mlSummary.profiles.filter(p => p.classification === "Highly unusual").length}</strong>
+                            </div>
+                            <div className="nz-prop-item">
+                                <span>Model</span>
+                                <strong>Mahalanobis Distance</strong>
+                            </div>
+                        </div>
+                    </>
+                )}
 
                 {/* INTERACTION PROMPT */}
                 <div className="nz-area-prompt">
@@ -4471,6 +4721,12 @@ export default function NZDigitalTwin() {
         useState<NZParcelsData | null>(null);
 
     const [
+        mlSummary,
+        setMlSummary
+    ] =
+        useState<NZBuildingMLSummary | null>(null);
+
+    const [
         selectedParcel,
         setSelectedParcel
     ] =
@@ -4617,13 +4873,18 @@ export default function NZDigitalTwin() {
         Promise.all([
             getNZTerrain(),
             getNZBuildings(),
-            getNZParcels()
+            getNZParcels(),
+            getNZMLBuildings().catch(e => {
+                console.error("ML analysis unavailable:", e);
+                return null;
+            })
         ])
 
         .then(([
             terrainData,
             buildingData,
-            parcelsResult
+            parcelsResult,
+            mlResult
         ]) => {
 
             const tRecv = performance.now();
@@ -4641,6 +4902,9 @@ export default function NZDigitalTwin() {
             setParcelsData(
                 parcelsResult
             );
+            if (mlResult) {
+                setMlSummary(mlResult);
+            }
 
         })
 
@@ -5856,8 +6120,9 @@ export default function NZDigitalTwin() {
                         setIsDossierOpen(false);
                         setExplorationMode("building");
                         setSelectedVerticalLevel(null);
-                        document.body.style.cursor = "auto";
                     }}
+                    mlSummary={mlSummary}
+                    mlProfile={mlSummary?.profiles.find(p => p.building_id === selectedBuilding.id) || null}
                 />
             ) : areaIntelligence ? (
                 <AreaIntelligencePanel
@@ -5871,6 +6136,7 @@ export default function NZDigitalTwin() {
                     buildingAssociationMap={buildingAssociationMap}
                     buildings={buildings}
                     parcelsAvailable={parcelsData?.available ?? false}
+                    mlSummary={mlSummary}
                 />
             ) : null}
 
