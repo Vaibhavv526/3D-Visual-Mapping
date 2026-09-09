@@ -29,6 +29,47 @@ DEFAULT_FLOOR_HEIGHT_METRES: float = 3.2
 SOURCE_DESCRIPTION: str = "Estimated · LiDAR-derived"
 
 
+import numpy as np
+
+def estimate_structural_roof_elevation(building_points: np.ndarray, ground_elev: float) -> float:
+    """
+    Robust LiDAR-derived structural roof estimation.
+    Identifies the dominant upper structural surface instead of blindly using max(Z).
+    """
+    if building_points is None or len(building_points) == 0:
+        return ground_elev
+
+    z_values = building_points[:, 2]
+    roof_mask = z_values > ground_elev + 2.0
+    roof_pts = building_points[roof_mask]
+
+    if len(roof_pts) < 10:
+        return float(np.max(z_values))
+
+    total_w = building_points[:, 0].max() - building_points[:, 0].min()
+    total_d = building_points[:, 1].max() - building_points[:, 1].min()
+    total_area = total_w * total_d
+
+    sorted_z = np.sort(roof_pts[:, 2])[::-1]
+
+    for z_test in sorted_z:
+        band_mask = (roof_pts[:, 2] >= z_test - 1.0) & (roof_pts[:, 2] <= z_test + 0.1)
+        band_pts = roof_pts[band_mask]
+
+        if len(band_pts) > 0:
+            bw = band_pts[:, 0].max() - band_pts[:, 0].min()
+            bd = band_pts[:, 1].max() - band_pts[:, 1].min()
+            band_area = bw * bd
+
+            point_ratio = len(band_pts) / len(roof_pts)
+            area_ratio = band_area / total_area if total_area > 0 else 0
+
+            # Must have substantial horizontal extent or point mass to be the structural roof
+            if (point_ratio >= 0.15 or len(band_pts) >= 50) and (area_ratio >= 0.15 or band_area >= 50.0):
+                return float(z_test)
+
+    return float(np.max(z_values))
+
 def estimate_floor_count(building_height: Optional[float]) -> Optional[int]:
     """
     Calculate estimated floor count based on standard LiDAR height assumption (3.2m / floor).
@@ -54,6 +95,7 @@ def estimate_vertical_structure(
     ground_elevation: Optional[float],
     roof_elevation: Optional[float],
     property_id_3d: Optional[str] = None,
+    building_points: Optional[Any] = None, # np.ndarray
 ) -> Optional[Dict[str, Any]]:
     """
     Generate an estimated vertical property model between ground_elevation and roof_elevation.
@@ -64,6 +106,7 @@ def estimate_vertical_structure(
         ground_elevation: Local ground base elevation in metres.
         roof_elevation: Apex/roof elevation in metres.
         property_id_3d: Optional Phase 8A 3D Property ID (e.g. "3DP-5077201-NZ-B001").
+        building_points: Optional numpy array of building vertices (N, 3) for per-level footprint.
 
     Returns:
         Dictionary representing the vertical structure, or None if vertical structure
@@ -84,6 +127,20 @@ def estimate_vertical_structure(
         return None
     if math.isinf(h) or math.isinf(g) or math.isinf(r):
         return None
+
+    raw_r = r
+    raw_h = h
+    roof_estimation_method = "max_z"
+
+    if building_points is not None:
+        try:
+            est_roof = estimate_structural_roof_elevation(building_points, g)
+            if est_roof < r:
+                r = est_roof
+                h = r - g
+                roof_estimation_method = "dominant_upper_surface_cluster"
+        except Exception:
+            pass
 
     # Edge cases B, E, F: height must be positive, and roof must exceed ground
     if h <= 0.0 or r <= g:
@@ -119,6 +176,38 @@ def estimate_vertical_structure(
         "levels": []
     }
 
+    # Attempt to import shapely for concave_hull
+    has_shapely = False
+    try:
+        from shapely.geometry import MultiPoint
+        from shapely import concave_hull
+        has_shapely = True
+    except ImportError:
+        pass
+
+    overall_area = None
+    building_envelope = None
+    envelope_area = None
+    envelope_width = None
+    envelope_depth = None
+
+    if building_points is not None and has_shapely:
+        try:
+            mp = MultiPoint(building_points[:, :2])
+            poly = concave_hull(mp, ratio=0.1)
+            if poly.is_empty or poly.geom_type != 'Polygon':
+                poly = mp.convex_hull
+            if not poly.is_empty and poly.geom_type == 'Polygon':
+                overall_area = poly.area
+                coords = list(poly.exterior.coords)[:-1]
+                building_envelope = [list(c) for c in coords]
+                envelope_area = round(poly.area, 2)
+                bounds = poly.bounds
+                envelope_width = round(bounds[2] - bounds[0], 2)
+                envelope_depth = round(bounds[3] - bounds[1], 2)
+        except Exception:
+            pass
+
     floors: List[Dict[str, Any]] = []
     for i in range(1, floor_count + 1):
         base_elev = round(g + (i - 1) * floor_thickness, 3)
@@ -133,15 +222,28 @@ def estimate_vertical_structure(
 
         # Vertical Unit ID: generated strictly when property_id_3d is available
         unit_id = f"{valid_pid}-L{i:02d}" if valid_pid else None
-
-        floors.append({
+        
+        floor_data = {
             "floor_index": i,
             "label": label,
             "base_elevation": base_elev,
             "top_elevation": top_elev,
             "height": level_height,
             "vertical_unit_id": unit_id,
-        })
+            "geometry_status": "Estimated vertical zone",
+            "geometry_source": "building_envelope",
+        }
+        
+        if building_envelope:
+            floor_data["footprint"] = building_envelope
+            floor_data["footprint_area"] = envelope_area
+            floor_data["footprint_width"] = envelope_width
+            floor_data["footprint_depth"] = envelope_depth
+        else:
+            floor_data["geometry_status"] = "Floor-specific geometry unavailable"
+            floor_data["geometry_source"] = "unavailable"
+
+        floors.append(floor_data)
         
         consistency["levels"].append({
             "level_index": i,
@@ -164,9 +266,14 @@ def estimate_vertical_structure(
     return {
         "building_id": building_id,
         "property_id_3d": valid_pid,
-        "building_height": round(h, 2),
+        "building_height": round(h, 2), # structural
         "ground_elevation": round(g, 2),
-        "roof_elevation": round(r, 2),
+        "roof_elevation": round(r, 2), # structural
+        "structural_height": round(h, 2),
+        "structural_roof_elevation": round(r, 2),
+        "raw_max_z": round(raw_r, 2),
+        "raw_height": round(raw_h, 2),
+        "roof_estimation_method": roof_estimation_method,
         "estimated_floor_height": round(floor_thickness, 3),
         "estimated_floor_count": floor_count,
         "description": SOURCE_DESCRIPTION,
