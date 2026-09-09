@@ -58,6 +58,29 @@ export interface NZFloorLevel {
     vertical_unit_id: string | null;
 }
 
+export type NZVerticalConsistencyStatus = "HIGH" | "MODERATE" | "LIMITED" | "NOT_AVAILABLE";
+
+export interface NZVerticalConsistencySignal {
+    name: string;
+    description: string;
+    value: number;
+}
+
+export interface NZVerticalConsistencyLevel {
+    level_index: number;
+    consistency_status: NZVerticalConsistencyStatus;
+    explanation: string;
+    signals: NZVerticalConsistencySignal[];
+}
+
+export interface NZVerticalStructureConsistency {
+    building_id: string;
+    overall_status: NZVerticalConsistencyStatus;
+    available_signal_count: number;
+    disclaimer: string;
+    levels: NZVerticalConsistencyLevel[];
+}
+
 export interface NZVerticalStructure {
     building_id: string;
     property_id_3d: string | null;
@@ -67,6 +90,7 @@ export interface NZVerticalStructure {
     estimated_floor_height: number;
     estimated_floor_count: number;
     description?: string;
+    consistency?: NZVerticalStructureConsistency | null;
     floors: NZFloorLevel[];
 }
 

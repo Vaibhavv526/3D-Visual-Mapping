@@ -1,4 +1,4 @@
-﻿"""
+"""
 vertical_structure.py
 =====================
 Backend and data foundation for Phase 9A: Estimated Vertical Structure & Levels.
@@ -96,6 +96,29 @@ def estimate_vertical_structure(
     # Clean property_id_3d string if provided
     valid_pid = str(property_id_3d).strip() if property_id_3d and str(property_id_3d).strip() else None
 
+    # Calculate consistency
+    height_residual = abs(h - floor_count * DEFAULT_FLOOR_HEIGHT_METRES)
+    extent_residual = abs(h - vertical_extent)
+    total_residual = height_residual + extent_residual
+
+    if total_residual < 0.8:
+        overall_status = "HIGH"
+        explanation = "Estimated level structure is highly consistent with the measured LiDAR-derived building height and vertical extent."
+    elif total_residual < 2.0:
+        overall_status = "MODERATE"
+        explanation = "Estimated level structure is reasonably consistent with the measured LiDAR-derived building height and vertical extent."
+    else:
+        overall_status = "LIMITED"
+        explanation = "Available measurements provide limited consistency for the estimated level structure."
+
+    consistency = {
+        "building_id": building_id,
+        "overall_status": overall_status,
+        "available_signal_count": 2,
+        "disclaimer": "Vertical structure consistency is derived from available LiDAR building geometry and the 3.2m/floor estimation model. It does not confirm architectural floors or legal vertical property boundaries.",
+        "levels": []
+    }
+
     floors: List[Dict[str, Any]] = []
     for i in range(1, floor_count + 1):
         base_elev = round(g + (i - 1) * floor_thickness, 3)
@@ -119,6 +142,24 @@ def estimate_vertical_structure(
             "height": level_height,
             "vertical_unit_id": unit_id,
         })
+        
+        consistency["levels"].append({
+            "level_index": i,
+            "consistency_status": overall_status,
+            "explanation": explanation,
+            "signals": [
+                {
+                    "name": "Height consistency",
+                    "description": f"Residual vs standard floor height is {height_residual:.2f}m",
+                    "value": round(height_residual, 2)
+                },
+                {
+                    "name": "Vertical extent consistency",
+                    "description": f"Height vs (roof - ground) difference is {extent_residual:.2f}m",
+                    "value": round(extent_residual, 2)
+                }
+            ]
+        })
 
     return {
         "building_id": building_id,
@@ -129,5 +170,6 @@ def estimate_vertical_structure(
         "estimated_floor_height": round(floor_thickness, 3),
         "estimated_floor_count": floor_count,
         "description": SOURCE_DESCRIPTION,
+        "consistency": consistency,
         "floors": floors,
     }

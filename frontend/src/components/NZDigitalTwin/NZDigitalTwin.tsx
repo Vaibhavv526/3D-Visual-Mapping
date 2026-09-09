@@ -2218,12 +2218,33 @@ function PropertyIntelligencePanel({
                                     }}
                                 >
                                     <div className="nz-level-header-row">
-                                        <div className="nz-level-name-wrap">
+                                        <div className="nz-level-name-wrap" style={{ flex: 1, display: "flex", alignItems: "center", gap: "6px" }}>
                                             <span className="nz-level-idx">{String(floor.floor_index).padStart(2, "0")}</span>
                                             <span className="nz-level-label">{floor.label}</span>
+                                            {verticalStructure?.consistency && (() => {
+                                                const ev = verticalStructure.consistency.levels.find(l => l.level_index === floor.floor_index);
+                                                if (!ev) return null;
+                                                return (
+                                                    <span style={{ 
+                                                        marginLeft: "auto", 
+                                                        fontSize: "10px", 
+                                                        fontWeight: 600,
+                                                        padding: "2px 4px",
+                                                        borderRadius: "3px",
+                                                        backgroundColor: ev.consistency_status === "HIGH" ? "rgba(34, 197, 94, 0.15)" :
+                                                                         ev.consistency_status === "MODERATE" ? "rgba(245, 158, 11, 0.15)" :
+                                                                         "rgba(239, 68, 68, 0.15)",
+                                                        color: ev.consistency_status === "HIGH" ? "#4ade80" :
+                                                               ev.consistency_status === "MODERATE" ? "#fbbf24" :
+                                                               "#f87171"
+                                                    }}>
+                                                        {ev.consistency_status === "HIGH" ? "CONSISTENT" : ev.consistency_status}
+                                                    </span>
+                                                );
+                                            })()}
                                             {isSelected && <span className="nz-level-active-indicator">Selected</span>}
                                         </div>
-                                        <span className="nz-level-elev">
+                                        <span className="nz-level-elev" style={{ marginLeft: "8px" }}>
                                             {floor.base_elevation.toFixed(2)} → {floor.top_elevation.toFixed(2)} m
                                         </span>
                                     </div>
@@ -2327,7 +2348,42 @@ function PropertyIntelligencePanel({
                             </div>
                         </div>
 
-                        <div className="nz-section-title">5. DATA NOTE</div>
+                        {verticalStructure?.consistency && (() => {
+                            const ev = verticalStructure.consistency.levels.find(l => l.level_index === selectedVerticalLevel.floor_index);
+                            if (!ev) return null;
+                            return (
+                                <>
+                                    <div className="nz-section-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                        <span>5. VERTICAL CONSISTENCY</span>
+                                        <span className="nz-est-badge" style={{
+                                            backgroundColor: ev.consistency_status === "HIGH" ? "rgba(34, 197, 94, 0.15)" :
+                                                             ev.consistency_status === "MODERATE" ? "rgba(245, 158, 11, 0.15)" :
+                                                             "rgba(239, 68, 68, 0.15)",
+                                            color: ev.consistency_status === "HIGH" ? "#4ade80" :
+                                                   ev.consistency_status === "MODERATE" ? "#fbbf24" :
+                                                   "#f87171"
+                                        }}>
+                                            {ev.consistency_status === "HIGH" ? "HIGH CONSISTENCY" : ev.consistency_status === "MODERATE" ? "MODERATE CONSISTENCY" : "LIMITED CONSISTENCY"}
+                                        </span>
+                                    </div>
+                                    <div className="nz-property-grid">
+                                        <div className="nz-prop-item">
+                                            <span>Vertical model consistency</span>
+                                            <strong style={{ color: ev.consistency_status === "HIGH" ? "#4ade80" : ev.consistency_status === "MODERATE" ? "#fbbf24" : "#f87171" }}>
+                                                {ev.consistency_status}
+                                            </strong>
+                                        </div>
+                                        <div className="nz-prop-item nz-prop-full">
+                                            <div className="nz-prop-note" style={{ color: "#e2e8f0" }}>
+                                                This level belongs to a vertical structure model that is consistent with the available LiDAR-derived building measurements.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            );
+                        })()}
+
+                        <div className="nz-section-title">{verticalStructure?.consistency ? "6. DATA NOTE" : "5. DATA NOTE"}</div>
                         <div className="nz-disclaimer">
                             Level structure estimated from LiDAR-derived building height using the 3.2m/floor assumption. LiDAR-derived estimated vertical level.
                         </div>
@@ -2599,6 +2655,43 @@ function PropertyIntelligencePanel({
                             </div>
                         </div>
                     </div>
+
+                    {verticalStructure.consistency && (
+                        <>
+                            <div className="nz-section-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <span>VERTICAL STRUCTURE CONSISTENCY</span>
+                                <span className="nz-est-badge" style={{
+                                    backgroundColor: verticalStructure.consistency.overall_status === "HIGH" ? "rgba(34, 197, 94, 0.15)" :
+                                                     verticalStructure.consistency.overall_status === "MODERATE" ? "rgba(245, 158, 11, 0.15)" :
+                                                     "rgba(239, 68, 68, 0.15)",
+                                    color: verticalStructure.consistency.overall_status === "HIGH" ? "#4ade80" :
+                                           verticalStructure.consistency.overall_status === "MODERATE" ? "#fbbf24" :
+                                           "#f87171"
+                                }}>
+                                    {verticalStructure.consistency.overall_status === "HIGH" ? "HIGH CONSISTENCY" : verticalStructure.consistency.overall_status === "MODERATE" ? "MODERATE CONSISTENCY" : "LIMITED CONSISTENCY"}
+                                </span>
+                            </div>
+                            <div className="nz-property-grid">
+                                <div className="nz-prop-item">
+                                    <span>Estimated levels</span>
+                                    <strong>{verticalStructure.estimated_floor_count}</strong>
+                                </div>
+                                <div className="nz-prop-item">
+                                    <span>Height residual</span>
+                                    <strong>{verticalStructure.consistency.levels[0]?.signals.find(s => s.name === "Height consistency")?.value.toFixed(2)} m</strong>
+                                </div>
+                                <div className="nz-prop-item nz-prop-full">
+                                    <span>Vertical extent</span>
+                                    <strong>{verticalStructure.consistency.overall_status === "HIGH" ? "Consistent" : verticalStructure.consistency.overall_status === "MODERATE" ? "Reasonably Consistent" : "Limited Consistency"}</strong>
+                                </div>
+                                <div className="nz-prop-item nz-prop-full" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "4px" }}>
+                                    <div className="nz-prop-note" style={{ color: "#e2e8f0", fontSize: "10px" }}>
+                                        Consistency measures agreement between the LiDAR-derived building height and the estimated level model. It does not confirm architectural floors.
+                                    </div>
+                                </div>
+                            </div>
+                        </>
+                    )}
 
                     {/* Explore Levels Action */}
                     <div className="nz-explore-trigger-wrap">
@@ -3386,6 +3479,54 @@ function AreaIntelligencePanel({
                     </div>
                 </div>
 
+                {/* VERTICAL STRUCTURE ANALYSIS */}
+                <div className="nz-prop-section-title">VERTICAL STRUCTURE ANALYSIS</div>
+                <div className="nz-prop-grid">
+                    <div className="nz-prop-item nz-prop-full">
+                        <span>Structures Analyzed</span>
+                        <strong>{totalBldgs}</strong>
+                        <div className="nz-prop-note">Based on available LiDAR-derived geometry.</div>
+                    </div>
+                    {(() => {
+                        let high = 0;
+                        let moderate = 0;
+                        let limited = 0;
+                        let notAvailable = 0;
+                        buildings.forEach(b => {
+                            const vs = b.vertical_structure;
+                            if (vs?.consistency) {
+                                if (vs.consistency.overall_status === "HIGH") high++;
+                                else if (vs.consistency.overall_status === "MODERATE") moderate++;
+                                else if (vs.consistency.overall_status === "LIMITED") limited++;
+                                else notAvailable++;
+                            } else {
+                                notAvailable++;
+                            }
+                        });
+                        return (
+                            <>
+                                <div className="nz-prop-item">
+                                    <span>High consistency</span>
+                                    <strong style={{ color: "#4ade80" }}>{high}</strong>
+                                </div>
+                                <div className="nz-prop-item">
+                                    <span>Moderate consistency</span>
+                                    <strong style={{ color: "#fbbf24" }}>{moderate}</strong>
+                                </div>
+                                <div className="nz-prop-item">
+                                    <span>Limited consistency</span>
+                                    <strong style={{ color: "#f87171" }}>{limited}</strong>
+                                </div>
+                                {notAvailable > 0 && (
+                                    <div className="nz-prop-item">
+                                        <span>Not Available</span>
+                                        <strong>{notAvailable}</strong>
+                                    </div>
+                                )}
+                            </>
+                        );
+                    })()}
+                </div>
                 {/* SECTION 3: TERRAIN & SPATIAL CONTEXT */}
                 <div className="nz-prop-section-title">{parcelsSummary ? "4. TERRAIN & SPATIAL CONTEXT" : "3. TERRAIN & SPATIAL CONTEXT"}</div>
 
