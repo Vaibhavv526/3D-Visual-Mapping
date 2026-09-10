@@ -699,6 +699,109 @@ function computeConvexHull2D(points: [number, number][]): [number, number][] {
     return lower.concat(upper);
 }
 
+
+function clipTriZMin(v0: number[], v1: number[], v2: number[], zMin: number): number[][][] {
+    const vs = [v0, v1, v2];
+    const inside = vs.map(v => v[2] >= zMin - 1e-9);
+    const n = inside.filter(Boolean).length;
+    if (n === 3) return [[v0, v1, v2]];
+    if (n === 0) return [];
+    const lerp = (a: number[], b: number[]): number[] => {
+        const dz = b[2] - a[2];
+        if (Math.abs(dz) < 1e-12) return [a[0], a[1], zMin];
+        const t = (zMin - a[2]) / dz;
+        return [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]), zMin];
+    };
+    if (n === 1) {
+        const i = inside.indexOf(true);
+        const p = vs[i], q = vs[(i + 1) % 3], r = vs[(i + 2) % 3];
+        return [[p, lerp(p, q), lerp(p, r)]];
+    }
+    const i = inside.indexOf(false);
+    const p = vs[i], q = vs[(i + 1) % 3], r = vs[(i + 2) % 3];
+    const iq = lerp(p, q), ir = lerp(p, r);
+    return [[q, r, ir], [q, ir, iq]];
+}
+
+function clipTriZMax(v0: number[], v1: number[], v2: number[], zMax: number): number[][][] {
+    const vs = [v0, v1, v2];
+    const inside = vs.map(v => v[2] <= zMax + 1e-9);
+    const n = inside.filter(Boolean).length;
+    if (n === 3) return [[v0, v1, v2]];
+    if (n === 0) return [];
+    const lerp = (a: number[], b: number[]): number[] => {
+        const dz = b[2] - a[2];
+        if (Math.abs(dz) < 1e-12) return [a[0], a[1], zMax];
+        const t = (zMax - a[2]) / dz;
+        return [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]), zMax];
+    };
+    if (n === 1) {
+        const i = inside.indexOf(true);
+        const p = vs[i], q = vs[(i + 1) % 3], r = vs[(i + 2) % 3];
+        return [[p, lerp(p, q), lerp(p, r)]];
+    }
+    const i = inside.indexOf(false);
+    const p = vs[i], q = vs[(i + 1) % 3], r = vs[(i + 2) % 3];
+    const iq = lerp(p, q), ir = lerp(p, r);
+    return [[q, r, ir], [q, ir, iq]];
+}
+
+function buildZoneGeometry(
+    vertices: number[][],
+    faces: number[][],
+    zMin: number,
+    zMax: number,
+    centerX: number,
+    centerY: number
+): { meshGeo: THREE.BufferGeometry; lineGeo: THREE.BufferGeometry; triCount: number } {
+    const meshPos: number[] = [];
+    const linePos: number[] = [];
+    for (const [ia, ib, ic] of faces) {
+        const w0 = vertices[ia], w1 = vertices[ib], w2 = vertices[ic];
+        const zLo = Math.min(w0[2], w1[2], w2[2]);
+        const zHi = Math.max(w0[2], w1[2], w2[2]);
+        if (zHi < zMin - 1e-6 || zLo > zMax + 1e-6) continue;
+        const clipped: number[][][] = [];
+        for (const t of clipTriZMin(w0, w1, w2, zMin)) {
+            for (const t2 of clipTriZMax(t[0], t[1], t[2], zMax)) {
+                clipped.push(t2);
+            }
+        }
+        for (const [ta, tb, tc] of clipped) {
+            const ax = ta[0] - centerX, ay = ta[2] - zMin, az = ta[1] - centerY;
+            const bx = tb[0] - centerX, by = tb[2] - zMin, bz = tb[1] - centerY;
+            const cx = tc[0] - centerX, cy = tc[2] - zMin, cz = tc[1] - centerY;
+            meshPos.push(ax, ay, az, bx, by, bz, cx, cy, cz);
+            linePos.push(ax, ay, az, bx, by, bz);
+            linePos.push(bx, by, bz, cx, cy, cz);
+            linePos.push(cx, cy, cz, ax, ay, az);
+        }
+    }
+    const meshGeo = new THREE.BufferGeometry();
+    meshGeo.setAttribute("position", new THREE.Float32BufferAttribute(meshPos, 3));
+    if (meshPos.length > 0) meshGeo.computeVertexNormals();
+    const lineGeo = new THREE.BufferGeometry();
+    lineGeo.setAttribute("position", new THREE.Float32BufferAttribute(linePos, 3));
+    return { meshGeo, lineGeo, triCount: meshPos.length / 9 };
+}
+
+function computeStructuralHull(
+    vertices: number[][],
+    centerX: number,
+    centerY: number,
+    groundElev: number,
+    structuralRoofElev: number
+): [number, number][] {
+    const structural: [number, number][] = vertices
+        .filter(v => v[2] >= groundElev - 0.5 && v[2] <= structuralRoofElev + 0.1)
+        .map(v => [v[0] - centerX, v[1] - centerY]);
+    if (structural.length >= 3) {
+        const h = computeConvexHull2D(structural);
+        if (h.length >= 3) return h;
+    }
+    return computeConvexHull2D(vertices.map(v => [v[0] - centerX, v[1] - centerY]));
+}
+
 function createFloorPrismGeometry(hull: [number, number][], height: number): THREE.BufferGeometry {
     const N = hull.length;
     const positions: number[] = [];
@@ -922,33 +1025,51 @@ function NZExplodedBuilding({
     const animProgress = useRef<number>(0);
 
     const { hull, floorGeometries, buildingBaseElevation } = useMemo(() => {
-        const points = building.vertices;
+        const vertices = building.vertices;
+        const faces = building.faces;
         const { centerX, centerY } = terrainMeta;
-        const pts2D: [number, number][] = points.map((pt) => [
-            pt[0] - centerX,
-            pt[1] - centerY
-        ]);
-        const computedHull = computeConvexHull2D(pts2D);
         const bBaseElev = building.min_elevation;
 
-        const geometries = (verticalStructure.floors || []).map((floor) => {
-            const floorHeight = Math.max(0.3, (floor.top_elevation - floor.base_elevation) * 1.0);
-            const levelHull = floor.footprint ? floor.footprint.map((p: number[]) => [p[0] - centerX, p[1] - centerY] as [number, number]) : computedHull;
-            const prismGeo = createFloorPrismGeometry(levelHull, floorHeight);
-            const lineGeo = createFloorLineGeometry(levelHull, floorHeight);
-            return {
-                floor,
-                floorHeight,
-                prismGeo,
-                lineGeo
-            };
+        const groundElev =
+            verticalStructure.ground_elevation ??
+            building.ground_elevation ??
+            bBaseElev;
+        const structuralRoofElev =
+            verticalStructure.structural_roof_elevation ??
+            building.structural_roof_elevation ??
+            building.roof_elevation ??
+            (bBaseElev + (building.height ?? 4));
+
+        const structuralHull = computeStructuralHull(
+            vertices, centerX, centerY, groundElev, structuralRoofElev
+        );
+        const computedHull = structuralHull.length >= 3
+            ? structuralHull
+            : computeConvexHull2D(vertices.map(pt => [pt[0] - centerX, pt[1] - centerY]));
+
+        const floors = verticalStructure.floors || [];
+        if (floors.length === 0) {
+            return { hull: computedHull, floorGeometries: [], buildingBaseElevation: bBaseElev };
+        }
+
+        const geometries = floors.map((floor) => {
+            const zMin = floor.base_elevation;
+            const zMax = floor.top_elevation;
+            const floorHeight = Math.max(0.1, zMax - zMin);
+
+            const prismGeo = createFloorPrismGeometry(structuralHull, floorHeight);
+            const lineGeo = createFloorLineGeometry(structuralHull, floorHeight);
+            const { meshGeo: refGeo, triCount } = buildZoneGeometry(
+                vertices, faces, zMin, zMax, centerX, centerY
+            );
+            const geometrySource = triCount > 0
+                ? "3D mesh section + Building envelope"
+                : "Building envelope";
+
+            return { floor, floorHeight, prismGeo, lineGeo, refGeo, geometrySource, triCount };
         });
 
-        return {
-            hull: computedHull,
-            floorGeometries: geometries,
-            buildingBaseElevation: bBaseElev
-        };
+        return { hull: computedHull, floorGeometries: geometries, buildingBaseElevation: bBaseElev };
     }, [building, verticalStructure, terrainMeta]);
 
     useEffect(() => {
@@ -969,6 +1090,7 @@ function NZExplodedBuilding({
             floorGeometries.forEach((g) => {
                 g.prismGeo.dispose();
                 g.lineGeo.dispose();
+                (g as any).refGeo?.dispose();
             });
             delete (window as any).__nzGetExplodedInfo;
         };
@@ -1013,9 +1135,12 @@ function NZExplodedBuilding({
         <group name={`exploded-building-${building.id}`} renderOrder={50}>
             {floorGeometries.map((item, i) => {
                 const { floor, prismGeo, lineGeo } = item;
+                const refGeo = (item as any).refGeo as THREE.BufferGeometry | undefined;
                 const isSelected = selectedVerticalLevel?.floor_index === floor.floor_index;
                 const isHovered = hoveredFloorIndex === floor.floor_index;
                 const initialBaseY = terrainVisualGroundY + (floor.base_elevation - buildingBaseElevation) * 1.0;
+
+                const zoneAlpha = floorGeometries.length > 1 ? i / (floorGeometries.length - 1) : 0;
 
                 return (
                     <group
@@ -1024,7 +1149,7 @@ function NZExplodedBuilding({
                         position={[0, initialBaseY, 0]}
                         name={`exploded-floor-${floor.floor_index}`}
                     >
-                        {/* Interactive Solid Slab */}
+                        {/* Primary solid - clean building-envelope prism */}
                         <mesh
                             geometry={prismGeo}
                             onClick={(e) => {
@@ -1043,27 +1168,45 @@ function NZExplodedBuilding({
                             }}
                         >
                             <meshStandardMaterial
-                                color={isSelected ? "#0284c7" : isHovered ? "#2563eb" : "#1e293b"}
+                                color={isSelected ? "#0369a1" : isHovered ? "#1d4ed8" : "#0f172a"}
                                 transparent
-                                opacity={isSelected ? 0.94 : isHovered ? 0.88 : 0.82}
-                                emissive={isSelected ? "#38bdf8" : isHovered ? "#0284c7" : "#0ea5e9"}
-                                emissiveIntensity={isSelected ? 0.55 : isHovered ? 0.35 : 0.12}
-                                roughness={isSelected ? 0.2 : 0.35}
-                                metalness={0.15}
+                                opacity={isSelected ? 0.96 : isHovered ? 0.92 : 0.88 - zoneAlpha * 0.06}
+                                emissive={isSelected ? "#0ea5e9" : isHovered ? "#3b82f6" : "#1e3a5f"}
+                                emissiveIntensity={isSelected ? 0.28 : isHovered ? 0.18 : 0.06}
+                                roughness={0.55}
+                                metalness={0.05}
                                 depthWrite={true}
                                 side={THREE.DoubleSide}
                                 polygonOffset
-                                polygonOffsetFactor={1}
-                                polygonOffsetUnits={1}
+                                polygonOffsetFactor={2}
+                                polygonOffsetUnits={2}
                             />
                         </mesh>
 
-                        {/* Architectural Wireframe Edge Cage */}
+                        {/* Reference layer - actual LiDAR mesh section, shown only when selected */}
+                        {isSelected && refGeo && (item as any).triCount > 0 && (
+                            <mesh geometry={refGeo} raycast={() => null} renderOrder={52}>
+                                <meshStandardMaterial
+                                    color="#38bdf8"
+                                    transparent
+                                    opacity={0.22}
+                                    roughness={0.8}
+                                    metalness={0}
+                                    depthWrite={false}
+                                    side={THREE.DoubleSide}
+                                    polygonOffset
+                                    polygonOffsetFactor={-2}
+                                    polygonOffsetUnits={-2}
+                                />
+                            </mesh>
+                        )}
+
+                        {/* Perimeter + corner edge cage */}
                         <lineSegments geometry={lineGeo} raycast={() => null}>
                             <lineBasicMaterial
-                                color={isSelected ? "#38bdf8" : isHovered ? "#93c5fd" : "#38bdf8"}
+                                color={isSelected ? "#7dd3fc" : isHovered ? "#93c5fd" : "#334155"}
                                 transparent
-                                opacity={isSelected ? 1.0 : isHovered ? 0.95 : 0.85}
+                                opacity={isSelected ? 1.0 : isHovered ? 0.9 : 0.65}
                                 depthTest={true}
                                 depthWrite={false}
                             />
@@ -2169,7 +2312,7 @@ function PropertyIntelligencePanel({
                     <span className="nz-class-badge nz-est-badge" style={{ alignSelf: "flex-start", marginTop: "4px" }}>
                         {isLevelSelected && selectedVerticalLevel?.geometry_status
                             ? `Geometry: ${selectedVerticalLevel.geometry_status}`
-                            : "Estimated · LiDAR-derived"}
+                            : "Estimated · Building envelope"}
                     </span>
                 </div>
 
@@ -2388,7 +2531,7 @@ function PropertyIntelligencePanel({
 
                         <div className="nz-section-title">{verticalStructure?.consistency ? "6. DATA NOTE" : "5. DATA NOTE"}</div>
                         <div className="nz-disclaimer">
-                            Level structure estimated from LiDAR-derived building height using the 3.2m/floor assumption. LiDAR-derived estimated vertical level.
+                            Estimated vertical zones derived from LiDAR building geometry and the structural-height model. They do not confirm architectural floors or legal vertical boundaries.
                         </div>
                     </>
                 )}
@@ -2627,7 +2770,7 @@ function PropertyIntelligencePanel({
             {/* VERTICAL STRUCTURE */}
             <div className="nz-section-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span>VERTICAL STRUCTURE</span>
-                <span className="nz-est-badge">Estimated · LiDAR-derived</span>
+                <span className="nz-est-badge">Estimated · Building envelope</span>
             </div>
             {verticalStructure ? (
                 <>

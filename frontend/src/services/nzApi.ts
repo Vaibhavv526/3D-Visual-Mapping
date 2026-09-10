@@ -31,6 +31,8 @@ export interface NZBuilding {
     ground_elevation: number;
     local_ground_elevation: number;
     roof_elevation: number;
+    structural_height?: number;
+    structural_roof_elevation?: number;
 
     min_elevation: number;
     max_elevation: number;
@@ -95,6 +97,11 @@ export interface NZVerticalStructure {
     building_height: number;
     ground_elevation: number;
     roof_elevation: number;
+    structural_height?: number;
+    structural_roof_elevation?: number;
+    raw_max_z?: number;
+    raw_height?: number;
+    roof_estimation_method?: string;
     estimated_floor_height: number;
     estimated_floor_count: number;
     description?: string;
