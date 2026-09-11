@@ -35,7 +35,9 @@ import {
     type NZBuildingMLSummary,
     type NZBuildingMLProfile,
     computeBuildingScreening,
-    type ScreeningStatus
+    type ScreeningStatus,
+    type ReviewState,
+    type ReviewData
 } from "../../services/nzApi";
 
 import {
@@ -2147,7 +2149,9 @@ function PropertyIntelligencePanel({
     onOpenDossier,
     onClose,
     mlSummary,
-    mlProfile
+    mlProfile,
+    reviewStore,
+    onReviewUpdate
 }: {
     building: NZBuilding;
     analysis?: BuildingSiteAnalysis;
@@ -2162,17 +2166,19 @@ function PropertyIntelligencePanel({
     isExploded?: boolean;
     onEnterExploration: () => void;
     onExitExploration: () => void;
-    onToggleExplodedView?: () => void;
-    onStartCollapse?: () => void;
+    onToggleExplodedView: () => void;
+    onStartCollapse: () => void;
     onSelectVerticalLevel: (floor: NZFloorLevel) => void;
-    onSelectParcel?: (parcel: NZParcel) => void;
-    mlSummary?: NZBuildingMLSummary | null;
-    mlProfile?: NZBuildingMLProfile | null;
+    onSelectParcel: (parcel: NZParcel) => void;
     onStartMeasure: () => void;
     onClearMeasure: () => void;
     onSelectDifferentTarget: () => void;
     onOpenDossier: () => void;
     onClose: () => void;
+    mlSummary?: NZBuildingMLSummary | null;
+    mlProfile: NZBuildingMLProfile | null;
+    reviewStore: Record<string, ReviewData>;
+    onReviewUpdate: (buildingId: string, update: Partial<ReviewData>) => void;
 }) {
     const [isExportingPdf, setIsExportingPdf] = useState(false);
     const [exportPdfSuccess, setExportPdfSuccess] = useState(false);
@@ -2785,9 +2791,61 @@ function PropertyIntelligencePanel({
                     </div>
                 </div>
                 <div className="nz-prop-item nz-prop-full" style={{ padding: "8px", fontSize: "11px", color: "#64748b", lineHeight: 1.4, backgroundColor: "transparent" }}>
-                    Screening combines deterministic geometry/identity checks with relative ML deviation. It is intended to prioritize review, not determine safety, legality, ownership, or structural condition.
+                    Screening is relative to the available NZ LiDAR dataset. An unusual result does not mean the property is incorrect or unsafe.
                 </div>
             </div>
+
+            {/* HUMAN REVIEW WORKFLOW */}
+            {(screeningResult.status === "REVIEW" || screeningResult.status === "PRIORITY REVIEW") && (
+                <>
+                    <div className="nz-section-title">HUMAN REVIEW</div>
+                    <div className="nz-property-grid">
+                        <div className="nz-prop-item nz-prop-full">
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                                <span>Review State</span>
+                                <strong style={{ color: (reviewStore[building.id]?.state || "UNREVIEWED") === "REVIEWED" ? "#4ade80" : (reviewStore[building.id]?.state || "UNREVIEWED") === "IN REVIEW" ? "#fbbf24" : "#94a3b8" }}>
+                                    {reviewStore[building.id]?.state || "UNREVIEWED"}
+                                </strong>
+                            </div>
+                            <div style={{ display: "flex", gap: "8px" }}>
+                                {(reviewStore[building.id]?.state || "UNREVIEWED") === "UNREVIEWED" && (
+                                    <button 
+                                        onClick={() => onReviewUpdate(building.id, { state: "IN REVIEW" })}
+                                        style={{ flex: 1, backgroundColor: "#0284c7", color: "white", border: "none", padding: "6px", borderRadius: "4px", fontSize: "12px", cursor: "pointer" }}
+                                    >
+                                        Start Review
+                                    </button>
+                                )}
+                                {(reviewStore[building.id]?.state === "IN REVIEW" || (reviewStore[building.id]?.state || "UNREVIEWED") === "UNREVIEWED") && (
+                                    <button 
+                                        onClick={() => onReviewUpdate(building.id, { state: "REVIEWED" })}
+                                        style={{ flex: 1, backgroundColor: "#16a34a", color: "white", border: "none", padding: "6px", borderRadius: "4px", fontSize: "12px", cursor: "pointer" }}
+                                    >
+                                        Mark Reviewed
+                                    </button>
+                                )}
+                                {reviewStore[building.id]?.state === "REVIEWED" && (
+                                    <button 
+                                        onClick={() => onReviewUpdate(building.id, { state: "IN REVIEW" })}
+                                        style={{ flex: 1, backgroundColor: "rgba(255,255,255,0.1)", color: "#e2e8f0", border: "none", padding: "6px", borderRadius: "4px", fontSize: "12px", cursor: "pointer" }}
+                                    >
+                                        Reopen Review
+                                    </button>
+                                )}
+                            </div>
+                            <div style={{ marginTop: "12px" }}>
+                                <div style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "4px" }}>Review Notes (optional)</div>
+                                <textarea 
+                                    value={reviewStore[building.id]?.notes || ""}
+                                    onChange={(e) => onReviewUpdate(building.id, { notes: e.target.value })}
+                                    placeholder="Enter review observations here..."
+                                    style={{ width: "100%", boxSizing: "border-box", backgroundColor: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.1)", color: "#e2e8f0", padding: "6px", fontSize: "12px", borderRadius: "4px", resize: "vertical", minHeight: "60px" }}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </>
+            )}
 
 {/* TOPOLOGY & VALIDATION */}
             <div className="nz-section-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -3527,6 +3585,7 @@ interface AreaIntelligencePanelProps {
     buildings: NZBuilding[];
     parcelsAvailable: boolean;
     mlSummary?: NZBuildingMLSummary | null;
+    reviewStore: Record<string, ReviewData>;
 }
 
 function AreaIntelligencePanel({
@@ -3540,7 +3599,8 @@ function AreaIntelligencePanel({
     buildingAssociationMap,
     buildings,
     parcelsAvailable,
-    mlSummary
+    mlSummary,
+    reviewStore
 }: AreaIntelligencePanelProps) {
     const totalBldgs = data.totalBuildings;
     let identitiesCount = 0;
@@ -3600,7 +3660,12 @@ function AreaIntelligencePanel({
         let normalCount = 0;
         let reviewCount = 0;
         let priorityCount = 0;
-        const reviewList: { id: string; building: NZBuilding; status: ScreeningStatus; reasons: string[]; mlClass: string; deviation: number }[] = [];
+        
+        let unreviewedCount = 0;
+        let inReviewCount = 0;
+        let reviewedCount = 0;
+
+        const reviewList: { id: string; building: NZBuilding; status: ScreeningStatus; reasons: string[]; mlClass: string; deviation: number; reviewState: ReviewState }[] = [];
 
         buildings.forEach(b => {
             const assoc = buildingAssociationMap?.get(b.id);
@@ -3613,26 +3678,32 @@ function AreaIntelligencePanel({
             else priorityCount++;
 
             if (screenRes.status !== "NORMAL") {
+                const rState = reviewStore[b.id]?.state || "UNREVIEWED";
+                if (rState === "UNREVIEWED") unreviewedCount++;
+                else if (rState === "IN REVIEW") inReviewCount++;
+                else if (rState === "REVIEWED") reviewedCount++;
+
                 reviewList.push({
                     id: b.id,
                     building: b,
                     status: screenRes.status,
                     reasons: screenRes.reasons,
                     mlClass: mlProf?.classification || "Typical",
-                    deviation: mlProf?.normalized_deviation || 0
+                    deviation: mlProf?.normalized_deviation || 0,
+                    reviewState: rState
                 });
             }
         });
 
-        // sort so priority review is first
+        // sort so priority review is first, then by deviation
         reviewList.sort((a, b) => {
             if (a.status === "PRIORITY REVIEW" && b.status !== "PRIORITY REVIEW") return -1;
             if (b.status === "PRIORITY REVIEW" && a.status !== "PRIORITY REVIEW") return 1;
             return b.deviation - a.deviation;
         });
 
-        return { normalCount, reviewCount, priorityCount, reviewList };
-    }, [buildings, buildingAssociationMap, parcelsAvailable, mlSummary]);
+        return { normalCount, reviewCount, priorityCount, reviewList, unreviewedCount, inReviewCount, reviewedCount };
+    }, [buildings, buildingAssociationMap, parcelsAvailable, mlSummary, reviewStore]);
 
 return (
         <div className="nz-overlay nz-area-intel">
@@ -3716,35 +3787,54 @@ return (
 
                 {/* 3D PROPERTY IDENTITIES */}
                 
-                {/* PROPERTY SCREENING */}
-                <div className="nz-prop-section-title">PROPERTY SCREENING</div>
+                {/* REVIEW WORKFLOW */}
+                <div className="nz-prop-section-title">REVIEW WORKFLOW</div>
                 <div className="nz-prop-grid">
                     <div className="nz-prop-item">
-                        <span>Normal</span>
-                        <strong style={{ color: "#4ade80" }}>{screeningSummary.normalCount}</strong>
+                        <span>Priority Review</span>
+                        <strong style={{ color: "#f87171" }}>{screeningSummary.priorityCount}</strong>
                     </div>
                     <div className="nz-prop-item">
                         <span>Review</span>
                         <strong style={{ color: "#fbbf24" }}>{screeningSummary.reviewCount}</strong>
                     </div>
                     <div className="nz-prop-item">
-                        <span>Priority Review</span>
-                        <strong style={{ color: "#f87171" }}>{screeningSummary.priorityCount}</strong>
+                        <span>Normal</span>
+                        <strong style={{ color: "#4ade80" }}>{screeningSummary.normalCount}</strong>
                     </div>
                 </div>
+                
+                <div className="nz-prop-grid" style={{ marginTop: "8px" }}>
+                    <div className="nz-prop-item">
+                        <span>Unreviewed</span>
+                        <strong>{screeningSummary.unreviewedCount}</strong>
+                    </div>
+                    <div className="nz-prop-item">
+                        <span>In Review</span>
+                        <strong>{screeningSummary.inReviewCount}</strong>
+                    </div>
+                    <div className="nz-prop-item">
+                        <span>Reviewed</span>
+                        <strong>{screeningSummary.reviewedCount}</strong>
+                    </div>
+                </div>
+
                 {screeningSummary.reviewList.length > 0 && (
-                    <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "6px" }}>
                         {screeningSummary.reviewList.map(item => (
                             <div key={item.id} className="nz-prop-item nz-prop-full" style={{ padding: "6px", backgroundColor: "rgba(0,0,0,0.2)", border: item.status === "PRIORITY REVIEW" ? "1px solid rgba(248, 113, 113, 0.3)" : "1px solid rgba(251, 191, 36, 0.3)" }}>
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
                                     <strong style={{ color: item.status === "PRIORITY REVIEW" ? "#f87171" : "#fbbf24" }}>{item.status}</strong>
-                                    <button 
-                                        className="nz-btn-link"
-                                        onClick={() => onFocusBuilding(item.building)}
-                                        style={{ background: "none", border: "none", color: "#38bdf8", cursor: "pointer", fontSize: "11px", padding: 0 }}
-                                    >
-                                        Focus
-                                    </button>
+                                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                                        <span style={{ fontSize: "11px", color: item.reviewState === "REVIEWED" ? "#4ade80" : item.reviewState === "IN REVIEW" ? "#fbbf24" : "#94a3b8" }}>{item.reviewState}</span>
+                                        <button 
+                                            className="nz-btn-link"
+                                            onClick={() => onFocusBuilding(item.building)}
+                                            style={{ background: "none", border: "none", color: "#38bdf8", cursor: "pointer", fontSize: "11px", padding: 0 }}
+                                        >
+                                            Focus
+                                        </button>
+                                    </div>
                                 </div>
                                 <div style={{ fontSize: "12px", color: "#e2e8f0", fontWeight: 600 }}>{item.id}</div>
                                 <div style={{ fontSize: "11px", color: "#94a3b8" }}>
@@ -5056,6 +5146,12 @@ export default function NZDigitalTwin() {
         setIsCollapsingToBuilding
     ] =
         useState<boolean>(false);
+
+    const [
+        reviewStore,
+        setReviewStore
+    ] =
+        useState<Record<string, ReviewData>>({});
 
     const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -6418,6 +6514,15 @@ export default function NZDigitalTwin() {
                     }}
                     mlSummary={mlSummary}
                     mlProfile={mlSummary?.profiles.find(p => p.building_id === selectedBuilding.id) || null}
+                    reviewStore={reviewStore}
+                    onReviewUpdate={(id, update) => setReviewStore(prev => ({
+                        ...prev,
+                        [id]: {
+                            state: prev[id]?.state || "UNREVIEWED",
+                            notes: prev[id]?.notes || "",
+                            ...update
+                        }
+                    }))}
                 />
             ) : areaIntelligence ? (
                 <AreaIntelligencePanel
@@ -6432,6 +6537,7 @@ export default function NZDigitalTwin() {
                     buildings={buildings}
                     parcelsAvailable={parcelsData?.available ?? false}
                     mlSummary={mlSummary}
+                    reviewStore={reviewStore}
                 />
             ) : null}
 

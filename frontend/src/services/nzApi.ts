@@ -599,6 +599,13 @@ export interface BuildingScreeningResult {
     reasons: string[];
 }
 
+export type ReviewState = "UNREVIEWED" | "IN REVIEW" | "REVIEWED";
+
+export interface ReviewData {
+    state: ReviewState;
+    notes: string;
+}
+
 export function computeBuildingScreening(
     validationResult: ValidationResult,
     mlProfile: NZBuildingMLProfile | null | undefined
@@ -611,20 +618,20 @@ export function computeBuildingScreening(
     if (mlProfile) {
         if (mlProfile.classification === "Highly unusual") {
             isPriority = true;
-            reasons.push(`Highly unusual structural profile (${(mlProfile.normalized_deviation * 100).toFixed(1)}% deviation)`);
+            reasons.push("Structural profile is unusually different from the available NZ LiDAR building population.");
         } else if (mlProfile.classification === "Moderately unusual") {
             isReview = true;
-            reasons.push(`Moderately unusual structural profile (${(mlProfile.normalized_deviation * 100).toFixed(1)}% deviation)`);
+            reasons.push("Structural profile differs moderately from the available NZ LiDAR building population.");
         }
     }
 
     // Evaluate Validation
     if (validationResult.overallStatus === "ERROR") {
         isPriority = true;
-        reasons.push("Meaningful geometry/identity consistency failure.");
+        reasons.push("Geometry or identity consistency requires human inspection.");
     } else if (validationResult.overallStatus === "WARNING") {
         isReview = true;
-        reasons.push("Deterministic validation contains a non-critical warning.");
+        reasons.push("Geometry or identity consistency requires human inspection.");
     }
 
     let status: ScreeningStatus = "NORMAL";
@@ -632,6 +639,10 @@ export function computeBuildingScreening(
         status = "PRIORITY REVIEW";
     } else if (isReview) {
         status = "REVIEW";
+    }
+
+    if (status === "NORMAL" && reasons.length === 0) {
+        reasons.push("No screening issue requiring review was detected.");
     }
 
     return {
