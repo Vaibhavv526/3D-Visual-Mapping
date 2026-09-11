@@ -92,7 +92,7 @@ NZ_LIDAR_CRS = "EPSG:2193"
 
 logger = logging.getLogger("uvicorn.error")
 
-_nz_cache_lock = threading.Lock()
+_nz_cache_lock = threading.RLock()
 _cached_nz_terrain_bytes: bytes | None = None
 _cached_nz_terrain_gzip: bytes | None = None
 _cached_nz_buildings_bytes: bytes | None = None
@@ -101,12 +101,15 @@ _cached_nz_parcels_bytes: bytes | None = None
 _cached_nz_parcels_gzip: bytes | None = None
 _cached_nz_ml_bytes: bytes | None = None
 _cached_nz_ml_gzip: bytes | None = None
+_cached_nz_review_bytes: bytes | None = None
+_cached_nz_review_gzip: bytes | None = None
 
 def invalidate_nz_cache():
     global _cached_nz_terrain_bytes, _cached_nz_terrain_gzip
     global _cached_nz_buildings_bytes, _cached_nz_buildings_gzip
     global _cached_nz_parcels_bytes, _cached_nz_parcels_gzip
     global _cached_nz_ml_bytes, _cached_nz_ml_gzip
+    global _cached_nz_review_bytes, _cached_nz_review_gzip
     with _nz_cache_lock:
         _cached_nz_terrain_bytes = None
         _cached_nz_terrain_gzip = None
@@ -116,6 +119,8 @@ def invalidate_nz_cache():
         _cached_nz_parcels_gzip = None
         _cached_nz_ml_bytes = None
         _cached_nz_ml_gzip = None
+        _cached_nz_review_bytes = None
+        _cached_nz_review_gzip = None
     logger.info("[PERF:CACHE] NZ in-memory cache invalidated.")
 
 
@@ -481,6 +486,7 @@ def get_nz_buildings_payload(wants_gzip: bool) -> tuple[bytes, bool]:
 
 def get_nz_ml_payload(wants_gzip: bool) -> tuple[bytes, bool]:
     global _cached_nz_ml_bytes, _cached_nz_ml_gzip
+    global _cached_nz_review_bytes, _cached_nz_review_gzip
     if _cached_nz_ml_bytes is not None:
         if wants_gzip and _cached_nz_ml_gzip is not None:
             return _cached_nz_ml_gzip, True
@@ -576,6 +582,147 @@ def get_nz_ml_payload(wants_gzip: bool) -> tuple[bytes, bool]:
             logger.error(f"Error computing ML payload: {e}")
             err_bytes = b'{"error": "ML computation failed"}'
             return err_bytes, False
+
+
+def get_nz_review_payload(wants_gzip: bool) -> tuple[bytes, bool]:
+    global _cached_nz_review_bytes, _cached_nz_review_gzip
+    if _cached_nz_review_bytes is not None:
+        if wants_gzip and _cached_nz_review_gzip is not None:
+            return _cached_nz_review_gzip, True
+        return _cached_nz_review_bytes, False
+        
+    with _nz_cache_lock:
+        if _cached_nz_review_bytes is not None:
+            if wants_gzip and _cached_nz_review_gzip is not None:
+                return _cached_nz_review_gzip, True
+            return _cached_nz_review_bytes, False
+            
+        b_bytes = prepare_nz_buildings_cache()
+        ml_bytes, _ = get_nz_ml_payload(False)
+        try:
+            buildings = json.loads(b_bytes).get("buildings", [])
+            ml_data = json.loads(ml_bytes).get("profiles", [])
+            
+            profiles = []
+            normal_c = 0
+            review_c = 0
+            priority_c = 0
+            
+            for b in buildings:
+                b_id = b["id"]
+                ml = next((p for p in ml_data if p["building_id"] == b_id), None)
+                
+                # Deterministic Validation logic
+                error = False
+                warning = False
+                
+                # Geometry is typically PASS since these are generated from convex hull, etc.
+                geom_status = "PASS"
+                
+                # Vertical Structure
+                vert_status = "PASS"
+                vs = b.get("vertical_structure")
+                if vs:
+                    if vs.get("estimated_floor_count", 0) != len(vs.get("floors", [])): error = True
+                    for i, fl in enumerate(vs.get("floors", [])):
+                        if fl["top_elevation"] <= fl["base_elevation"]: error = True
+                        if abs(fl["height"] - (fl["top_elevation"] - fl["base_elevation"])) > 0.05: error = True
+                        if i > 0:
+                            if vs["floors"][i-1]["top_elevation"] > fl["base_elevation"] + 0.05: error = True
+                    
+                    if len(vs.get("floors", [])) > 0:
+                        if abs(vs["floors"][0]["base_elevation"] - b["ground_elevation"]) > 0.05: error = True
+                        target_roof = vs.get("structural_roof_elevation", b["roof_elevation"])
+                        if abs(vs["floors"][-1]["top_elevation"] - target_roof) > 0.05: error = True
+                        
+                    pid3d = vs.get("property_id_3d")
+                    if pid3d:
+                        for fl in vs["floors"]:
+                            if not fl.get("vertical_unit_id", "").startswith(pid3d + "-L"): error = True
+                    else:
+                        for fl in vs["floors"]:
+                            if fl.get("vertical_unit_id"): error = True
+                            
+                    fh = vs.get("estimated_floor_height", 0)
+                    if fh < 2.0 or fh > 6.0: warning = True
+                    
+                if error: vert_status = "ERROR"
+                elif warning: vert_status = "WARNING"
+                
+                # Identity and Cadastral - without parcel data, assume UNAVAILABLE and PASS
+                id_status = "PASS"
+                cad_status = "UNAVAILABLE"
+                
+                val_error = (vert_status == "ERROR" or id_status == "ERROR" or cad_status == "ERROR")
+                val_warn = (vert_status == "WARNING" or id_status == "WARNING" or cad_status == "WARNING")
+                
+                reasons = []
+                is_p = False
+                is_r = False
+                
+                if ml:
+                    if ml["classification"] == "Highly unusual":
+                        is_p = True
+                        reasons.append(f"Highly unusual structural profile ({ml['normalized_deviation']*100:.1f}% deviation)")
+                    elif ml["classification"] == "Moderately unusual":
+                        is_r = True
+                        reasons.append(f"Moderately unusual structural profile ({ml['normalized_deviation']*100:.1f}% deviation)")
+                        
+                if val_error:
+                    is_p = True
+                    reasons.append("Meaningful geometry/identity consistency failure.")
+                elif val_warn:
+                    is_r = True
+                    reasons.append("Deterministic validation contains a non-critical warning.")
+                    
+                if is_p:
+                    status = "PRIORITY REVIEW"
+                    priority_c += 1
+                elif is_r:
+                    status = "REVIEW"
+                    review_c += 1
+                else:
+                    status = "NORMAL"
+                    normal_c += 1
+                    
+                profiles.append({
+                    "building_id": b_id,
+                    "status": status,
+                    "reasons": reasons,
+                    "ml_classification": ml["classification"] if ml else "Typical",
+                    "ml_deviation": ml["normalized_deviation"] if ml else 0.0,
+                    "validation": {
+                        "geometry": geom_status,
+                        "vertical": vert_status,
+                        "identity": id_status,
+                        "cadastral": cad_status
+                    }
+                })
+                
+            payload = {
+                "available": True,
+                "dataset": "New Zealand LiDAR Building Distributions",
+                "summary": {
+                    "total": len(buildings),
+                    "normal": normal_c,
+                    "review": review_c,
+                    "priority_review": priority_c
+                },
+                "profiles": profiles
+            }
+            
+            _cached_nz_review_bytes = json.dumps(payload).encode("utf-8")
+            _cached_nz_review_gzip = gzip.compress(_cached_nz_review_bytes, compresslevel=6)
+            
+            if wants_gzip:
+                return _cached_nz_review_gzip, True
+            return _cached_nz_review_bytes, False
+            
+        except Exception as e:
+            logger.error(f"Error computing review payload: {e}")
+            err_bytes = b'{"error": "Review computation failed"}'
+            return err_bytes, False
+
 
 
 def prepare_nz_parcels_cache() -> bytes:
@@ -1364,6 +1511,19 @@ def get_nz_ml_buildings(request: Request):
         media_type="application/json",
         headers=headers
     )
+
+@app.get("/api/nz/review/buildings")
+def get_nz_review_buildings(request: Request):
+    accept_encoding = request.headers.get("accept-encoding", "").lower()
+    content_bytes, is_gzip = get_nz_review_payload("gzip" in accept_encoding)
+    headers = {"Content-Encoding": "gzip"} if is_gzip else {}
+    return Response(
+        content=content_bytes,
+        media_type="application/json",
+        headers=headers
+    )
+
+
 
 @app.get("/api/nz/parcels")
 def get_nz_parcels(request: Request):

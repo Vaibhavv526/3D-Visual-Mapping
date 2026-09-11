@@ -423,7 +423,8 @@ export function validate3DProperty(
 
         // D. Final roof relationship
         if (vs.floors.length > 0) {
-            if (Math.abs(vs.floors[vs.floors.length - 1].top_elevation - building.roof_elevation) > 0.05) vsError = true;
+            const targetRoofElev = vs.structural_roof_elevation ?? building.roof_elevation;
+            if (Math.abs(vs.floors[vs.floors.length - 1].top_elevation - targetRoofElev) > 0.05) vsError = true;
         }
 
         // H. Vertical ID consistency
@@ -590,4 +591,53 @@ export function validate3DProperty(
         checks
     };
 }
+
+export type ScreeningStatus = "NORMAL" | "REVIEW" | "PRIORITY REVIEW";
+
+export interface BuildingScreeningResult {
+    status: ScreeningStatus;
+    reasons: string[];
+}
+
+export function computeBuildingScreening(
+    validationResult: ValidationResult,
+    mlProfile: NZBuildingMLProfile | null | undefined
+): BuildingScreeningResult {
+    const reasons: string[] = [];
+    let isPriority = false;
+    let isReview = false;
+
+    // Evaluate ML
+    if (mlProfile) {
+        if (mlProfile.classification === "Highly unusual") {
+            isPriority = true;
+            reasons.push(`Highly unusual structural profile (${(mlProfile.normalized_deviation * 100).toFixed(1)}% deviation)`);
+        } else if (mlProfile.classification === "Moderately unusual") {
+            isReview = true;
+            reasons.push(`Moderately unusual structural profile (${(mlProfile.normalized_deviation * 100).toFixed(1)}% deviation)`);
+        }
+    }
+
+    // Evaluate Validation
+    if (validationResult.overallStatus === "ERROR") {
+        isPriority = true;
+        reasons.push("Meaningful geometry/identity consistency failure.");
+    } else if (validationResult.overallStatus === "WARNING") {
+        isReview = true;
+        reasons.push("Deterministic validation contains a non-critical warning.");
+    }
+
+    let status: ScreeningStatus = "NORMAL";
+    if (isPriority) {
+        status = "PRIORITY REVIEW";
+    } else if (isReview) {
+        status = "REVIEW";
+    }
+
+    return {
+        status,
+        reasons
+    };
+}
+
 
