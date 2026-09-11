@@ -33,7 +33,9 @@ import {
     validate3DProperty,
     getNZMLBuildings,
     type NZBuildingMLSummary,
-    type NZBuildingMLProfile
+    type NZBuildingMLProfile,
+    computeBuildingScreening,
+    type ScreeningStatus
 } from "../../services/nzApi";
 
 import {
@@ -2181,6 +2183,11 @@ function PropertyIntelligencePanel({
         return validate3DProperty(building, cadastralAssoc, !!parcelsAvailable);
     }, [building, cadastralAssoc, parcelsAvailable]);
 
+    const screeningResult = useMemo(() => {
+        return computeBuildingScreening(validationResult, mlProfile);
+    }, [validationResult, mlProfile]);
+
+
     useEffect(() => {
         setIsLevelsExpanded(false);
     }, [building.id]);
@@ -2718,7 +2725,71 @@ function PropertyIntelligencePanel({
                 </div>
             </div>
 
-            {/* TOPOLOGY & VALIDATION */}
+            
+            {/* PROPERTY SCREENING */}
+            <div className="nz-section-title">PROPERTY SCREENING</div>
+            <div className="nz-property-grid">
+                <div className="nz-prop-item nz-prop-full" style={{ paddingBottom: "4px", backgroundColor: "rgba(0,0,0,0.15)", border: screeningResult.status === "PRIORITY REVIEW" ? "1px solid rgba(248, 113, 113, 0.3)" : screeningResult.status === "REVIEW" ? "1px solid rgba(251, 191, 36, 0.3)" : "1px solid rgba(34, 197, 94, 0.2)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                        <div>
+                            <div style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "2px" }}>Status</div>
+                            <strong style={{ color: screeningResult.status === "PRIORITY REVIEW" ? "#f87171" : screeningResult.status === "REVIEW" ? "#fbbf24" : "#4ade80", fontSize: "14px" }}>
+                                {screeningResult.status}
+                            </strong>
+                        </div>
+                        {mlProfile && (
+                            <div style={{ textAlign: "right" }}>
+                                <div style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "2px" }}>ML Deviation</div>
+                                <strong>{(mlProfile.normalized_deviation * 100).toFixed(1)}%</strong>
+                            </div>
+                        )}
+                    </div>
+
+                    {screeningResult.reasons.length > 0 && (
+                        <div style={{ marginBottom: "8px" }}>
+                            <div style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "2px" }}>Reason</div>
+                            <div style={{ fontSize: "12px", color: "#e2e8f0" }}>
+                                {screeningResult.reasons.map((r, i) => <div key={i}>{r}</div>)}
+                            </div>
+                        </div>
+                    )}
+
+                    <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "6px", marginTop: "4px" }}>
+                        <div style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "4px" }}>Validation Summary</div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px", fontSize: "11px" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between" }}>
+                                <span>Geometry</span>
+                                <span style={{ color: validationResult.checks.find(c => c.rule === "geometry_integrity")?.status === "PASS" ? "#22c55e" : "#f87171" }}>
+                                    {validationResult.checks.find(c => c.rule === "geometry_integrity")?.status}
+                                </span>
+                            </div>
+                            <div style={{ display: "flex", justifyContent: "space-between" }}>
+                                <span>Vertical</span>
+                                <span style={{ color: validationResult.checks.find(c => c.rule === "vertical_structure")?.status === "PASS" ? "#22c55e" : validationResult.checks.find(c => c.rule === "vertical_structure")?.status === "WARNING" ? "#fbbf24" : "#f87171" }}>
+                                    {validationResult.checks.find(c => c.rule === "vertical_structure")?.status}
+                                </span>
+                            </div>
+                            <div style={{ display: "flex", justifyContent: "space-between" }}>
+                                <span>Identity</span>
+                                <span style={{ color: validationResult.checks.find(c => c.rule === "property_identity")?.status === "PASS" ? "#22c55e" : validationResult.checks.find(c => c.rule === "property_identity")?.status === "NOT_AVAILABLE" ? "#94a3b8" : "#f87171" }}>
+                                    {validationResult.checks.find(c => c.rule === "property_identity")?.status}
+                                </span>
+                            </div>
+                            <div style={{ display: "flex", justifyContent: "space-between" }}>
+                                <span>Cadastral</span>
+                                <span style={{ color: validationResult.checks.find(c => c.rule === "cadastral_topology")?.status === "PASS" ? "#22c55e" : validationResult.checks.find(c => c.rule === "cadastral_topology")?.status === "NOT_AVAILABLE" ? "#94a3b8" : validationResult.checks.find(c => c.rule === "cadastral_topology")?.status === "WARNING" ? "#fbbf24" : "#f87171" }}>
+                                    {parcelsAvailable ? (validationResult.checks.find(c => c.rule === "cadastral_topology")?.status) : "UNAVAILABLE"}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div className="nz-prop-item nz-prop-full" style={{ padding: "8px", fontSize: "11px", color: "#64748b", lineHeight: 1.4, backgroundColor: "transparent" }}>
+                    Screening combines deterministic geometry/identity checks with relative ML deviation. It is intended to prioritize review, not determine safety, legality, ownership, or structural condition.
+                </div>
+            </div>
+
+{/* TOPOLOGY & VALIDATION */}
             <div className="nz-section-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span>TOPOLOGY & VALIDATION</span>
                 <span className="nz-est-badge" style={{ 
@@ -3524,7 +3595,46 @@ function AreaIntelligencePanel({
         };
     }, [buildings, buildingAssociationMap, parcelsAvailable]);
 
-    return (
+    
+    const screeningSummary = useMemo(() => {
+        let normalCount = 0;
+        let reviewCount = 0;
+        let priorityCount = 0;
+        const reviewList: { id: string; building: NZBuilding; status: ScreeningStatus; reasons: string[]; mlClass: string; deviation: number }[] = [];
+
+        buildings.forEach(b => {
+            const assoc = buildingAssociationMap?.get(b.id);
+            const valRes = validate3DProperty(b, assoc, parcelsAvailable);
+            const mlProf = mlSummary?.profiles.find(p => p.building_id === b.id);
+            const screenRes = computeBuildingScreening(valRes, mlProf);
+
+            if (screenRes.status === "NORMAL") normalCount++;
+            else if (screenRes.status === "REVIEW") reviewCount++;
+            else priorityCount++;
+
+            if (screenRes.status !== "NORMAL") {
+                reviewList.push({
+                    id: b.id,
+                    building: b,
+                    status: screenRes.status,
+                    reasons: screenRes.reasons,
+                    mlClass: mlProf?.classification || "Typical",
+                    deviation: mlProf?.normalized_deviation || 0
+                });
+            }
+        });
+
+        // sort so priority review is first
+        reviewList.sort((a, b) => {
+            if (a.status === "PRIORITY REVIEW" && b.status !== "PRIORITY REVIEW") return -1;
+            if (b.status === "PRIORITY REVIEW" && a.status !== "PRIORITY REVIEW") return 1;
+            return b.deviation - a.deviation;
+        });
+
+        return { normalCount, reviewCount, priorityCount, reviewList };
+    }, [buildings, buildingAssociationMap, parcelsAvailable, mlSummary]);
+
+return (
         <div className="nz-overlay nz-area-intel">
             <div className="nz-area-header">
                 <div className="nz-kicker">AREA INTELLIGENCE</div>
@@ -3605,7 +3715,46 @@ function AreaIntelligencePanel({
                 )}
 
                 {/* 3D PROPERTY IDENTITIES */}
-                <div className="nz-prop-section-title">3D PROPERTY IDENTITIES</div>
+                
+                {/* PROPERTY SCREENING */}
+                <div className="nz-prop-section-title">PROPERTY SCREENING</div>
+                <div className="nz-prop-grid">
+                    <div className="nz-prop-item">
+                        <span>Normal</span>
+                        <strong style={{ color: "#4ade80" }}>{screeningSummary.normalCount}</strong>
+                    </div>
+                    <div className="nz-prop-item">
+                        <span>Review</span>
+                        <strong style={{ color: "#fbbf24" }}>{screeningSummary.reviewCount}</strong>
+                    </div>
+                    <div className="nz-prop-item">
+                        <span>Priority Review</span>
+                        <strong style={{ color: "#f87171" }}>{screeningSummary.priorityCount}</strong>
+                    </div>
+                </div>
+                {screeningSummary.reviewList.length > 0 && (
+                    <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                        {screeningSummary.reviewList.map(item => (
+                            <div key={item.id} className="nz-prop-item nz-prop-full" style={{ padding: "6px", backgroundColor: "rgba(0,0,0,0.2)", border: item.status === "PRIORITY REVIEW" ? "1px solid rgba(248, 113, 113, 0.3)" : "1px solid rgba(251, 191, 36, 0.3)" }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                                    <strong style={{ color: item.status === "PRIORITY REVIEW" ? "#f87171" : "#fbbf24" }}>{item.status}</strong>
+                                    <button 
+                                        className="nz-btn-link"
+                                        onClick={() => onFocusBuilding(item.building)}
+                                        style={{ background: "none", border: "none", color: "#38bdf8", cursor: "pointer", fontSize: "11px", padding: 0 }}
+                                    >
+                                        Focus
+                                    </button>
+                                </div>
+                                <div style={{ fontSize: "12px", color: "#e2e8f0", fontWeight: 600 }}>{item.id}</div>
+                                <div style={{ fontSize: "11px", color: "#94a3b8" }}>
+                                    {item.mlClass} &middot; {(item.deviation * 100).toFixed(1)}% deviation
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+<div className="nz-prop-section-title">3D PROPERTY IDENTITIES</div>
                 <div className="nz-prop-grid">
                     <div className="nz-prop-item">
                         <span>Identities generated</span>
