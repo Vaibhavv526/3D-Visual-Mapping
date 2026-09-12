@@ -2,7 +2,8 @@ import {
     useEffect,
     useMemo,
     useRef,
-    useState
+    useState,
+    memo
 } from "react";
 
 import * as THREE from "three";
@@ -1753,7 +1754,11 @@ interface ParcelsOverlayProps {
     activeBuildingCadastralAssoc?: NZBuildingCadastralAssociation | null;
 }
 
-function NZParcelsOverlay({
+const normalParcelMat = new THREE.LineBasicMaterial({ color: "#94a3b8", transparent: true, opacity: 0.15, depthWrite: false });
+const secondaryParcelMat = new THREE.LineBasicMaterial({ color: "#fde047", transparent: true, opacity: 0.45, depthWrite: false });
+const primaryParcelMat = new THREE.LineBasicMaterial({ color: "#f59e0b", transparent: true, opacity: 0.95, depthWrite: false });
+
+const NZParcelsOverlay = memo(function NZParcelsOverlay({
     parcels,
     terrain,
     terrainMeta,
@@ -1770,20 +1775,23 @@ function NZParcelsOverlay({
         return Number.isFinite(rawZ) ? rawZ : elevationMean;
     };
 
+    const activeAssocId = activeBuildingCadastralAssoc?.primary_parcel_id;
+    const secondaryIds = activeBuildingCadastralAssoc?.intersecting_parcels?.map(p => p.parcel_id).join(',') || '';
+
     const { normalGeo, primaryGeo, secondaryGeo } = useMemo(() => {
         const normalPoints: number[] = [];
         const primaryPoints: number[] = [];
         const secondaryPoints: number[] = [];
 
-        const secondarySet = new Set(activeBuildingCadastralAssoc?.intersecting_parcels?.map(p => p.parcel_id) || []);
-        if (activeBuildingCadastralAssoc?.primary_parcel_id) {
-            secondarySet.delete(activeBuildingCadastralAssoc.primary_parcel_id);
+        const secondarySet = new Set(secondaryIds ? secondaryIds.split(',') : []);
+        if (activeAssocId) {
+            secondarySet.delete(activeAssocId);
         }
 
         for (const parcel of parcels) {
             const isPrimary =
                 parcel.parcel_id === selectedParcelId ||
-                parcel.parcel_id === activeBuildingCadastralAssoc?.primary_parcel_id;
+                parcel.parcel_id === activeAssocId;
             const isSecondary = !isPrimary && secondarySet.has(parcel.parcel_id);
 
             const targetArray = isPrimary ? primaryPoints : isSecondary ? secondaryPoints : normalPoints;
@@ -1842,45 +1850,32 @@ function NZParcelsOverlay({
         }
 
         return { normalGeo: normGeo, primaryGeo: priGeo, secondaryGeo: secGeo };
-    }, [parcels, terrain, terrainMeta, selectedParcelId, activeBuildingCadastralAssoc]);
+    }, [parcels, terrain, terrainMeta, selectedParcelId, activeAssocId, secondaryIds]);
+
+    useEffect(() => {
+        return () => {
+            if (normalGeo) normalGeo.dispose();
+            if (primaryGeo) primaryGeo.dispose();
+            if (secondaryGeo) secondaryGeo.dispose();
+        };
+    }, [normalGeo, primaryGeo, secondaryGeo]);
 
     return (
         <group renderOrder={50}>
             {normalGeo.attributes.position && (
-                <lineSegments geometry={normalGeo}>
-                    <lineBasicMaterial
-                        color="#94a3b8"
-                        transparent
-                        opacity={0.15}
-                        depthWrite={false}
-                    />
-                </lineSegments>
+                <lineSegments geometry={normalGeo} material={normalParcelMat} />
             )}
 
             {secondaryGeo.attributes.position && (
-                <lineSegments geometry={secondaryGeo}>
-                    <lineBasicMaterial
-                        color="#fde047"
-                        transparent
-                        opacity={0.45}
-                        depthWrite={false}
-                    />
-                </lineSegments>
+                <lineSegments geometry={secondaryGeo} material={secondaryParcelMat} />
             )}
 
             {primaryGeo.attributes.position && (
-                <lineSegments geometry={primaryGeo}>
-                    <lineBasicMaterial
-                        color="#f59e0b"
-                        transparent
-                        opacity={0.95}
-                        depthWrite={false}
-                    />
-                </lineSegments>
+                <lineSegments geometry={primaryGeo} material={primaryParcelMat} />
             )}
         </group>
     );
-}
+});
 
 export interface CameraPresetItem {
     id: "full" | "eastern_ridge" | "northern_corridor";
