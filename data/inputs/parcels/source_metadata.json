@@ -1,0 +1,21 @@
+{
+  "source": "Land Information New Zealand (LINZ) Data Service",
+  "layer_id": "50772",
+  "layer_name": "NZ Primary Parcels",
+  "crs": "EPSG:2193",
+  "acquired_at_utc": "2026-09-12T18:14:51.704606+00:00",
+  "total_features": 45,
+  "valid_geometries": 45,
+  "aoi_bounds": {
+    "min_x": 1774620.0,
+    "max_x": 1775780.0,
+    "min_y": 5882540.0,
+    "max_y": 5884180.0,
+    "raw_min_x": 1774720.0,
+    "raw_max_x": 1775680.0,
+    "raw_min_y": 5882640.0,
+    "raw_max_y": 5884080.0,
+    "buffer_m": 100.0
+  },
+  "licence": "Creative Commons Attribution 4.0 International (CC BY 4.0)"
+}
