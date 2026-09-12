@@ -1750,7 +1750,7 @@ interface ParcelsOverlayProps {
     terrain: NZTerrainData;
     terrainMeta: TerrainMeta;
     selectedParcelId?: string | null;
-    activeBuildingParcelId?: string | null;
+    activeBuildingCadastralAssoc?: NZBuildingCadastralAssociation | null;
 }
 
 function NZParcelsOverlay({
@@ -1758,7 +1758,7 @@ function NZParcelsOverlay({
     terrain,
     terrainMeta,
     selectedParcelId,
-    activeBuildingParcelId
+    activeBuildingCadastralAssoc
 }: ParcelsOverlayProps) {
     const { centerX, centerY, elevationMean } = terrainMeta;
 
@@ -1770,17 +1770,24 @@ function NZParcelsOverlay({
         return Number.isFinite(rawZ) ? rawZ : elevationMean;
     };
 
-    const { normalGeo, highlightGeo } = useMemo(() => {
+    const { normalGeo, primaryGeo, secondaryGeo } = useMemo(() => {
         const normalPoints: number[] = [];
-        const highlightPoints: number[] = [];
+        const primaryPoints: number[] = [];
+        const secondaryPoints: number[] = [];
+
+        const secondarySet = new Set(activeBuildingCadastralAssoc?.intersecting_parcels?.map(p => p.parcel_id) || []);
+        if (activeBuildingCadastralAssoc?.primary_parcel_id) {
+            secondarySet.delete(activeBuildingCadastralAssoc.primary_parcel_id);
+        }
 
         for (const parcel of parcels) {
-            const isHighlighted =
+            const isPrimary =
                 parcel.parcel_id === selectedParcelId ||
-                parcel.parcel_id === activeBuildingParcelId;
+                parcel.parcel_id === activeBuildingCadastralAssoc?.primary_parcel_id;
+            const isSecondary = !isPrimary && secondarySet.has(parcel.parcel_id);
 
-            const targetArray = isHighlighted ? highlightPoints : normalPoints;
-            const yOffset = isHighlighted ? 0.35 : 0.18;
+            const targetArray = isPrimary ? primaryPoints : isSecondary ? secondaryPoints : normalPoints;
+            const yOffset = isPrimary ? 0.35 : isSecondary ? 0.25 : 0.18;
 
             for (const ring of parcel.rings) {
                 if (ring.length < 2) continue;
@@ -1824,29 +1831,45 @@ function NZParcelsOverlay({
             normGeo.setAttribute("position", new THREE.Float32BufferAttribute(normalPoints, 3));
         }
 
-        const hiGeo = new THREE.BufferGeometry();
-        if (highlightPoints.length > 0) {
-            hiGeo.setAttribute("position", new THREE.Float32BufferAttribute(highlightPoints, 3));
+        const priGeo = new THREE.BufferGeometry();
+        if (primaryPoints.length > 0) {
+            priGeo.setAttribute("position", new THREE.Float32BufferAttribute(primaryPoints, 3));
         }
 
-        return { normalGeo: normGeo, highlightGeo: hiGeo };
-    }, [parcels, terrain, terrainMeta, selectedParcelId, activeBuildingParcelId]);
+        const secGeo = new THREE.BufferGeometry();
+        if (secondaryPoints.length > 0) {
+            secGeo.setAttribute("position", new THREE.Float32BufferAttribute(secondaryPoints, 3));
+        }
+
+        return { normalGeo: normGeo, primaryGeo: priGeo, secondaryGeo: secGeo };
+    }, [parcels, terrain, terrainMeta, selectedParcelId, activeBuildingCadastralAssoc]);
 
     return (
         <group renderOrder={50}>
             {normalGeo.attributes.position && (
                 <lineSegments geometry={normalGeo}>
                     <lineBasicMaterial
-                        color="#38bdf8"
+                        color="#94a3b8"
                         transparent
-                        opacity={0.5}
+                        opacity={0.15}
                         depthWrite={false}
                     />
                 </lineSegments>
             )}
 
-            {highlightGeo.attributes.position && (
-                <lineSegments geometry={highlightGeo}>
+            {secondaryGeo.attributes.position && (
+                <lineSegments geometry={secondaryGeo}>
+                    <lineBasicMaterial
+                        color="#fde047"
+                        transparent
+                        opacity={0.45}
+                        depthWrite={false}
+                    />
+                </lineSegments>
+            )}
+
+            {primaryGeo.attributes.position && (
+                <lineSegments geometry={primaryGeo}>
                     <lineBasicMaterial
                         color="#f59e0b"
                         transparent
@@ -2132,7 +2155,6 @@ function PropertyIntelligencePanel({
     measureTarget,
     targetAnalysis,
     cadastralAssoc,
-    associatedParcel,
     parcelsAvailable,
     explorationMode,
     selectedVerticalLevel,
@@ -2142,7 +2164,6 @@ function PropertyIntelligencePanel({
     onToggleExplodedView,
     onStartCollapse,
     onSelectVerticalLevel,
-    onSelectParcel,
     onStartMeasure,
     onClearMeasure,
     onSelectDifferentTarget,
@@ -2159,7 +2180,6 @@ function PropertyIntelligencePanel({
     measureTarget: NZBuilding | null;
     targetAnalysis?: BuildingSiteAnalysis;
     cadastralAssoc?: NZBuildingCadastralAssociation;
-    associatedParcel?: NZParcel;
     parcelsAvailable?: boolean;
     explorationMode: VerticalExplorationMode;
     selectedVerticalLevel: NZFloorLevel | null;
@@ -2169,7 +2189,6 @@ function PropertyIntelligencePanel({
     onToggleExplodedView: () => void;
     onStartCollapse: () => void;
     onSelectVerticalLevel: (floor: NZFloorLevel) => void;
-    onSelectParcel: (parcel: NZParcel) => void;
     onStartMeasure: () => void;
     onClearMeasure: () => void;
     onSelectDifferentTarget: () => void;
@@ -2610,123 +2629,56 @@ function PropertyIntelligencePanel({
                 </div>
             </div>
 
-            {/* CADASTRAL PARCEL */}
-            <div className="nz-section-title">CADASTRAL PARCEL</div>
-            {cadastralAssoc && associatedParcel ? (
-                <div className="nz-property-grid">
-                    <div className="nz-prop-item nz-prop-full">
-                        <span>Parcel Reference</span>
-                        <div className="nz-parcel-ref-row">
-                            <strong className="nz-cadastral-id">
-                                {associatedParcel.parcel_id}
-                            </strong>
-                            {associatedParcel.parcel_intent && (
-                                <span className="nz-intent-badge">{associatedParcel.parcel_intent}</span>
-                            )}
-                            {onSelectParcel && (
-                                <button
-                                    type="button"
-                                    className="nz-btn-view-parcel"
-                                    onClick={() => onSelectParcel(associatedParcel)}
-                                    title="Inspect cadastral parcel boundaries and attributes"
-                                >
-                                    Inspect
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                    {associatedParcel.appellation && (
-                        <div className="nz-prop-item nz-prop-full">
-                            <span>Appellation</span>
-                            <strong>{associatedParcel.appellation}</strong>
-                        </div>
-                    )}
-                    <div className="nz-prop-item">
-                        <span>Calculated Area</span>
-                        <strong>{Math.round(associatedParcel.calculated_area).toLocaleString()} m²</strong>
-                    </div>
-                    {associatedParcel.survey_area !== null && associatedParcel.survey_area !== undefined ? (
-                        <div className="nz-prop-item">
-                            <span>Survey Area (LINZ)</span>
-                            <strong>{Math.round(associatedParcel.survey_area).toLocaleString()} m²</strong>
-                        </div>
-                    ) : (
-                        <div className="nz-prop-item">
-                            <span>Survey Area (LINZ)</span>
-                            <span className="nz-unspecified-text">Not recorded in survey</span>
-                        </div>
-                    )}
-                    <div className="nz-prop-item">
-                        <span>Association</span>
-                        <strong className="nz-highlight-text">{cadastralAssoc.association_type}</strong>
-                        {cadastralAssoc.overlap_fraction !== null && (
-                            <div className="nz-prop-note">{(cadastralAssoc.overlap_fraction * 100).toFixed(1)}% overlap (analytical footprint)</div>
-                        )}
-                    </div>
-                    <div className="nz-prop-item">
-                        <span>Buildings on Parcel</span>
-                        <strong>{associatedParcel.associated_building_ids.length}</strong>
-                        <div className="nz-prop-note">
-                            {associatedParcel.associated_building_ids.join(", ")}
-                        </div>
-                    </div>
-                    {cadastralAssoc.is_multi_parcel && (
-                        <div className="nz-prop-item nz-prop-full nz-cadastral-multi-note">
-                            <span>Analytical Geometric Condition</span>
-                            <div className="nz-prop-note">{cadastralAssoc.notes}</div>
-                        </div>
-                    )}
-                    <div className="nz-prop-item nz-prop-full" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "4px" }}>
-                        <div className="nz-unspecified-text">
-                            LiDAR-derived analytical footprint (not a legal building footprint).
-                        </div>
-                    </div>
-                </div>
-            ) : (
-                <div className="nz-property-grid">
-                    <div className="nz-prop-item nz-prop-full">
-                        <span>Parcel Association</span>
-                        <strong className="nz-unassociated-text">
-                            {cadastralAssoc ? "Unassociated (No parcel intersection detected)" : "Cadastral dataset not loaded"}
-                        </strong>
-                    </div>
-                </div>
-            )}
-
-            {/* 3D PROPERTY IDENTITY */}
-            <div className="nz-section-title">3D PROPERTY IDENTITY</div>
+            {/* CADASTRAL */}
+            <div className="nz-section-title">CADASTRAL</div>
             <div className="nz-property-grid">
                 <div className="nz-prop-item nz-prop-full">
-                    <span>3D Property ID</span>
+                    <span>Source</span>
+                    <strong>LINZ Primary Parcels · Layer: 50772 · CRS: EPSG:2193</strong>
+                </div>
+
+                <div className="nz-prop-item">
+                    <span>LINZ Primary Parcel</span>
+                    <strong className={parcelsAvailable && cadastralAssoc?.primary_parcel_id ? "nz-cadastral-id" : "nz-unassociated-text"}>
+                        {parcelsAvailable && cadastralAssoc?.primary_parcel_id ? cadastralAssoc.primary_parcel_id : "None"}
+                    </strong>
+                </div>
+
+                <div className="nz-prop-item">
+                    <span>Property Identity</span>
                     <strong className={parcelsAvailable && cadastralAssoc?.property_id_3d ? "nz-cadastral-id" : "nz-unassociated-text"}>
                         {parcelsAvailable && cadastralAssoc?.property_id_3d ? cadastralAssoc.property_id_3d : "None"}
                     </strong>
                 </div>
-                <div className="nz-prop-item">
-                    <span>Primary Parcel</span>
-                    <strong>{parcelsAvailable && cadastralAssoc?.primary_parcel_id ? cadastralAssoc.primary_parcel_id : "None"}</strong>
-                </div>
-                <div className="nz-prop-item">
-                    <span>Status</span>
-                    <strong className={
-                        parcelsAvailable && (cadastralAssoc?.identity_status === "Parcel associated" || cadastralAssoc?.identity_status === "Multi-parcel")
-                            ? "nz-highlight-text"
-                            : "nz-unassociated-text"
-                    }>
-                        {!parcelsAvailable
-                            ? "Cadastral dataset not loaded"
-                            : cadastralAssoc?.identity_status ?? "Unassociated building"}
-                    </strong>
-                </div>
+
                 <div className="nz-prop-item nz-prop-full">
-                    <span>Vertical Unit</span>
-                    <span className="nz-unspecified-text">
-                        {parcelsAvailable && cadastralAssoc?.vertical_unit_id ? cadastralAssoc.vertical_unit_id : "Not assigned"}
-                    </span>
+                    <span>Association</span>
+                    <strong className="nz-highlight-text">{cadastralAssoc ? cadastralAssoc.association_type : "Cadastral dataset not loaded"}</strong>
                 </div>
+
+                {cadastralAssoc?.is_multi_parcel && (
+                    <>
+                        <div className="nz-prop-item nz-prop-full">
+                            <span>Multi-parcel</span>
+                            <strong>Yes</strong>
+                        </div>
+                        <div className="nz-prop-item nz-prop-full">
+                            <span>Intersecting Parcels</span>
+                            <div style={{ marginTop: "4px" }}>
+                                {cadastralAssoc.intersecting_parcels.map(p => (
+                                    <div key={p.parcel_id} style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#e2e8f0", padding: "2px 0" }}>
+                                        <span>{p.parcel_id}</span>
+                                        <span>{(p.overlap_fraction * 100).toFixed(1)}% overlap</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </>
+                )}
+
                 <div className="nz-prop-item nz-prop-full" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "4px" }}>
-                    <div className="nz-unspecified-text" style={{ fontSize: "10px", letterSpacing: "0.02em" }}>
-                        Project-defined ID · Not an official ULPIN
+                    <div className="nz-unspecified-text" style={{ fontSize: "10px", letterSpacing: "0.02em", lineHeight: 1.4 }}>
+                        Parcel geometry is sourced from LINZ Primary Parcels. 3DP identifiers are project-defined and are not official ULPINs.
                     </div>
                 </div>
             </div>
@@ -3538,6 +3490,8 @@ function PropertyIntelligencePanel({
                     Official municipal survey report (PDF) with LiDAR elevation, geometry, Sentinel-2 NDVI, and spatial context.
                 </div>
             </div>
+
+            <div style={{ height: "24px" }} />
         </div>
     );
 }
@@ -3760,26 +3714,30 @@ return (
                     </div>
                 </div>
 
-                {/* SECTION 2.1: CADASTRAL OVERVIEW */}
+                {/* CADASTRAL */}
                 {parcelsSummary && (
                     <>
-                        <div className="nz-prop-section-title">3. CADASTRAL OVERVIEW (LINZ)</div>
+                        <div className="nz-prop-section-title">CADASTRAL</div>
                         <div className="nz-prop-grid">
                             <div className="nz-prop-item">
-                                <span>Total Parcels</span>
+                                <span>Parcels</span>
                                 <strong>{parcelsSummary.total_parcels}</strong>
                             </div>
                             <div className="nz-prop-item">
-                                <span>Parcels w/ Buildings</span>
+                                <span>With Buildings</span>
                                 <strong>{parcelsSummary.parcels_with_buildings}</strong>
                             </div>
                             <div className="nz-prop-item">
-                                <span>Vacant Parcels</span>
+                                <span>Vacant</span>
                                 <strong>{parcelsSummary.vacant_parcels}</strong>
                             </div>
                             <div className="nz-prop-item">
-                                <span>Multi-Bldg Parcels</span>
-                                <strong>{parcelsSummary.multi_building_parcels}</strong>
+                                <span>Associated Buildings</span>
+                                <strong>{parcelsSummary.associated_buildings}</strong>
+                            </div>
+                            <div className="nz-prop-item">
+                                <span>Multi-parcel Buildings</span>
+                                <strong>{parcelsSummary.multi_parcel_buildings}</strong>
                             </div>
                         </div>
                     </>
@@ -4166,6 +4124,8 @@ return (
                 <div className="nz-property-disclaimer" style={{ marginTop: "8px" }}>
                     NDVI and Sentinel-2 true-color values are derived from satellite reflectance mapped onto airborne LiDAR terrain. Vegetation classes are indicative and sample-based, not a certified environmental or land-cover survey.
                 </div>
+
+                <div style={{ height: "24px" }} />
             </div>
         </div>
     );
@@ -5784,22 +5744,13 @@ export default function NZDigitalTwin() {
         return map;
     }, [parcelsData?.associations]);
 
-    const parcelMap = useMemo(() => {
-        const map = new Map<string, NZParcel>();
-        if (!parcelsData?.parcels) return map;
-        for (const p of parcelsData.parcels) {
-            map.set(p.parcel_id, p);
-        }
-        return map;
-    }, [parcelsData?.parcels]);
+
 
     const activeBuildingCadastralAssoc = selectedBuilding
         ? buildingAssociationMap.get(selectedBuilding.id)
         : undefined;
 
-    const activeBuildingParcel = activeBuildingCadastralAssoc?.primary_parcel_id
-        ? parcelMap.get(activeBuildingCadastralAssoc.primary_parcel_id)
-        : undefined;
+
 
     const handleEnterExploration = () => {
         if (measureMode || !selectedBuilding) return;
@@ -6034,7 +5985,7 @@ export default function NZDigitalTwin() {
                             terrain={terrain}
                             terrainMeta={terrainMeta}
                             selectedParcelId={selectedParcel?.parcel_id}
-                            activeBuildingParcelId={activeBuildingCadastralAssoc?.primary_parcel_id}
+                            activeBuildingCadastralAssoc={activeBuildingCadastralAssoc}
                         />
                     )}
 
@@ -6480,7 +6431,6 @@ export default function NZDigitalTwin() {
                     measureTarget={measureTarget}
                     targetAnalysis={measureTarget ? siteAnalysisMap.get(measureTarget.id) : undefined}
                     cadastralAssoc={activeBuildingCadastralAssoc}
-                    associatedParcel={activeBuildingParcel}
                     parcelsAvailable={parcelsData?.available ?? false}
                     explorationMode={explorationMode}
                     selectedVerticalLevel={selectedVerticalLevel}
@@ -6490,7 +6440,6 @@ export default function NZDigitalTwin() {
                     onToggleExplodedView={handleToggleExplodedView}
                     onStartCollapse={handleStartCollapse}
                     onSelectVerticalLevel={handleSelectVerticalLevel}
-                    onSelectParcel={setSelectedParcel}
                     onStartMeasure={() => {
                         setMeasureMode(true);
                         setMeasureTarget(null);
