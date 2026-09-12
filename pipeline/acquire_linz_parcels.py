@@ -120,8 +120,8 @@ def download_parcels(api_key: str, aoi: dict) -> dict:
     """
     url = f"https://data.linz.govt.nz/services;key={api_key}/wfs"
 
-    # WFS 2.0.0 BBOX format for EPSG:2193 (Northing, Easting)
-    bbox_str_northing_easting = f"{aoi['min_y']},{aoi['min_x']},{aoi['max_y']},{aoi['max_x']},EPSG:2193"
+    # LINZ GeoServer overrides EPSG:2193 to explicitly use Easting, Northing (X, Y)
+    bbox_str = f"{aoi['min_x']},{aoi['min_y']},{aoi['max_x']},{aoi['max_y']},EPSG:2193"
 
     params = {
         "service": "WFS",
@@ -130,7 +130,7 @@ def download_parcels(api_key: str, aoi: dict) -> dict:
         "typeNames": f"layer-{LINZ_LAYER_ID}",
         "outputFormat": "application/json",
         "srsName": EXPECTED_CRS,
-        "bbox": bbox_str_northing_easting,
+        "bbox": bbox_str,
     }
 
     print(f"[INFO] Requesting LINZ Layer {LINZ_LAYER_ID} ({LINZ_LAYER_NAME})...")
@@ -140,10 +140,10 @@ def download_parcels(api_key: str, aoi: dict) -> dict:
 
     response = requests.get(url, params=params, timeout=60)
 
-    # If LDS rejects the axis order, attempt Easting, Northing order as fallback
+    # If LDS rejects the axis order, attempt Northing, Easting order as fallback
     if response.status_code != 200 and "bbox" in response.text.lower():
         print("[WARN] Retrying with alternative BBOX axis order...")
-        bbox_str_alt = f"{aoi['min_x']},{aoi['min_y']},{aoi['max_x']},{aoi['max_y']},EPSG:2193"
+        bbox_str_alt = f"{aoi['min_y']},{aoi['min_x']},{aoi['max_y']},{aoi['max_x']},EPSG:2193"
         params["bbox"] = bbox_str_alt
         response = requests.get(url, params=params, timeout=60)
 
