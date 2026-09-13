@@ -839,6 +839,25 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.add_middleware(
+    GZipMiddleware,
+    minimum_size=1000,
+)
+
+
 # =========================================================
 # LIDAR PROCESSING
 # =========================================================
@@ -1058,29 +1077,6 @@ def run_full_pipeline():
 # =========================================================
 
 FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
-# =========================================================
-# CORS
-# =========================================================
-
-app.add_middleware(
-    GZipMiddleware,
-    minimum_size=1000,
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
 # =========================================================
 # ROOT / HEALTH
 # =========================================================
