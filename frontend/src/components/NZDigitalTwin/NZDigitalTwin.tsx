@@ -38,8 +38,12 @@ import {
     computeBuildingScreening,
     type ScreeningStatus,
     type ReviewState,
-    type ReviewData
+    type    ReviewData
 } from "../../services/nzApi";
+
+import {
+    validateBuildingTopology
+} from "../../services/topologyValidation";
 
 import {
     exportBuildingDossierPdf,
@@ -2203,6 +2207,10 @@ function PropertyIntelligencePanel({
         return validate3DProperty(building, cadastralAssoc, !!parcelsAvailable);
     }, [building, cadastralAssoc, parcelsAvailable]);
 
+    const topologyResult = useMemo(() => {
+        return validateBuildingTopology(building, cadastralAssoc);
+    }, [building, cadastralAssoc]);
+
     const screeningResult = useMemo(() => {
         return computeBuildingScreening(validationResult, mlProfile);
     }, [validationResult, mlProfile]);
@@ -2249,7 +2257,8 @@ function PropertyIntelligencePanel({
                 datasetName: "New Zealand LiDAR + Sentinel-2",
                 crsName: "EPSG:2193 (NZGD2000 / NZTM2000)",
                 cadastralAssoc,
-                verticalStructure: activeVerticalStructure
+                verticalStructure: activeVerticalStructure,
+                topologyResult
             });
             setExportPdfSuccess(true);
             setTimeout(() => setExportPdfSuccess(false), 2500);
@@ -2668,6 +2677,47 @@ function PropertyIntelligencePanel({
                     </button>
                 </div>
             )}
+
+            {/* PROPERTY TOPOLOGY */}
+            <div className="nz-section-title">PROPERTY TOPOLOGY</div>
+            <div className="nz-property-grid">
+                <div className="nz-prop-item nz-prop-full">
+                    <span>Overall Status</span>
+                    <strong className={
+                        topologyResult.overall_status === "VALID" ? "nz-text-emerald" :
+                        topologyResult.overall_status === "WARNING" ? "nz-text-amber" :
+                        topologyResult.overall_status === "ERROR" ? "nz-text-rose" : ""
+                    }>
+                        {topologyResult.overall_status}
+                    </strong>
+                </div>
+                <div className="nz-prop-item">
+                    <span>Geometry</span>
+                    <strong className={topologyResult.geometry_status === "VALID" ? "nz-text-emerald" : "nz-text-amber"}>{topologyResult.geometry_status}</strong>
+                </div>
+                <div className="nz-prop-item">
+                    <span>Identity</span>
+                    <strong className={topologyResult.identity_status === "VALID" ? "nz-text-emerald" : "nz-text-amber"}>{topologyResult.identity_status}</strong>
+                </div>
+                <div className="nz-prop-item">
+                    <span>Vertical</span>
+                    <strong className={topologyResult.vertical_status === "VALID" ? "nz-text-emerald" : "nz-text-amber"}>{topologyResult.vertical_status}</strong>
+                </div>
+                <div className="nz-prop-item">
+                    <span>Cadastral</span>
+                    <strong className={topologyResult.cadastral_status === "VALID" ? "nz-text-emerald" : "nz-text-amber"}>{topologyResult.cadastral_status}</strong>
+                </div>
+                {topologyResult.messages.length > 0 && (
+                    <div className="nz-prop-item nz-prop-full">
+                        <span>Validation Messages</span>
+                        <ul style={{ margin: "4px 0 0 0", paddingLeft: "16px", color: "#e2e8f0", fontSize: "12px", lineHeight: "1.4" }}>
+                            {topologyResult.messages.map((msg, idx) => (
+                                <li key={idx}>{msg}</li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+            </div>
 
             {/* 1. PROPERTY */}
             <div className="nz-section-title">1. PROPERTY</div>
@@ -3572,6 +3622,15 @@ export interface AreaIntelligenceData {
     ndviLowPct: number;
     ndviModPct: number;
     ndviHighPct: number;
+    // Topology Validation
+    geometryValidCount: number;
+    identityValidCount: number;
+    verticalValidCount: number;
+    cadastralValidCount: number;
+    topologyValidCount: number;
+    topologyWarningCount: number;
+    topologyErrorCount: number;
+    topologyUnavailableCount: number;
 }
 
 interface AreaIntelligencePanelProps {
@@ -3752,6 +3811,8 @@ function AreaIntelligencePanel({
                 cadastralStatus = assoc.is_multi_parcel ? "Multi-parcel" : (assoc.primary_parcel_id ? "Associated" : "Unassociated");
             }
             
+            const topologyResult = validateBuildingTopology(b, assoc);
+            
             list.push({
                 type: "building",
                 id: b.id,
@@ -3769,7 +3830,8 @@ function AreaIntelligencePanel({
                 cadastralStatus,
                 isMultiParcel: assoc?.is_multi_parcel || false,
                 screeningStatus: screening.status,
-                verticalUnits: vUnitsList
+                verticalUnits: vUnitsList,
+                topologyStatus: topologyResult.overall_status
             });
         }
         
@@ -4396,6 +4458,7 @@ function AreaIntelligencePanel({
                                                 <div><span style={{ color: '#94a3b8' }}>Cadastral: </span><span style={{ color: '#e2e8f0' }}>{r.cadastralStatus}</span></div>
                                                 <div><span style={{ color: '#94a3b8' }}>Geometry: </span><span style={{ color: '#e2e8f0' }}>{r.geometryStatus}</span></div>
                                                 <div><span style={{ color: '#94a3b8' }}>Vertical: </span><span style={{ color: '#e2e8f0' }}>{(typeof r.numVerticalUnits === "number" && r.numVerticalUnits > 0) ? "Available" : "N/A"}</span></div>
+                                                <div><span style={{ color: '#94a3b8' }}>Topology: </span><span className={r.topologyStatus === "VALID" ? "nz-text-emerald" : r.topologyStatus === "WARNING" ? "nz-text-amber" : r.topologyStatus === "ERROR" ? "nz-text-rose" : ""}>{r.topologyStatus}</span></div>
                                                 <div><span style={{ color: '#94a3b8' }}>ML: </span><span style={{ color: '#e2e8f0' }}>{r.mlClassification}</span></div>
                                                 <div><span style={{ color: '#94a3b8' }}>Human Review: </span><span style={{ color: '#e2e8f0' }}>{r.humanReviewStatus}</span></div>
                                             </div>
@@ -4905,7 +4968,8 @@ function DossierModal({
                 datasetName: "New Zealand LiDAR + Sentinel-2",
                 crsName: "EPSG:2193 (NZGD2000 / NZTM2000)",
                 cadastralAssoc,
-                verticalStructure
+                verticalStructure,
+                topologyResult: validateBuildingTopology(building, cadastralAssoc ?? undefined)
             });
         } else if (areaData) {
             exportAreaSummaryPdf({
@@ -5323,10 +5387,54 @@ function DossierModal({
                                 </div>
                             </div>
 
-                            {/* AREA SECTION 5: SPATIAL QUERY STATE */}
+                            {/* AREA SECTION 5: PROPERTY TOPOLOGY */}
                             <div className="nz-dossier-section">
                                 <div className="nz-dossier-sec-header">
-                                    <span className="nz-dossier-sec-title">🔍 5. Active Spatial Query & Selection</span>
+                                    <span className="nz-dossier-sec-title">🎯 5. Property Topology Validation</span>
+                                    <span className="nz-sec-tag">Overall: {areaData.topologyErrorCount > 0 ? "ERROR" : areaData.topologyWarningCount > 0 ? "WARNING" : areaData.topologyUnavailableCount > 0 ? "UNAVAILABLE" : "VALID"}</span>
+                                </div>
+                                <div className="nz-dossier-grid-4">
+                                    <div className="nz-dossier-item">
+                                        <span>Geometry Validation</span>
+                                        <strong className={areaData.geometryValidCount === areaData.totalBuildings ? "nz-text-emerald" : "nz-text-amber"}>{areaData.geometryValidCount} / {areaData.totalBuildings} Valid</strong>
+                                    </div>
+                                    <div className="nz-dossier-item">
+                                        <span>Identity Validation</span>
+                                        <strong className={areaData.identityValidCount === areaData.totalBuildings ? "nz-text-emerald" : "nz-text-amber"}>{areaData.identityValidCount} / {areaData.totalBuildings} Valid</strong>
+                                    </div>
+                                    <div className="nz-dossier-item">
+                                        <span>Vertical Validation</span>
+                                        <strong className={areaData.verticalValidCount === areaData.totalBuildings ? "nz-text-emerald" : "nz-text-amber"}>{areaData.verticalValidCount} / {areaData.totalBuildings} Valid</strong>
+                                    </div>
+                                    <div className="nz-dossier-item">
+                                        <span>Cadastral Relationship</span>
+                                        <strong className={areaData.cadastralValidCount === areaData.totalBuildings ? "nz-text-emerald" : "nz-text-amber"}>{areaData.cadastralValidCount} / {areaData.totalBuildings} Valid</strong>
+                                    </div>
+                                </div>
+                                <div className="nz-dossier-grid-4" style={{ marginTop: '8px' }}>
+                                    <div className="nz-dossier-item">
+                                        <span>Total Valid</span>
+                                        <strong className="nz-text-emerald">{areaData.topologyValidCount}</strong>
+                                    </div>
+                                    <div className="nz-dossier-item">
+                                        <span>Total Warnings</span>
+                                        <strong className="nz-text-amber">{areaData.topologyWarningCount}</strong>
+                                    </div>
+                                    <div className="nz-dossier-item">
+                                        <span>Total Errors</span>
+                                        <strong className="nz-text-rose">{areaData.topologyErrorCount}</strong>
+                                    </div>
+                                    <div className="nz-dossier-item">
+                                        <span>Total Unavailable</span>
+                                        <strong>{areaData.topologyUnavailableCount}</strong>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* AREA SECTION 6: SPATIAL QUERY STATE */}
+                            <div className="nz-dossier-section">
+                                <div className="nz-dossier-sec-header">
+                                    <span className="nz-dossier-sec-title">🔍 6. Active Spatial Query & Selection</span>
                                     <span className="nz-sec-tag">{activeFilter === "all" ? "Full Tile" : `Filter: ${activeFilter}`}</span>
                                 </div>
                                 <div className="nz-dossier-grid-2">
@@ -5952,6 +6060,21 @@ export default function NZDigitalTwin() {
         return map;
     }, [terrain, buildings]);
 
+    const buildingAssociationMap = useMemo(() => {
+        const map = new Map<string, NZBuildingCadastralAssociation>();
+        if (!parcelsData?.associations) return map;
+        if (Array.isArray(parcelsData.associations)) {
+            for (const a of parcelsData.associations) {
+                map.set(a.building_id, a);
+            }
+        } else {
+            for (const [k, v] of Object.entries(parcelsData.associations)) {
+                map.set(k, v);
+            }
+        }
+        return map;
+    }, [parcelsData?.associations]);
+
     const areaIntelligence = useMemo<AreaIntelligenceData | null>(() => {
         if (!terrain || !terrainMeta || buildings.length === 0 || siteAnalysisMap.size === 0) {
             return null;
@@ -6036,6 +6159,30 @@ export default function NZDigitalTwin() {
         const ndviModPct = ndviSampleTotal > 0 ? (ndviModCount / ndviSampleTotal) * 100 : 0;
         const ndviHighPct = ndviSampleTotal > 0 ? (ndviHighCount / ndviSampleTotal) * 100 : 0;
 
+        let geometryValidCount = 0;
+        let identityValidCount = 0;
+        let verticalValidCount = 0;
+        let cadastralValidCount = 0;
+        let topologyValidCount = 0;
+        let topologyWarningCount = 0;
+        let topologyErrorCount = 0;
+        let topologyUnavailableCount = 0;
+
+        for (const b of buildings) {
+            const assoc = buildingAssociationMap?.get(b.id);
+            const tRes = validateBuildingTopology(b, assoc);
+            
+            if (tRes.geometry_status === "VALID") geometryValidCount++;
+            if (tRes.identity_status === "VALID") identityValidCount++;
+            if (tRes.vertical_status === "VALID") verticalValidCount++;
+            if (tRes.cadastral_status === "VALID") cadastralValidCount++;
+
+            if (tRes.overall_status === "VALID") topologyValidCount++;
+            else if (tRes.overall_status === "WARNING") topologyWarningCount++;
+            else if (tRes.overall_status === "ERROR") topologyErrorCount++;
+            else if (tRes.overall_status === "UNAVAILABLE") topologyUnavailableCount++;
+        }
+
         return {
             tileWidth,
             tileHeight,
@@ -6057,9 +6204,17 @@ export default function NZDigitalTwin() {
             ndviMean,
             ndviLowPct,
             ndviModPct,
-            ndviHighPct
+            ndviHighPct,
+            geometryValidCount,
+            identityValidCount,
+            verticalValidCount,
+            cadastralValidCount,
+            topologyValidCount,
+            topologyWarningCount,
+            topologyErrorCount,
+            topologyUnavailableCount
         };
-    }, [terrain, terrainMeta, buildings, siteAnalysisMap]);
+    }, [terrain, terrainMeta, buildings, siteAnalysisMap, buildingAssociationMap]);
 
     const matchedBuildingData = useMemo(() => {
         if (activeFilter === "all") {
@@ -6112,20 +6267,7 @@ export default function NZDigitalTwin() {
         return map;
     }, [buildings]);
 
-    const buildingAssociationMap = useMemo(() => {
-        const map = new Map<string, NZBuildingCadastralAssociation>();
-        if (!parcelsData?.associations) return map;
-        if (Array.isArray(parcelsData.associations)) {
-            for (const a of parcelsData.associations) {
-                map.set(a.building_id, a);
-            }
-        } else {
-            for (const [k, v] of Object.entries(parcelsData.associations)) {
-                map.set(k, v);
-            }
-        }
-        return map;
-    }, [parcelsData?.associations]);
+
 
 
 

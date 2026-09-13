@@ -57,6 +57,7 @@ export interface BuildingDossierPdfOptions {
     crsName?: string;
     cadastralAssoc?: any;
     verticalStructure?: any;
+    topologyResult?: any;
 }
 
 export interface AreaSummaryPdfOptions {
@@ -368,6 +369,48 @@ export function exportBuildingDossierPdf(options: BuildingDossierPdfOptions): js
         }
 
         y += boxHeight + 2.0;
+    }
+
+    if (options.topologyResult) {
+        y = drawSectionHeader(doc, y, "Property Topology", options.topologyResult.overall_status);
+        const topItems = [
+            {
+                label: "Cadastral",
+                value: options.topologyResult.cadastral_status,
+                highlight: options.topologyResult.cadastral_status === "VALID",
+                valRgb: options.topologyResult.cadastral_status === "ERROR" ? [225, 29, 72] as [number, number, number] : options.topologyResult.cadastral_status === "WARNING" ? [217, 119, 6] as [number, number, number] : undefined
+            },
+            {
+                label: "Geometry",
+                value: options.topologyResult.geometry_status,
+                highlight: options.topologyResult.geometry_status === "VALID",
+                valRgb: options.topologyResult.geometry_status === "ERROR" ? [225, 29, 72] as [number, number, number] : options.topologyResult.geometry_status === "WARNING" ? [217, 119, 6] as [number, number, number] : undefined
+            },
+            {
+                label: "Identity",
+                value: options.topologyResult.identity_status,
+                highlight: options.topologyResult.identity_status === "VALID",
+                valRgb: options.topologyResult.identity_status === "ERROR" ? [225, 29, 72] as [number, number, number] : options.topologyResult.identity_status === "WARNING" ? [217, 119, 6] as [number, number, number] : undefined
+            },
+            {
+                label: "Vertical",
+                value: options.topologyResult.vertical_status,
+                highlight: options.topologyResult.vertical_status === "VALID",
+                valRgb: options.topologyResult.vertical_status === "ERROR" ? [225, 29, 72] as [number, number, number] : options.topologyResult.vertical_status === "WARNING" ? [217, 119, 6] as [number, number, number] : undefined
+            }
+        ];
+        y = drawMetricRow(doc, y, topItems);
+        
+        if (options.topologyResult.messages && options.topologyResult.messages.length > 0) {
+            doc.setFont("helvetica", "italic");
+            doc.setFontSize(6.5);
+            doc.setTextColor(100, 116, 139);
+            for (const msg of options.topologyResult.messages) {
+                doc.text(`- ${msg}`, 16, y);
+                y += 3.5;
+            }
+            y += 2.0;
+        }
     }
 
 
