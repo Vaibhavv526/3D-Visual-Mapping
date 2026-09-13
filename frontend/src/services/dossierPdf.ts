@@ -55,6 +55,8 @@ export interface BuildingDossierPdfOptions {
     pairwise?: PairwiseMeasurementData | null;
     datasetName?: string;
     crsName?: string;
+    cadastralAssoc?: any;
+    verticalStructure?: any;
 }
 
 export interface AreaSummaryPdfOptions {
@@ -286,29 +288,88 @@ export function exportBuildingDossierPdf(options: BuildingDossierPdfOptions): js
     // SECTION A: PROPERTY IDENTIFICATION
     // =========================================================================
     y = drawSectionHeader(doc, y, "A. Property Identification", crsName);
-    y = drawMetricRow(doc, y, [
-        {
+    const idItems: any[] = [];
+    if (options.cadastralAssoc?.property_id_3d) {
+        idItems.push({
+            label: "3D Property ID",
+            value: options.cadastralAssoc.property_id_3d,
+            note: "Project-defined",
+            highlight: true
+        });
+        idItems.push({
+            label: "LINZ Primary Parcel",
+            value: options.cadastralAssoc.primary_parcel_id,
+            note: "Cadastral Source"
+        });
+    } else {
+        idItems.push({
             label: "Building ID",
             value: building.id,
             note: "New Zealand tile model",
             highlight: true
-        },
-        {
+        });
+        idItems.push({
             label: "Dataset",
             value: datasetName,
             note: "Aerial LiDAR + MSI"
-        },
-        {
-            label: "Centroid Easting",
-            value: `${centroidX.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m E`,
-            note: "NZTM2000 Easting"
-        },
-        {
-            label: "Centroid Northing",
-            value: `${centroidY.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m N`,
-            note: "NZTM2000 Northing"
+        });
+    }
+
+    idItems.push({
+        label: "Centroid Easting",
+        value: `${centroidX.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m E`,
+        note: "NZTM2000 Easting"
+    });
+    idItems.push({
+        label: "Centroid Northing",
+        value: `${centroidY.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m N`,
+        note: "NZTM2000 Northing"
+    });
+
+    y = drawMetricRow(doc, y, idItems);
+
+    const vertStruct = options.verticalStructure
+        ?? options.cadastralAssoc?.vertical_structure
+        ?? building.vertical_structure;
+
+    const propertyId3D = options.cadastralAssoc?.property_id_3d
+        ?? vertStruct?.property_id_3d;
+
+    if (vertStruct?.floors && vertStruct.floors.length > 0) {
+        const floors = vertStruct.floors;
+        const boxHeight = 6.0 + (floors.length * 4.0);
+        
+        doc.setFillColor(248, 250, 252);
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.15);
+        doc.roundedRect(14, y, 182, boxHeight, 1, 1, "FD");
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(6.2);
+        doc.setTextColor(100, 116, 139);
+        doc.text("ESTIMATED VERTICAL UNITS:", 18, y + 3.8);
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(6.2);
+        doc.setTextColor(15, 23, 42);
+        const verticalText = `${floors.length} estimated vertical units · LiDAR structural model`;
+        doc.text(verticalText, 60, y + 3.8);
+        
+        let fy = y + 7.8;
+        for (const f of floors) {
+            const levelLabel = `L${String(f.floor_index).padStart(2, '0')}`;
+            const unitId = f.vertical_unit_id
+                ?? (propertyId3D ? `${propertyId3D}-L${String(f.floor_index).padStart(2, '0')}` : "ID unavailable");
+            doc.setFont("helvetica", "bold");
+            doc.text(levelLabel, 18, fy);
+            doc.setFont("helvetica", "normal");
+            doc.text(`Vertical Unit: ${unitId}  ·  Elev: ${f.base_elevation.toFixed(2)}m - ${f.top_elevation.toFixed(2)}m`, 28, fy);
+            fy += 4.0;
         }
-    ]);
+
+        y += boxHeight + 2.0;
+    }
+
 
     // =========================================================================
     // SECTION B: BUILDING GEOMETRY
@@ -534,30 +595,32 @@ export function exportBuildingDossierPdf(options: BuildingDossierPdfOptions): js
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(203, 213, 225);
     doc.setLineWidth(0.2);
-    doc.roundedRect(14, y, 182, 22, 1, 1, "FD");
+    doc.roundedRect(14, y, 182, 28, 1, 1, "FD");
 
     // Left cyan accent rule on disclaimer
     doc.setFillColor(2, 132, 199);
-    doc.rect(14, y, 1.5, 22, "F");
+    doc.rect(14, y, 1.5, 28, "F");
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(5.7);
+    doc.setFontSize(5.5);
     doc.setTextColor(71, 85, 105); // slate-600
 
     const disclaimers = [
-        "• Derived from the available LiDAR and Sentinel-2 data for the active New Zealand tile.",
-        "• Footprint values are bounding-box estimates and are not cadastral boundaries.",
-        "• Spatial Context is an indicative contextual index and is not an engineering, flood-risk, structural, zoning, or regulatory assessment.",
-        "• Inter-building distances are indicative spatial measurements based on available building geometry and are not certified survey measurements.",
-        "• Storey count is an estimation assuming a standard 3.2m floor height. Not a certified architectural survey."
+        "- Derived from the available LiDAR and Sentinel-2 data for the active New Zealand tile.",
+        "- Footprint values are bounding-box estimates and are not cadastral boundaries.",
+        "- Spatial Context is an indicative contextual index and is not an engineering, flood-risk, structural, zoning, or regulatory assessment.",
+        "- Inter-building distances are indicative spatial measurements based on available building geometry and are not certified survey measurements.",
+        "- Storey count is an estimation assuming a standard 3.2m floor height. Not a certified architectural survey.",
+        "- Vertical structure levels are derived from the structural roof model and may differ from the raw LiDAR apex elevation reported in the building geometry section.",
+        "- Vertical Unit IDs are project-defined identifiers for LiDAR-derived estimated levels. They are not official ULPINs or legal cadastral unit identifiers."
     ];
 
-    let dy = y + 3.8;
+    let dy = y + 3.6;
     for (const d of disclaimers) {
         doc.text(d, 18, dy);
-        dy += 3.6;
+        dy += 3.5;
     }
-    y += 24;
+    y += 30;
 
     // =========================================================================
     // FOOTER
@@ -654,12 +717,12 @@ export function exportAreaSummaryPdf(options: AreaSummaryPdfOptions): jsPDF {
         },
         {
             label: "Easting Extents",
-            value: `${terrainMeta?.minX?.toFixed(0) || "0"} – ${terrainMeta?.maxX?.toFixed(0) || "0"}`,
+            value: `${terrainMeta?.minX?.toFixed(0) || "0"} - ${terrainMeta?.maxX?.toFixed(0) || "0"}`,
             note: "EPSG:2193 Easting (m)"
         },
         {
             label: "Northing Extents",
-            value: `${terrainMeta?.minY?.toFixed(0) || "0"} – ${terrainMeta?.maxY?.toFixed(0) || "0"}`,
+            value: `${terrainMeta?.minY?.toFixed(0) || "0"} - ${terrainMeta?.maxY?.toFixed(0) || "0"}`,
             note: "EPSG:2193 Northing (m)"
         }
     ]);
@@ -696,7 +759,7 @@ export function exportAreaSummaryPdf(options: AreaSummaryPdfOptions): jsPDF {
     y = drawMetricRow(doc, y, [
         {
             label: "Elevation Min / Max",
-            value: `${elevationMin.toFixed(1)} – ${elevationMax.toFixed(1)} m`,
+            value: `${elevationMin.toFixed(1)} - ${elevationMax.toFixed(1)} m`,
             note: `Mean: ${terrainMeta?.elevationMean?.toFixed(1) || "0"} m AMSL`
         },
         {
@@ -781,10 +844,10 @@ export function exportAreaSummaryPdf(options: AreaSummaryPdfOptions): jsPDF {
     doc.setTextColor(71, 85, 105);
 
     const disclaimers = [
-        "• Aggregated geospatial intelligence derived from airborne LiDAR point clouds and Sentinel-2 multispectral imagery.",
-        "• Structure counts and footprint values are bounding-box estimates and are not cadastral boundaries or land titles.",
-        "• Spatial Context is an indicative contextual index and is not an engineering, flood-risk, structural, zoning, or regulatory assessment.",
-        "• Data is prepared under EPSG:2193 (NZTM2000) for municipal spatial intelligence and simulation purposes."
+        "- Aggregated geospatial intelligence derived from airborne LiDAR point clouds and Sentinel-2 multispectral imagery.",
+        "- Structure counts and footprint values are bounding-box estimates and are not cadastral boundaries or land titles.",
+        "- Spatial Context is an indicative contextual index and is not an engineering, flood-risk, structural, zoning, or regulatory assessment.",
+        "- Data is prepared under EPSG:2193 (NZTM2000) for municipal spatial intelligence and simulation purposes."
     ];
 
     let dy = y + 3.8;

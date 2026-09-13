@@ -2238,12 +2238,18 @@ function PropertyIntelligencePanel({
                 };
             }
 
+            const activeVerticalStructure = (parcelsAvailable && cadastralAssoc?.vertical_structure)
+                ? cadastralAssoc.vertical_structure
+                : (building.vertical_structure ?? null);
+
             exportBuildingDossierPdf({
                 building,
                 analysis,
                 pairwise,
                 datasetName: "New Zealand LiDAR + Sentinel-2",
-                crsName: "EPSG:2193 (NZGD2000 / NZTM2000)"
+                crsName: "EPSG:2193 (NZGD2000 / NZTM2000)",
+                cadastralAssoc,
+                verticalStructure: activeVerticalStructure
             });
             setExportPdfSuccess(true);
             setTimeout(() => setExportPdfSuccess(false), 2500);
@@ -2363,6 +2369,12 @@ function PropertyIntelligencePanel({
                     )}
                 </div>
 
+                <div style={{ padding: "12px", background: "rgba(15, 23, 42, 0.5)", borderRadius: "6px", marginBottom: "16px", borderLeft: "3px solid #38bdf8" }}>
+                    <div style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "4px", fontWeight: 700, letterSpacing: "0.05em" }}>PROPERTY</div>
+                    <div style={{ fontSize: "15px", fontWeight: 700, color: "#38bdf8" }}>{verticalStructure?.property_id_3d ?? "Project-defined ID unavailable"}</div>
+                    <div style={{ fontSize: "10px", color: "#94a3b8", marginTop: "4px", fontStyle: "italic" }}>Estimated &middot; LiDAR-derived</div>
+                </div>
+
                 <div className="nz-section-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span>VERTICAL LEVELS</span>
                     <span className="nz-levels-badge">{floors.length} levels</span>
@@ -2441,20 +2453,23 @@ function PropertyIntelligencePanel({
                 {isLevelSelected && (
                     <>
                         <div className="nz-section-title">1. LEVEL IDENTITY</div>
-                        <div className="nz-property-grid">
-                            <div className="nz-prop-item">
-                                <span>Level</span>
-                                <strong>{selectedVerticalLevel.floor_index} of {floors.length}</strong>
+                        
+                        <div style={{ padding: "12px", background: "rgba(15, 23, 42, 0.6)", borderRadius: "8px", border: "1px solid rgba(56, 189, 248, 0.2)", marginBottom: "12px" }}>
+                            <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", letterSpacing: "0.05em", marginBottom: "6px" }}>
+                                ESTIMATED VERTICAL UNIT
                             </div>
-                            <div className="nz-prop-item">
-                                <span>Vertical Unit ID</span>
-                                <span className={selectedVerticalLevel.vertical_unit_id ? "nz-cadastral-id" : "nz-unassociated-text"} title={selectedVerticalLevel.vertical_unit_id ?? "Vertical ID unavailable"}>
-                                    {selectedVerticalLevel.vertical_unit_id ?? "Vertical ID unavailable"}
-                                </span>
+                            <div style={{ fontSize: "18px", fontWeight: 700, color: "#38bdf8", marginBottom: "12px", wordBreak: "break-all" }}>
+                                {selectedVerticalLevel.vertical_unit_id ?? "ID unavailable"}
                             </div>
-                            <div className="nz-prop-item nz-prop-full">
-                                <span>3D Property ID</span>
-                                <strong className={verticalStructure?.property_id_3d ? "nz-cadastral-id" : "nz-unassociated-text"}>{verticalStructure?.property_id_3d ?? "Unavailable"}</strong>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                                <div>
+                                    <div style={{ color: "#94a3b8", fontSize: "10px", fontWeight: 600 }}>Parent 3D Property</div>
+                                    <div style={{ fontWeight: 600, color: "#f8fafc", fontSize: "13px" }}>{verticalStructure?.property_id_3d ?? "Unavailable"}</div>
+                                </div>
+                                <div>
+                                    <div style={{ color: "#94a3b8", fontSize: "10px", fontWeight: 600 }}>Level</div>
+                                    <div style={{ fontWeight: 600, color: "#f8fafc", fontSize: "13px" }}>L{String(selectedVerticalLevel.floor_index).padStart(2, "0")}</div>
+                                </div>
                             </div>
                         </div>
 
@@ -2558,7 +2573,7 @@ function PropertyIntelligencePanel({
 
                         <div className="nz-section-title">{verticalStructure?.consistency ? "6. DATA NOTE" : "5. DATA NOTE"}</div>
                         <div className="nz-disclaimer">
-                            Estimated vertical zones derived from LiDAR building geometry and the structural-height model. They do not confirm architectural floors or legal vertical boundaries.
+                            Vertical Unit IDs are project-defined identifiers for LiDAR-derived estimated levels. They are not official ULPINs or legal cadastral unit identifiers.
                         </div>
                     </>
                 )}
@@ -2582,8 +2597,57 @@ function PropertyIntelligencePanel({
 
             <div className="nz-property-header">
                 <h3>{building.id}</h3>
-                <span className="nz-class-badge">Class 6 · Structure</span>
+                <span className="nz-class-badge">Class 6 &middot; Structure</span>
             </div>
+
+            {parcelsAvailable && cadastralAssoc?.property_id_3d && (
+                <>
+                    <div style={{ marginBottom: "12px", background: "rgba(15, 23, 42, 0.6)", padding: "12px", borderRadius: "8px", border: "1px solid rgba(56, 189, 248, 0.2)" }}>
+                        <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", letterSpacing: "0.05em", marginBottom: "6px" }}>
+                            3D PROPERTY IDENTITY
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                            <h3 style={{ margin: 0, color: "#38bdf8", fontSize: "18px", wordBreak: "break-all" }}>{cadastralAssoc.property_id_3d}</h3>
+                            <button 
+                                onClick={(e) => {
+                                    navigator.clipboard.writeText(cadastralAssoc.property_id_3d!);
+                                    const span = e.currentTarget.querySelector('span');
+                                    if (span) {
+                                        const orig = span.innerText;
+                                        span.innerText = "Copied";
+                                        setTimeout(() => span.innerText = orig, 1500);
+                                    }
+                                }}
+                                title="Copy project-defined 3DP ID"
+                                style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "#fff", cursor: "pointer", padding: "4px 8px", borderRadius: "4px", fontSize: "10px", display: "flex", alignItems: "center", gap: "4px" }}
+                            >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                                <span>Copy</span>
+                            </button>
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                            <div>
+                                <div style={{ color: "#94a3b8", fontSize: "10px", fontWeight: 600 }}>LINZ PARCEL</div>
+                                <div style={{ fontWeight: 600, color: "#f8fafc", fontSize: "13px" }}>{cadastralAssoc.primary_parcel_id}</div>
+                            </div>
+                            <div>
+                                <div style={{ color: "#94a3b8", fontSize: "10px", fontWeight: 600 }}>BUILDING</div>
+                                <div style={{ fontWeight: 600, color: "#f8fafc", fontSize: "13px" }}>{building.id}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style={{ background: "rgba(56, 189, 248, 0.05)", borderLeft: "3px solid #38bdf8", padding: "10px 12px", marginBottom: "20px" }}>
+                        <div style={{ fontSize: "11px", fontWeight: 700, color: "#38bdf8", marginBottom: "4px" }}>ULPIN-style demonstration</div>
+                        <div style={{ fontSize: "11px", color: "#e2e8f0", lineHeight: 1.4, marginBottom: "6px" }}>
+                            Project-defined demonstration linking authoritative parcel geometry with LiDAR-derived building and vertical structure.
+                        </div>
+                        <div style={{ fontSize: "10px", color: "#94a3b8", lineHeight: 1.3, fontStyle: "italic" }}>
+                            Not an official ULPIN. Official ULPIN generation requires authoritative specification and source-data validation.
+                        </div>
+                    </div>
+                </>
+            )}
 
             {/* Primary Action Banner: 3D Exploded Vertical Exploration */}
             {verticalStructure?.floors && verticalStructure.floors.length > 0 && (
@@ -2624,59 +2688,47 @@ function PropertyIntelligencePanel({
                 </div>
             </div>
 
-            {/* CADASTRAL */}
-            <div className="nz-section-title">CADASTRAL</div>
-            <div className="nz-property-grid">
-                <div className="nz-prop-item nz-prop-full">
-                    <span>Source</span>
-                    <strong>LINZ Primary Parcels · Layer: 50772 · CRS: EPSG:2193</strong>
+            {/* IDENTITY CHAIN */}
+            <div className="nz-section-title">IDENTITY CHAIN</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", background: "rgba(15, 23, 42, 0.4)", padding: "12px", borderRadius: "6px", marginBottom: "16px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <div style={{ width: "2px", height: "24px", background: "#38bdf8", marginLeft: "4px" }}></div>
+                    <div>
+                        <div style={{ fontSize: "10px", color: "#94a3b8" }}>LINZ PARCEL</div>
+                        <div style={{ fontSize: "13px", fontWeight: 600, color: "#f8fafc" }}>{cadastralAssoc?.primary_parcel_id ?? "None"}</div>
+                    </div>
                 </div>
-
-                <div className="nz-prop-item">
-                    <span>LINZ Primary Parcel</span>
-                    <strong className={parcelsAvailable && cadastralAssoc?.primary_parcel_id ? "nz-cadastral-id" : "nz-unassociated-text"}>
-                        {parcelsAvailable && cadastralAssoc?.primary_parcel_id ? cadastralAssoc.primary_parcel_id : "None"}
-                    </strong>
-                </div>
-
-                <div className="nz-prop-item">
-                    <span>Property Identity</span>
-                    <strong className={parcelsAvailable && cadastralAssoc?.property_id_3d ? "nz-cadastral-id" : "nz-unassociated-text"}>
-                        {parcelsAvailable && cadastralAssoc?.property_id_3d ? cadastralAssoc.property_id_3d : "None"}
-                    </strong>
-                </div>
-
-                <div className="nz-prop-item nz-prop-full">
-                    <span>Association</span>
-                    <strong className="nz-highlight-text">{cadastralAssoc ? cadastralAssoc.association_type : "Cadastral dataset not loaded"}</strong>
-                </div>
-
-                {cadastralAssoc?.is_multi_parcel && (
-                    <>
-                        <div className="nz-prop-item nz-prop-full">
-                            <span>Multi-parcel</span>
-                            <strong>Yes</strong>
-                        </div>
-                        <div className="nz-prop-item nz-prop-full">
-                            <span>Intersecting Parcels</span>
-                            <div style={{ marginTop: "4px" }}>
-                                {cadastralAssoc.intersecting_parcels.map(p => (
-                                    <div key={p.parcel_id} style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#e2e8f0", padding: "2px 0" }}>
-                                        <span>{p.parcel_id}</span>
-                                        <span>{(p.overlap_fraction * 100).toFixed(1)}% overlap</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </>
+                {cadastralAssoc?.intersecting_parcels && cadastralAssoc.intersecting_parcels.length > 1 && (
+                     <div style={{ display: "flex", alignItems: "center", gap: "8px", marginLeft: "20px" }}>
+                         <div>
+                             <div style={{ fontSize: "10px", color: "#94a3b8" }}>INTERSECTING PARCELS</div>
+                             <div style={{ fontSize: "11px", color: "#cbd5e1" }}>{cadastralAssoc.intersecting_parcels.map(p => p.parcel_id).join(", ")}</div>
+                         </div>
+                     </div>
                 )}
-
-                <div className="nz-prop-item nz-prop-full" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "4px" }}>
-                    <div className="nz-unspecified-text" style={{ fontSize: "10px", letterSpacing: "0.02em", lineHeight: 1.4 }}>
-                        Parcel geometry is sourced from LINZ Primary Parcels. 3DP identifiers are project-defined and are not official ULPINs.
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <div style={{ fontSize: "14px", color: "#94a3b8", width: "10px", textAlign: "center" }}>?</div>
+                    <div>
+                        <div style={{ fontSize: "10px", color: "#94a3b8" }}>BUILDING</div>
+                        <div style={{ fontSize: "13px", fontWeight: 600, color: "#f8fafc" }}>{building.id}</div>
+                    </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <div style={{ fontSize: "14px", color: "#94a3b8", width: "10px", textAlign: "center" }}>?</div>
+                    <div>
+                        <div style={{ fontSize: "10px", color: "#94a3b8" }}>3D PROPERTY</div>
+                        <div style={{ fontSize: "13px", fontWeight: 600, color: "#38bdf8" }}>{cadastralAssoc?.property_id_3d ?? "None"}</div>
+                    </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <div style={{ fontSize: "14px", color: "#94a3b8", width: "10px", textAlign: "center" }}>?</div>
+                    <div>
+                        <div style={{ fontSize: "10px", color: "#94a3b8" }}>VERTICAL UNITS</div>
+                        <div style={{ fontSize: "13px", fontWeight: 600, color: "#f8fafc" }}>{verticalStructure?.floors ? `${verticalStructure.floors.length} estimated levels` : "None"}</div>
                     </div>
                 </div>
             </div>
+
 
             
             {/* PROPERTY SCREENING */}
@@ -3709,26 +3761,30 @@ return (
                     </div>
                 </div>
 
-                {/* CADASTRAL */}
+                {/* IDENTITY SUMMARY */}
                 {parcelsSummary && (
                     <>
-                        <div className="nz-prop-section-title">CADASTRAL</div>
+                        <div className="nz-prop-section-title">IDENTITY SUMMARY</div>
                         <div className="nz-prop-grid">
                             <div className="nz-prop-item">
-                                <span>Parcels</span>
+                                <span>3D Property Identities</span>
+                                <strong>{parcelsSummary.identities_generated ?? parcelsSummary.associated_buildings}</strong>
+                            </div>
+                            <div className="nz-prop-item">
+                                <span>Vertical Structures</span>
+                                <strong>{data.totalBuildings}</strong>
+                            </div>
+                            <div className="nz-prop-item">
+                                <span>LINZ Parcels</span>
                                 <strong>{parcelsSummary.total_parcels}</strong>
                             </div>
                             <div className="nz-prop-item">
-                                <span>With Buildings</span>
+                                <span>Occupied Parcels</span>
                                 <strong>{parcelsSummary.parcels_with_buildings}</strong>
                             </div>
                             <div className="nz-prop-item">
-                                <span>Vacant</span>
+                                <span>Vacant Parcels</span>
                                 <strong>{parcelsSummary.vacant_parcels}</strong>
-                            </div>
-                            <div className="nz-prop-item">
-                                <span>Associated Buildings</span>
-                                <strong>{parcelsSummary.associated_buildings}</strong>
                             </div>
                             <div className="nz-prop-item">
                                 <span>Multi-parcel Buildings</span>
@@ -4151,7 +4207,7 @@ function ParcelInspectorPanel({
 
             <div className="nz-kicker">CADASTRAL PARCEL INSPECTOR</div>
 
-            <div className="nz-property-header">
+            <div className="nz-property-header" style={{ marginBottom: "16px" }}>
                 <h3>{parcel.parcel_id}</h3>
                 {parcel.parcel_intent ? (
                     <span className="nz-class-badge">{parcel.parcel_intent}</span>
@@ -4159,6 +4215,32 @@ function ParcelInspectorPanel({
                     <span className="nz-class-badge">LINZ Primary Parcel</span>
                 )}
             </div>
+
+            {parcel.associated_building_ids.length === 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px", background: "rgba(15, 23, 42, 0.4)", padding: "12px", borderRadius: "6px", marginBottom: "16px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <div style={{ width: "2px", height: "24px", background: "#38bdf8", marginLeft: "4px" }}></div>
+                        <div>
+                            <div style={{ fontSize: "10px", color: "#94a3b8" }}>LINZ PARCEL</div>
+                            <div style={{ fontSize: "13px", fontWeight: 600, color: "#f8fafc" }}>{parcel.parcel_id}</div>
+                        </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <div style={{ fontSize: "14px", color: "#94a3b8", width: "10px", textAlign: "center" }}>?</div>
+                        <div>
+                            <div style={{ fontSize: "10px", color: "#94a3b8" }}>STATUS</div>
+                            <div style={{ fontSize: "13px", fontWeight: 600, color: "#cbd5e1" }}>Vacant parcel</div>
+                        </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <div style={{ fontSize: "14px", color: "#94a3b8", width: "10px", textAlign: "center" }}>?</div>
+                        <div>
+                            <div style={{ fontSize: "10px", color: "#94a3b8" }}>3D PROPERTY ID</div>
+                            <div style={{ fontSize: "13px", fontWeight: 600, color: "#64748b" }}>Not applicable</div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="nz-section-title">1. CADASTRAL ATTRIBUTES</div>
             <div className="nz-property-grid">
@@ -4293,6 +4375,8 @@ interface DossierModalProps {
     elevationMax?: number;
     activeFilter?: SpatialFilterType;
     matchedBuildings?: { building: NZBuilding; metricText: string }[];
+    cadastralAssoc?: NZBuildingCadastralAssociation | null;
+    verticalStructure?: NZVerticalStructure | null;
 }
 
 function DossierModal({
@@ -4308,7 +4392,9 @@ function DossierModal({
     elevationMin = 0,
     elevationMax = 0,
     activeFilter = "all",
-    matchedBuildings = []
+    matchedBuildings = [],
+    cadastralAssoc,
+    verticalStructure
 }: DossierModalProps) {
     const [copied, setCopied] = useState(false);
     const overlayRef = useRef<HTMLDivElement>(null);
@@ -4556,7 +4642,9 @@ function DossierModal({
                 analysis,
                 pairwise,
                 datasetName: "New Zealand LiDAR + Sentinel-2",
-                crsName: "EPSG:2193 (NZGD2000 / NZTM2000)"
+                crsName: "EPSG:2193 (NZGD2000 / NZTM2000)",
+                cadastralAssoc,
+                verticalStructure
             });
         } else if (areaData) {
             exportAreaSummaryPdf({
