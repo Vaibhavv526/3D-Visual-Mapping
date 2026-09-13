@@ -3587,6 +3587,12 @@ interface AreaIntelligencePanelProps {
     parcelsAvailable: boolean;
     mlSummary?: NZBuildingMLSummary | null;
     reviewStore: Record<string, ReviewData>;
+    
+    // Phase 16 additions
+    parcelsData: NZParcelsData | null;
+    onFocusBuildingOnly: (building: NZBuilding) => void;
+    onOpenBuilding: (building: NZBuilding) => void;
+    onOpenVerticalUnit: (building: NZBuilding, floorIndex: number) => void;
 }
 
 function AreaIntelligencePanel({
@@ -3601,8 +3607,13 @@ function AreaIntelligencePanel({
     buildings,
     parcelsAvailable,
     mlSummary,
-    reviewStore
+    reviewStore,
+    parcelsData,
+    onFocusBuildingOnly,
+    onOpenBuilding,
+    onOpenVerticalUnit
 }: AreaIntelligencePanelProps) {
+    const [activeTab, setActiveTab] = useState<"overview" | "registry">("overview");
     const totalBldgs = data.totalBuildings;
     let identitiesCount = 0;
     let associatedCount = 0;
@@ -3706,15 +3717,151 @@ function AreaIntelligencePanel({
         return { normalCount, reviewCount, priorityCount, reviewList, unreviewedCount, inReviewCount, reviewedCount };
     }, [buildings, buildingAssociationMap, parcelsAvailable, mlSummary, reviewStore]);
 
-return (
-        <div className="nz-overlay nz-area-intel">
-            <div className="nz-area-header">
+
+    // --- PROPERTY REGISTRY LOGIC ---
+    const [searchQuery, setSearchQuery] = useState("");
+    const [regFilter, setRegFilter] = useState<"All" | "Normal" | "Review" | "Priority" | "Multi-parcel" | "Vacant parcels">("All");
+
+    const registryRecords = useMemo(() => {
+        const list: any[] = [];
+        
+        for (const b of buildings) {
+            const assoc = buildingAssociationMap?.get(b.id);
+            const res = validate3DProperty(b, assoc, parcelsAvailable);
+            const mlProfile = mlSummary?.profiles.find(p => p.building_id === b.id);
+            const screening = computeBuildingScreening(res, mlProfile);
+            const vStruct = assoc?.vertical_structure || b.vertical_structure;
+            const numVert = vStruct?.floors?.length || 0;
+            const geomCheck = res.checks.find(c => c.rule === "geometry_integrity");
+            const reviewStatus = reviewStore[b.id]?.state || "UNREVIEWED";
+            
+            let vUnitsText = "";
+            const vUnitsList: { id: string, floorIndex: number }[] = [];
+            if (vStruct?.floors) {
+                vStruct.floors.forEach(f => {
+                    const lId = `3DP-${assoc?.primary_parcel_id || 'UNKNOWN'}-${b.id}-L${f.floor_index.toString().padStart(2, '0')}`;
+                    vUnitsText += lId + " ";
+                    vUnitsList.push({ id: lId, floorIndex: f.floor_index });
+                });
+            }
+            
+            const propertyId3D = assoc?.property_id_3d || `3DP-UNASSOCIATED-${b.id}`;
+            const primaryParcel = assoc?.primary_parcel_id || "Unassociated";
+            let cadastralStatus = "Unassociated";
+            if (assoc) {
+                cadastralStatus = assoc.is_multi_parcel ? "Multi-parcel" : (assoc.primary_parcel_id ? "Associated" : "Unassociated");
+            }
+            
+            list.push({
+                type: "building",
+                id: b.id,
+                building: b,
+                assoc,
+                searchText: `${b.id} ${propertyId3D} ${primaryParcel} ${vUnitsText}`.toLowerCase(),
+                propertyId3D,
+                linzPrimaryParcelId: primaryParcel,
+                buildingId: b.id,
+                associationType: assoc?.association_type || "None",
+                numVerticalUnits: numVert,
+                mlClassification: mlProfile?.classification || "Unknown",
+                humanReviewStatus: reviewStatus,
+                geometryStatus: geomCheck?.status === "PASS" ? "Valid" : (geomCheck?.status === "WARNING" ? "Warning" : "Invalid"),
+                cadastralStatus,
+                isMultiParcel: assoc?.is_multi_parcel || false,
+                screeningStatus: screening.status,
+                verticalUnits: vUnitsList
+            });
+        }
+        
+        if (parcelsData?.parcels) {
+            const associatedIds = new Set<string>();
+            if (buildingAssociationMap) {
+                for (const assoc of buildingAssociationMap.values()) {
+                    if (assoc.primary_parcel_id) associatedIds.add(assoc.primary_parcel_id);
+                    if (assoc.intersecting_parcels) {
+                        assoc.intersecting_parcels.forEach(p => associatedIds.add(p.parcel_id));
+                    }
+                }
+            }
+            for (const p of parcelsData.parcels) {
+                if (!associatedIds.has(p.parcel_id)) {
+                    list.push({
+                        type: "vacant_parcel",
+                        id: `parcel-${p.parcel_id}`,
+                        parcel: p,
+                        searchText: `${p.parcel_id}`.toLowerCase(),
+                        propertyId3D: "Not applicable",
+                        linzPrimaryParcelId: p.parcel_id,
+                        buildingId: "None",
+                        associationType: "Vacant",
+                        numVerticalUnits: "N/A",
+                        mlClassification: "N/A",
+                        humanReviewStatus: "N/A",
+                        geometryStatus: "N/A",
+                        cadastralStatus: "Vacant parcel",
+                        isMultiParcel: false,
+                        screeningStatus: null
+                    });
+                }
+            }
+        }
+        
+        return list;
+    }, [buildings, parcelsData, buildingAssociationMap, mlSummary, reviewStore, parcelsAvailable]);
+
+    const displayedRegistryRecords = useMemo(() => {
+        const q = searchQuery.toLowerCase().trim();
+        return registryRecords.filter(r => {
+            if (q && !r.searchText.includes(q)) return false;
+            if (regFilter === "Normal") return r.screeningStatus === "NORMAL";
+            if (regFilter === "Review") return r.screeningStatus === "REVIEW";
+            if (regFilter === "Priority") return r.screeningStatus === "PRIORITY REVIEW";
+            if (regFilter === "Multi-parcel") return r.isMultiParcel;
+            if (regFilter === "Vacant parcels") return r.type === "vacant_parcel";
+            return true;
+        });
+    }, [registryRecords, searchQuery, regFilter]);
+    // --- END REGISTRY LOGIC ---
+
+    return (
+        <div className="nz-overlay nz-area-intel" style={{ display: "flex", flexDirection: "column" }}>
+            <div className="nz-area-header" style={{ paddingBottom: '0' }}>
                 <div className="nz-kicker">AREA INTELLIGENCE</div>
-                <h3>Tile Overview · New Zealand</h3>
-                <span>EPSG:2193 · Active LiDAR tile</span>
+                <div style={{ display: 'flex', gap: '20px', marginTop: '10px', borderBottom: '1px solid #334155' }}>
+                    <button 
+                        onClick={() => setActiveTab("overview")}
+                        style={{ 
+                            background: 'none', 
+                            border: 'none', 
+                            color: activeTab === "overview" ? '#38bdf8' : '#94a3b8', 
+                            padding: '10px 0', 
+                            borderBottom: activeTab === "overview" ? '2px solid #38bdf8' : '2px solid transparent',
+                            cursor: 'pointer',
+                            fontWeight: 600
+                        }}
+                    >
+                        OVERVIEW
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab("registry")}
+                        style={{ 
+                            background: 'none', 
+                            border: 'none', 
+                            color: activeTab === "registry" ? '#38bdf8' : '#94a3b8', 
+                            padding: '10px 0', 
+                            borderBottom: activeTab === "registry" ? '2px solid #38bdf8' : '2px solid transparent',
+                            cursor: 'pointer',
+                            fontWeight: 600
+                        }}
+                    >
+                        PROPERTY REGISTRY
+                    </button>
+                </div>
             </div>
 
-            <div className="nz-area-content">
+            <div className="nz-area-content" style={{ flex: 1, overflowY: 'auto' }}>
+                {activeTab === "overview" && (
+                    <>
                 {/* SECTION 1: SURVEY SCOPE */}
                 <div className="nz-prop-section-title">1. SURVEY SCOPE</div>
                 <div className="nz-prop-grid">
@@ -4177,6 +4324,120 @@ return (
                 </div>
 
                 <div style={{ height: "24px" }} />
+                    </>
+                )}
+
+                {activeTab === "registry" && (
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ margin: '15px 0' }}>
+                            <input 
+                                type="text" 
+                                placeholder="Search by Building ID, Parcel ID, 3DP ID, or Unit ID..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    padding: '10px',
+                                    background: '#0f172a',
+                                    border: '1px solid #334155',
+                                    color: '#e2e8f0',
+                                    borderRadius: '4px',
+                                    fontFamily: 'monospace'
+                                }}
+                            />
+                        </div>
+
+                        <div className="nz-query-chips" style={{ marginBottom: '15px' }}>
+                            {["All", "Normal", "Review", "Priority", "Multi-parcel", "Vacant parcels"].map(f => (
+                                <button
+                                    key={f}
+                                    type="button"
+                                    className={`nz-chip-btn ${regFilter === f ? "active" : ""}`}
+                                    onClick={() => setRegFilter(f as any)}
+                                    style={{ marginBottom: '5px' }}
+                                >
+                                    {f}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="nz-query-list" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            {displayedRegistryRecords.map(r => (
+                                <div key={r.id} style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', padding: '12px' }}>
+                                    {r.type === "building" ? (
+                                        <>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                                <strong style={{ color: '#38bdf8', fontSize: '1.1em' }}>{r.propertyId3D}</strong>
+                                                <div style={{ display: 'flex', gap: '8px' }}>
+                                                    <button className="nz-btn-query-focus" onClick={() => onFocusBuildingOnly(r.building!)}>Focus in 3D</button>
+                                                    <button className="nz-btn-query-focus" onClick={() => onOpenBuilding(r.building!)}>Open Property</button>
+                                                </div>
+                                            </div>
+                                            <div className="nz-prop-grid" style={{ gap: '4px', marginBottom: '8px' }}>
+                                                <div className="nz-prop-item"><span>Building ID</span><strong>{r.buildingId}</strong></div>
+                                                <div className="nz-prop-item"><span>Primary Parcel</span><strong>{r.linzPrimaryParcelId}</strong></div>
+                                                <div className="nz-prop-item"><span>Vertical Units</span><strong>{r.numVerticalUnits}</strong></div>
+                                                <div className="nz-prop-item"><span>Association</span><strong>{r.associationType}</strong></div>
+                                            </div>
+                                            
+                                            {r.isMultiParcel && r.assoc?.intersecting_parcels && r.assoc.intersecting_parcels.length > 0 && (
+                                                <div style={{ background: '#0f172a', padding: '8px', borderRadius: '4px', marginBottom: '8px', fontSize: '0.85em' }}>
+                                                    <div style={{ color: '#94a3b8', marginBottom: '4px' }}>Multi-Parcel Intersection:</div>
+                                                    {r.assoc.intersecting_parcels.map((ip: any) => (
+                                                        <div key={ip.parcel_id} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                            <span>Secondary: {ip.parcel_id}</span>
+                                                            <span>Overlap: {(ip.overlap_fraction * 100).toFixed(1)}%</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            <div style={{ background: '#0f172a', padding: '8px', borderRadius: '4px', fontSize: '0.85em', display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                                                <div><span style={{ color: '#94a3b8' }}>Cadastral: </span><span style={{ color: '#e2e8f0' }}>{r.cadastralStatus}</span></div>
+                                                <div><span style={{ color: '#94a3b8' }}>Geometry: </span><span style={{ color: '#e2e8f0' }}>{r.geometryStatus}</span></div>
+                                                <div><span style={{ color: '#94a3b8' }}>Vertical: </span><span style={{ color: '#e2e8f0' }}>{(typeof r.numVerticalUnits === "number" && r.numVerticalUnits > 0) ? "Available" : "N/A"}</span></div>
+                                                <div><span style={{ color: '#94a3b8' }}>ML: </span><span style={{ color: '#e2e8f0' }}>{r.mlClassification}</span></div>
+                                                <div><span style={{ color: '#94a3b8' }}>Human Review: </span><span style={{ color: '#e2e8f0' }}>{r.humanReviewStatus}</span></div>
+                                            </div>
+
+                                            {searchQuery.trim().length >= 3 && r.verticalUnits && r.verticalUnits.some((u: any) => u.id.toLowerCase().includes(searchQuery.toLowerCase().trim())) && (
+                                                <div style={{ marginTop: '10px', padding: '8px', borderLeft: '2px solid #38bdf8', background: '#0f172a' }}>
+                                                    <div style={{ color: '#94a3b8', fontSize: '0.85em', marginBottom: '4px' }}>Matching Vertical Units:</div>
+                                                    {r.verticalUnits.filter((u: any) => u.id.toLowerCase().includes(searchQuery.toLowerCase().trim())).map((u: any) => (
+                                                        <div key={u.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <span style={{ fontFamily: 'monospace', color: '#e2e8f0', fontSize: '0.9em' }}>{u.id}</span>
+                                                            <button className="nz-btn-query-focus" onClick={() => onOpenVerticalUnit(r.building!, u.floorIndex)}>Open Level</button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                                <strong style={{ color: '#94a3b8', fontSize: '1.1em' }}>Vacant Parcel</strong>
+                                            </div>
+                                            <div className="nz-prop-grid" style={{ gap: '4px' }}>
+                                                <div className="nz-prop-item"><span>LINZ Parcel ID</span><strong>{r.linzPrimaryParcelId}</strong></div>
+                                                <div className="nz-prop-item"><span>Building</span><strong>{r.buildingId}</strong></div>
+                                                <div className="nz-prop-item"><span>3D Property ID</span><strong>{r.propertyId3D}</strong></div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            ))}
+                            {displayedRegistryRecords.length === 0 && (
+                                <div style={{ textAlign: 'center', padding: '20px', color: '#94a3b8' }}>
+                                    No records found.
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div style={{ padding: '10px', fontSize: '0.75em', color: '#64748b', textAlign: 'center', marginTop: '10px' }}>
+                            3D Property IDs and Vertical Unit IDs are project-defined identifiers and are not official ULPINs or legal cadastral unit identifiers.
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -5217,6 +5478,45 @@ export default function NZDigitalTwin() {
             collapseTimerRef.current = null;
         }
         document.body.style.cursor = "auto";
+    };
+
+    const handleOpenVerticalUnit = (b: NZBuilding, floorIndex: number) => {
+        setActivePreset(null);
+        setSelectedBuilding(b);
+        setSelectedParcel(null);
+        setMeasureMode(false);
+        setMeasureTarget(null);
+        setIsDossierOpen(false);
+        setExplorationMode("exploring");
+        
+        const assoc = buildingAssociationMap.get(b.id);
+        const vStruct = assoc?.vertical_structure || b.vertical_structure;
+        const floor = vStruct?.floors.find(f => f.floor_index === floorIndex);
+        setSelectedVerticalLevel(floor || null);
+        
+        setIsExploded(true);
+        setIsCollapsingToBuilding(false);
+        if (collapseTimerRef.current) {
+            clearTimeout(collapseTimerRef.current);
+            collapseTimerRef.current = null;
+        }
+    };
+
+    const handleFocusBuildingOnly = (b: NZBuilding) => {
+        const info = buildingSceneInfoMap.get(b.id);
+        if (!info) return;
+        const boundingDiameter = Math.max(info.radius * 2, info.size.x, info.size.y, info.size.z);
+        let targetDistance = boundingDiameter * 1.55;
+        targetDistance = THREE.MathUtils.clamp(targetDistance, 60, 140);
+        const offsetDir = new THREE.Vector3(0.55, 0.45, 0.70).normalize();
+        const targetPos = info.center.clone();
+        const endPos = targetPos.clone().add(offsetDir.multiplyScalar(targetDistance));
+        setCameraPresetRequest({
+            id: `focus-${b.id}`,
+            target: targetPos,
+            position: endPos,
+            timestamp: performance.now()
+        });
     };
 
     useEffect(() => {
@@ -6570,6 +6870,10 @@ export default function NZDigitalTwin() {
                     parcelsAvailable={parcelsData?.available ?? false}
                     mlSummary={mlSummary}
                     reviewStore={reviewStore}
+                    parcelsData={parcelsData}
+                    onFocusBuildingOnly={handleFocusBuildingOnly}
+                    onOpenBuilding={handleSelectBuilding}
+                    onOpenVerticalUnit={handleOpenVerticalUnit}
                 />
             ) : null}
 
