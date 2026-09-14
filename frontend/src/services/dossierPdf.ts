@@ -750,9 +750,43 @@ export function exportBuildingDossierPdf(options: BuildingDossierPdfOptions): js
     }
 
     // =========================================================================
-    // SECTION I: DATA NOTES & LIMITATIONS (Mandatory Municipal Governance Notice)
+    // SECTION I: PROPERTY EVIDENCE & PROVENANCE
     // =========================================================================
-    y = drawSectionHeader(doc, y, "I. Data Notes & Limitations", "Official Governance Notice");
+    if (y > 240) { doc.addPage(); y = 12; }
+    y = drawSectionHeader(doc, y, "I. Property Evidence & Provenance", "Traceability Matrix");
+    
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.2);
+    doc.roundedRect(14, y, 182, 34, 1, 1, "FD");
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6);
+    doc.setTextColor(71, 85, 105);
+    
+    let py = y + 4;
+    doc.setFont("helvetica", "bold");
+    doc.text("Cadastral (Source):", 18, py); doc.setFont("helvetica", "normal"); doc.text("LINZ Primary Parcels (EPSG:2193).", 60, py); py += 4;
+    doc.setFont("helvetica", "bold");
+    doc.text("Building (Source):", 18, py); doc.setFont("helvetica", "normal"); doc.text("NZ LiDAR-derived building geometry.", 60, py); py += 4;
+    doc.setFont("helvetica", "bold");
+    doc.text("Vertical (Estimated):", 18, py); doc.setFont("helvetica", "normal"); doc.text("LiDAR structural model. Not architectural floor plans.", 60, py); py += 4;
+    doc.setFont("helvetica", "bold");
+    doc.text("3D Identity (Derived):", 18, py); doc.setFont("helvetica", "normal"); doc.text("Project-defined rule (LINZ + LiDAR). Not official ULPINs.", 60, py); py += 4;
+    doc.setFont("helvetica", "bold");
+    doc.text("Topology (Automated):", 18, py); doc.setFont("helvetica", "normal"); doc.text("Internal 3D checks. Not legal cadastral validation.", 60, py); py += 4;
+    doc.setFont("helvetica", "bold");
+    doc.text("ML (Automated):", 18, py); doc.setFont("helvetica", "normal"); doc.text("Mahalanobis screening relative to available dataset. Does not establish safety/legality.", 60, py); py += 4;
+    doc.setFont("helvetica", "bold");
+    doc.text("Human Review (Human):", 18, py); doc.setFont("helvetica", "normal"); doc.text("Persistent review backend. Human decision state.", 60, py); py += 4;
+    
+    y += 36;
+
+    // =========================================================================
+    // SECTION J: DATA NOTES & LIMITATIONS (Mandatory Municipal Governance Notice)
+    // =========================================================================
+    if (y > 240) { doc.addPage(); y = 12; }
+    y = drawSectionHeader(doc, y, "J. Data Notes & Limitations", "Official Governance Notice");
 
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(203, 213, 225);

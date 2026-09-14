@@ -48,6 +48,9 @@ import {
     validateBuildingTopology
 } from "../../services/topologyValidation";
 
+import { buildPropertyEvidence } from "../../services/evidence";
+import { EvidenceLedger } from "./EvidenceLedger";
+
 import {
     exportBuildingDossierPdf,
     exportAreaSummaryPdf,
@@ -2214,6 +2217,17 @@ function PropertyIntelligencePanel({
         return validateBuildingTopology(building, cadastralAssoc);
     }, [building, cadastralAssoc]);
 
+    const propertyEvidence = useMemo(() => {
+        return buildPropertyEvidence(
+            building,
+            null,
+            cadastralAssoc,
+            topologyResult,
+            mlProfile,
+            reviewStore[building.id]
+        );
+    }, [building, cadastralAssoc, topologyResult, mlProfile, reviewStore]);
+
     const screeningResult = useMemo(() => {
         return computeBuildingScreening(validationResult, mlProfile);
     }, [validationResult, mlProfile]);
@@ -2681,6 +2695,9 @@ function PropertyIntelligencePanel({
                     </button>
                 </div>
             )}
+
+            {/* PROPERTY EVIDENCE */}
+            <EvidenceLedger evidence={propertyEvidence} />
 
             {/* PROPERTY TOPOLOGY */}
             <div className="nz-section-title">PROPERTY TOPOLOGY</div>
@@ -3922,6 +3939,7 @@ function AreaIntelligencePanel({
                 linzPrimaryParcelId: primaryParcel,
                 buildingId: b.id,
                 associationType: assoc?.association_type || "None",
+                sources: primaryParcel !== "None" ? "LINZ + LiDAR" : "LiDAR",
                 numVerticalUnits: numVert,
                 mlClassification: mlProfile?.classification || "Unknown",
                 mlTopDriver: mlProfile?.explanation?.top_contributors?.[0] || null,
@@ -3956,6 +3974,7 @@ function AreaIntelligencePanel({
                         linzPrimaryParcelId: p.parcel_id,
                         buildingId: "None",
                         associationType: "Vacant",
+                        sources: "LINZ",
                         numVerticalUnits: "N/A",
                         mlClassification: "N/A",
                         mlTopDriver: null,
@@ -4025,6 +4044,31 @@ function AreaIntelligencePanel({
             <div className="nz-area-content" style={{ flex: 1, overflowY: 'auto' }}>
                 {activeTab === "overview" && (
                     <>
+                {/* PROVENANCE SUMMARY */}
+                <div className="nz-prop-section-title">DATA SOURCES & PROVENANCE</div>
+                <div className="nz-prop-grid" style={{ marginBottom: "20px" }}>
+                    <div className="nz-prop-item">
+                        <span style={{ color: "#38bdf8" }}>LiDAR</span>
+                        <strong>4 contiguous NZ tiles</strong>
+                    </div>
+                    <div className="nz-prop-item">
+                        <span style={{ color: "#38bdf8" }}>Terrain</span>
+                        <strong>2 m DTM</strong>
+                    </div>
+                    <div className="nz-prop-item">
+                        <span style={{ color: "#38bdf8" }}>Imagery</span>
+                        <strong>Sentinel-2 RGB / NDVI</strong>
+                    </div>
+                    <div className="nz-prop-item">
+                        <span style={{ color: "#38bdf8" }}>Cadastral</span>
+                        <strong>LINZ Primary Parcels (Layer 50772)</strong>
+                    </div>
+                    <div className="nz-prop-item nz-prop-span2">
+                        <span style={{ color: "#38bdf8" }}>Buildings</span>
+                        <strong>56 LiDAR-derived footprints</strong>
+                    </div>
+                </div>
+
                 {/* SECTION 1: SURVEY SCOPE */}
                 <div className="nz-prop-section-title">1. SURVEY SCOPE</div>
                 <div className="nz-prop-grid">
@@ -4590,6 +4634,7 @@ function AreaIntelligencePanel({
                                             <div className="nz-prop-grid" style={{ gap: '4px', marginBottom: '8px' }}>
                                                 <div className="nz-prop-item"><span>Building ID</span><strong>{r.buildingId}</strong></div>
                                                 <div className="nz-prop-item"><span>Primary Parcel</span><strong>{r.linzPrimaryParcelId}</strong></div>
+                                                <div className="nz-prop-item"><span>Sources</span><strong>{r.sources}</strong></div>
                                                 <div className="nz-prop-item"><span>Vertical Units</span><strong>{r.numVerticalUnits}</strong></div>
                                                 <div className="nz-prop-item"><span>Association</span><strong>{r.associationType}</strong></div>
                                             </div>
@@ -4638,6 +4683,7 @@ function AreaIntelligencePanel({
                                             </div>
                                             <div className="nz-prop-grid" style={{ gap: '4px' }}>
                                                 <div className="nz-prop-item"><span>LINZ Parcel ID</span><strong>{r.linzPrimaryParcelId}</strong></div>
+                                                <div className="nz-prop-item"><span>Sources</span><strong>{r.sources}</strong></div>
                                                 <div className="nz-prop-item"><span>Building</span><strong>{r.buildingId}</strong></div>
                                                 <div className="nz-prop-item"><span>3D Property ID</span><strong>{r.propertyId3D}</strong></div>
                                             </div>
@@ -4675,6 +4721,10 @@ function ParcelInspectorPanel({
     onFocusBuilding: (b: NZBuilding) => void;
     onClose: () => void;
 }) {
+    const propertyEvidence = useMemo(() => {
+        return buildPropertyEvidence(null, parcel, null, null, null, null);
+    }, [parcel]);
+
     return (
         <div className="nz-overlay nz-property nz-parcel-inspector">
             <button
@@ -4782,6 +4832,9 @@ function ParcelInspectorPanel({
                     </div>
                 )}
             </div>
+
+            {/* PROPERTY EVIDENCE */}
+            <EvidenceLedger evidence={propertyEvidence} />
 
             <div className="nz-section-title">2. ASSOCIATED STRUCTURES</div>
             <div className="nz-property-grid">
