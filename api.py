@@ -536,6 +536,24 @@ def get_nz_ml_payload(wants_gzip: bool) -> tuple[bytes, bool]:
                 p75 = np.percentile(anomaly_scores, 75)
                 p90 = np.percentile(anomaly_scores, 90)
                 
+                # --- EXPLAINABLE AI (Leave-one-feature-out) ---
+                feature_names_list = ["Height", "Estimated floors", "Footprint area", "Ground elevation", "Roof elevation", "Footprint width", "Footprint depth"]
+                num_features = len(feature_names_list)
+                
+                # Calculate scores without each feature
+                loo_scores = np.zeros((len(X_np), num_features))
+                for f_idx in range(num_features):
+                    X_sub = np.delete(X_np, f_idx, axis=1)
+                    mu_sub = np.mean(X_sub, axis=0)
+                    cov_sub = np.cov(X_sub, rowvar=False) + np.eye(X_sub.shape[1]) * 1e-6
+                    inv_cov_sub = np.linalg.pinv(cov_sub)
+                    diff_sub = X_sub - mu_sub
+                    md2_sub = np.sum(np.dot(diff_sub, inv_cov_sub) * diff_sub, axis=1)
+                    loo_scores[:, f_idx] = np.sqrt(np.maximum(md2_sub, 0))
+                
+                # Difference: full score - LOO score (how much the score drops when feature is removed)
+                contribution_scores = anomaly_scores[:, None] - loo_scores
+                
                 profiles = []
                 for i, b_id in enumerate(b_ids):
                     score = float(anomaly_scores[i])
@@ -547,6 +565,35 @@ def get_nz_ml_payload(wants_gzip: bool) -> tuple[bytes, bool]:
                     else:
                         cls = "Typical"
                         
+                    # Rank features for this building
+                    b_contrib = contribution_scores[i, :]
+                    
+                    # Sort indices by contribution, descending
+                    ranked_indices = np.argsort(b_contrib)[::-1]
+                    
+                    features_explanation = []
+                    top_contributors = []
+                    
+                    for rank_idx, f_idx in enumerate(ranked_indices):
+                        contrib_val = float(b_contrib[f_idx])
+                        
+                        # Determine direction
+                        val = X_np[i, f_idx]
+                        mean_val = mu[f_idx]
+                        direction = "higher than local structural pattern" if val > mean_val else "lower than local structural pattern"
+                        
+                        feat_name = feature_names_list[f_idx]
+                        
+                        features_explanation.append({
+                            "feature": feat_name,
+                            "contribution": contrib_val,
+                            "rank": rank_idx + 1,
+                            "direction": direction
+                        })
+                        
+                        if rank_idx < 3:
+                            top_contributors.append(feat_name)
+                    
                     profiles.append({
                         "building_id": b_id,
                         "anomaly_score": score,
@@ -558,6 +605,10 @@ def get_nz_ml_payload(wants_gzip: bool) -> tuple[bytes, bool]:
                             "Footprint Area (bbox)": float(X_np[i, 2]),
                             "Ground Elevation": float(X_np[i, 3]),
                             "Roof Elevation": float(X_np[i, 4])
+                        },
+                        "explanation": {
+                            "top_contributors": top_contributors,
+                            "features": features_explanation
                         }
                     })
             else:
@@ -1520,6 +1571,135 @@ def get_nz_review_buildings(request: Request):
     )
 
 
+import sqlite3
+from contextlib import contextmanager
+from datetime import datetime, timezone
+from pydantic import BaseModel
+
+NZ_REVIEW_DB = BASE_DIR / "data" / "nz_review.db"
+
+def init_review_db():
+    NZ_REVIEW_DB.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(NZ_REVIEW_DB) as conn:
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS review_records (
+                building_id TEXT PRIMARY KEY,
+                property_id_3d TEXT,
+                review_state TEXT,
+                notes TEXT,
+                created_at TEXT,
+                updated_at TEXT
+            )
+        ''')
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS review_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                building_id TEXT,
+                event_type TEXT,
+                timestamp TEXT,
+                FOREIGN KEY(building_id) REFERENCES review_records(building_id)
+            )
+        ''')
+        conn.commit()
+
+init_review_db()
+
+@contextmanager
+def get_db_conn():
+    conn = sqlite3.connect(NZ_REVIEW_DB)
+    conn.row_factory = sqlite3.Row
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+class ReviewUpdate(BaseModel):
+    property_id_3d: str | None = None
+    review_state: str | None = None
+    notes: str | None = None
+
+@app.get("/api/nz/review")
+def get_all_reviews():
+    with get_db_conn() as conn:
+        rows = conn.execute("SELECT * FROM review_records").fetchall()
+        return [dict(row) for row in rows]
+
+@app.get("/api/nz/review/{building_id}")
+def get_review(building_id: str):
+    with get_db_conn() as conn:
+        row = conn.execute("SELECT * FROM review_records WHERE building_id = ?", (building_id,)).fetchone()
+        if not row:
+            return {}
+        record = dict(row)
+        history_rows = conn.execute("SELECT event_type, timestamp FROM review_history WHERE building_id = ? ORDER BY timestamp ASC", (building_id,)).fetchall()
+        record["history"] = [dict(h) for h in history_rows]
+        return record
+
+@app.patch("/api/nz/review/{building_id}")
+def update_review(building_id: str, update: ReviewUpdate):
+    now = datetime.now(timezone.utc).isoformat()
+    with get_db_conn() as conn:
+        row = conn.execute("SELECT * FROM review_records WHERE building_id = ?", (building_id,)).fetchone()
+        
+        events = []
+        if not row:
+            state = update.review_state or "UNREVIEWED"
+            notes = update.notes or ""
+            pid = update.property_id_3d
+            conn.execute('''
+                INSERT INTO review_records (building_id, property_id_3d, review_state, notes, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (building_id, pid, state, notes, now, now))
+            
+            if state == "IN REVIEW":
+                events.append("REVIEW_STARTED")
+            elif state == "REVIEWED":
+                events.append("REVIEWED")
+            elif notes:
+                events.append("NOTE_UPDATED")
+        else:
+            old_state = row["review_state"]
+            old_notes = row["notes"]
+            
+            new_state = update.review_state if update.review_state is not None else old_state
+            new_notes = update.notes if update.notes is not None else old_notes
+            new_pid = update.property_id_3d if update.property_id_3d is not None else row["property_id_3d"]
+            
+            conn.execute('''
+                UPDATE review_records
+                SET property_id_3d = ?, review_state = ?, notes = ?, updated_at = ?
+                WHERE building_id = ?
+            ''', (new_pid, new_state, new_notes, now, building_id))
+            
+            if new_state != old_state:
+                if new_state == "IN REVIEW" and old_state == "UNREVIEWED":
+                    events.append("REVIEW_STARTED")
+                elif new_state == "REVIEWED":
+                    events.append("REVIEWED")
+                elif new_state == "IN REVIEW" and old_state == "REVIEWED":
+                    events.append("REVIEW_REOPENED")
+                elif new_state == "IN REVIEW":
+                    events.append("REVIEW_STARTED")
+                    
+            if new_notes != old_notes and new_notes.strip() != old_notes.strip():
+                if "NOTE_UPDATED" not in events:
+                    events.append("NOTE_UPDATED")
+                    
+        for event in events:
+            conn.execute('''
+                INSERT INTO review_history (building_id, event_type, timestamp)
+                VALUES (?, ?, ?)
+            ''', (building_id, event, now))
+            
+        conn.commit()
+        
+    return get_review(building_id)
+
+@app.get("/api/nz/review/{building_id}/history")
+def get_review_history(building_id: str):
+    with get_db_conn() as conn:
+        rows = conn.execute("SELECT event_type, timestamp FROM review_history WHERE building_id = ? ORDER BY timestamp DESC", (building_id,)).fetchall()
+        return [dict(r) for r in rows]
 
 @app.get("/api/nz/parcels")
 def get_nz_parcels(request: Request):

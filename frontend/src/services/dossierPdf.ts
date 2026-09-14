@@ -59,6 +59,8 @@ export interface BuildingDossierPdfOptions {
     cadastralAssoc?: any;
     verticalStructure?: any;
     topologyResult?: any;
+    reviewRecord?: any;
+    mlProfile?: any;
 }
 
 export interface AreaSummaryPdfOptions {
@@ -632,9 +634,125 @@ export function exportBuildingDossierPdf(options: BuildingDossierPdfOptions): js
     }
 
     // =========================================================================
-    // SECTION G: DATA NOTES & LIMITATIONS (Mandatory Municipal Governance Notice)
+    // SECTION G: ML SCREENING
     // =========================================================================
-    y = drawSectionHeader(doc, y, "G. Data Notes & Limitations", "Official Governance Notice");
+    if (options.mlProfile) {
+        if (y > 260) {
+            doc.addPage();
+            y = 12;
+        }
+
+        const ml = options.mlProfile;
+        y = drawSectionHeader(doc, y, "G. ML Screening", ml.classification);
+        
+        const mlItems = [
+            {
+                label: "Classification",
+                value: ml.classification,
+                highlight: ml.classification !== "Typical",
+                valRgb: ml.classification === "Highly unusual" ? [248, 113, 113] as [number, number, number] : ml.classification === "Moderately unusual" ? [251, 191, 36] as [number, number, number] : [74, 222, 128] as [number, number, number]
+            },
+            {
+                label: "Deviation",
+                value: `${(ml.normalized_deviation * 100).toFixed(1)}%`
+            }
+        ];
+        
+        if (ml.explanation?.top_contributors) {
+            mlItems.push({
+                label: "Top contributors",
+                value: ml.explanation.top_contributors.join(", ")
+            } as any);
+        }
+
+        y = drawMetricRow(doc, y, mlItems);
+
+        if (ml.explanation) {
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(6.5);
+            doc.setTextColor(148, 163, 184);
+            doc.text("INTERPRETATION", 16, y);
+            
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(7.5);
+            doc.setTextColor(30, 41, 59);
+            const interpText = doc.splitTextToSize(`The property differs from structural patterns observed in the available LiDAR building dataset. The strongest deviations are associated with ${ml.explanation.top_contributors[0].toLowerCase()} and ${ml.explanation.top_contributors[1]?.toLowerCase() || "other"} characteristics.`, 175);
+            doc.text(interpText, 16, y + 4);
+            y += (interpText.length * 3.5) + 3;
+            
+            doc.setFont("helvetica", "italic");
+            doc.setFontSize(6);
+            doc.setTextColor(148, 163, 184);
+            doc.text("Automated screening only.", 16, y);
+            y += 6;
+        }
+    }
+
+    // =========================================================================
+    // SECTION H: HUMAN REVIEW WORKFLOW
+    // =========================================================================
+    if (options.reviewRecord) {
+        const rr = options.reviewRecord;
+        y = drawSectionHeader(doc, y, "H. Human Review Workflow", rr.review_state || "UNREVIEWED");
+        const revItems = [
+            {
+                label: "Review Status",
+                value: rr.review_state || "UNREVIEWED",
+                highlight: rr.review_state === "REVIEWED",
+                valRgb: rr.review_state === "REVIEWED" ? [74, 222, 128] as [number, number, number] : rr.review_state === "IN REVIEW" ? [251, 191, 36] as [number, number, number] : undefined
+            },
+            {
+                label: "Last Updated",
+                value: rr.updated_at ? new Date(rr.updated_at).toLocaleDateString() : "Never",
+                note: "ISO 8601 Timestamp"
+            }
+        ];
+        y = drawMetricRow(doc, y, revItems, 2, 11.5);
+        
+        if (rr.notes) {
+            doc.setFillColor(248, 250, 252);
+            doc.setDrawColor(226, 232, 240);
+            doc.setLineWidth(0.2);
+            doc.roundedRect(14, y, 182, 10, 1, 1, "FD");
+            
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(6.2);
+            doc.setTextColor(100, 116, 139);
+            doc.text("LATEST REVIEW NOTE:", 18, y + 3.8);
+
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(7);
+            doc.setTextColor(15, 23, 42);
+            const truncatedNote = rr.notes.length > 100 ? rr.notes.substring(0, 100) + "..." : rr.notes;
+            doc.text(truncatedNote, 18, y + 7.8);
+            y += 12;
+        }
+
+        if (rr.history && rr.history.length > 0) {
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(6.2);
+            doc.setTextColor(100, 116, 139);
+            doc.text("REVIEW HISTORY (LATEST):", 18, y + 3);
+            
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(6.5);
+            let hy = y + 6.5;
+            const hist = [...rr.history].reverse().slice(0, 3);
+            for (const h of hist) {
+                doc.setTextColor(15, 23, 42);
+                doc.text(h.event_type.replace("_", " "), 18, hy);
+                doc.setTextColor(148, 163, 184);
+                doc.text(new Date(h.timestamp).toLocaleString(), 60, hy);
+                hy += 3.5;
+            }
+            y = hy + 2;
+        }
+    }
+
+    // =========================================================================
+    // SECTION I: DATA NOTES & LIMITATIONS (Mandatory Municipal Governance Notice)
+    // =========================================================================
+    y = drawSectionHeader(doc, y, "I. Data Notes & Limitations", "Official Governance Notice");
 
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(203, 213, 225);

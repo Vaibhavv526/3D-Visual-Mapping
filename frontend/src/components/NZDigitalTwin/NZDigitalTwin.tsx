@@ -39,7 +39,9 @@ import {
     computeBuildingScreening,
     type ScreeningStatus,
     type ReviewState,
-    type    ReviewData
+    type ReviewRecord,
+    getAllReviews,
+    updateReview
 } from "../../services/nzApi";
 
 import {
@@ -2196,8 +2198,8 @@ function PropertyIntelligencePanel({
     onClose: () => void;
     mlSummary?: NZBuildingMLSummary | null;
     mlProfile: NZBuildingMLProfile | null;
-    reviewStore: Record<string, ReviewData>;
-    onReviewUpdate: (buildingId: string, update: Partial<ReviewData>) => void;
+    reviewStore: Record<string, ReviewRecord>;
+    onReviewUpdate: (buildingId: string, update: { state?: ReviewState; notes?: string }) => void;
 }) {
     const [isExportingPdf, setIsExportingPdf] = useState(false);
     const [exportPdfSuccess, setExportPdfSuccess] = useState(false);
@@ -2252,6 +2254,7 @@ function PropertyIntelligencePanel({
                 : (building.vertical_structure ?? null);
 
             exportBuildingDossierPdf({
+                reviewRecord: reviewStore[building.id],
                 building,
                 analysis,
                 pairwise,
@@ -2741,38 +2744,60 @@ function PropertyIntelligencePanel({
 
             {/* IDENTITY CHAIN */}
             <div className="nz-section-title">IDENTITY CHAIN</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px", background: "rgba(15, 23, 42, 0.4)", padding: "12px", borderRadius: "6px", marginBottom: "16px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <div style={{ width: "2px", height: "24px", background: "#38bdf8", marginLeft: "4px" }}></div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px", background: "rgba(15, 23, 42, 0.4)", padding: "12px", borderRadius: "6px", marginBottom: "16px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <div style={{ width: "18px", height: "18px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 6l9-3 9 3v12l-9 3-9-3V6z"/>
+                            <path d="M12 3v18"/>
+                        </svg>
+                    </div>
                     <div>
                         <div style={{ fontSize: "10px", color: "#94a3b8" }}>LINZ PARCEL</div>
                         <div style={{ fontSize: "13px", fontWeight: 600, color: "#f8fafc" }}>{cadastralAssoc?.primary_parcel_id ?? "None"}</div>
                     </div>
                 </div>
                 {cadastralAssoc?.intersecting_parcels && cadastralAssoc.intersecting_parcels.length > 1 && (
-                     <div style={{ display: "flex", alignItems: "center", gap: "8px", marginLeft: "20px" }}>
+                     <div style={{ display: "flex", alignItems: "center", gap: "10px", marginLeft: "28px" }}>
                          <div>
                              <div style={{ fontSize: "10px", color: "#94a3b8" }}>INTERSECTING PARCELS</div>
                              <div style={{ fontSize: "11px", color: "#cbd5e1" }}>{cadastralAssoc.intersecting_parcels.map(p => p.parcel_id).join(", ")}</div>
                          </div>
                      </div>
                 )}
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <div style={{ fontSize: "14px", color: "#94a3b8", width: "10px", textAlign: "center" }}>?</div>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <div style={{ width: "18px", height: "18px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="4" y="2" width="16" height="20" rx="2"/>
+                            <path d="M9 6h2"/><path d="M13 6h2"/><path d="M9 10h2"/><path d="M13 10h2"/><path d="M9 14h2"/><path d="M13 14h2"/><path d="M9 18h6"/>
+                        </svg>
+                    </div>
                     <div>
                         <div style={{ fontSize: "10px", color: "#94a3b8" }}>BUILDING</div>
                         <div style={{ fontSize: "13px", fontWeight: 600, color: "#f8fafc" }}>{building.id}</div>
                     </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <div style={{ fontSize: "14px", color: "#94a3b8", width: "10px", textAlign: "center" }}>?</div>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <div style={{ width: "18px", height: "18px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                            <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                            <line x1="12" y1="22.08" x2="12" y2="12"/>
+                        </svg>
+                    </div>
                     <div>
                         <div style={{ fontSize: "10px", color: "#94a3b8" }}>3D PROPERTY</div>
                         <div style={{ fontSize: "13px", fontWeight: 600, color: "#38bdf8" }}>{cadastralAssoc?.property_id_3d ?? "None"}</div>
                     </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <div style={{ fontSize: "14px", color: "#94a3b8", width: "10px", textAlign: "center" }}>?</div>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <div style={{ width: "18px", height: "18px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+                            <polyline points="2 12 12 17 22 12"/>
+                            <polyline points="2 17 12 22 22 17"/>
+                        </svg>
+                    </div>
                     <div>
                         <div style={{ fontSize: "10px", color: "#94a3b8" }}>VERTICAL UNITS</div>
                         <div style={{ fontSize: "13px", fontWeight: 600, color: "#f8fafc" }}>{verticalStructure?.floors ? `${verticalStructure.floors.length} estimated levels` : "None"}</div>
@@ -2850,15 +2875,32 @@ function PropertyIntelligencePanel({
                 <>
                     <div className="nz-section-title">HUMAN REVIEW</div>
                     <div className="nz-property-grid">
+                        <div className="nz-prop-item nz-prop-full" style={{ paddingBottom: "12px", borderBottom: "1px solid rgba(255,255,255,0.06)", marginBottom: "4px" }}>
+                            <div style={{ fontSize: "11px", color: "#94a3b8", textTransform: "uppercase", marginBottom: "4px" }}>Automated Screening</div>
+                            <strong style={{ color: screeningResult.status === "PRIORITY REVIEW" ? "#f87171" : "#fbbf24", fontSize: "13px" }}>
+                                {screeningResult.status === "PRIORITY REVIEW" ? "Priority" : "Review"}
+                            </strong>
+                            
+                            {mlProfile?.explanation && (
+                                <div style={{ marginTop: "12px" }}>
+                                    <div style={{ fontSize: "11px", color: "#94a3b8", textTransform: "uppercase", marginBottom: "4px" }}>Why Flagged</div>
+                                    <ol style={{ margin: "0 0 0 20px", padding: 0, fontSize: "12px", color: "#cbd5e1" }}>
+                                        {mlProfile.explanation.top_contributors.map((feat, i) => (
+                                            <li key={i} style={{ marginBottom: "2px" }}>{feat}</li>
+                                        ))}
+                                    </ol>
+                                </div>
+                            )}
+                        </div>
                         <div className="nz-prop-item nz-prop-full">
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                                 <span>Review State</span>
-                                <strong style={{ color: (reviewStore[building.id]?.state || "UNREVIEWED") === "REVIEWED" ? "#4ade80" : (reviewStore[building.id]?.state || "UNREVIEWED") === "IN REVIEW" ? "#fbbf24" : "#94a3b8" }}>
-                                    {reviewStore[building.id]?.state || "UNREVIEWED"}
+                                <strong style={{ color: (reviewStore[building.id]?.review_state || "UNREVIEWED") === "REVIEWED" ? "#4ade80" : (reviewStore[building.id]?.review_state || "UNREVIEWED") === "IN REVIEW" ? "#fbbf24" : "#94a3b8" }}>
+                                    {reviewStore[building.id]?.review_state || "UNREVIEWED"}
                                 </strong>
                             </div>
                             <div style={{ display: "flex", gap: "8px" }}>
-                                {(reviewStore[building.id]?.state || "UNREVIEWED") === "UNREVIEWED" && (
+                                {(reviewStore[building.id]?.review_state || "UNREVIEWED") === "UNREVIEWED" && (
                                     <button 
                                         onClick={() => onReviewUpdate(building.id, { state: "IN REVIEW" })}
                                         style={{ flex: 1, backgroundColor: "#0284c7", color: "white", border: "none", padding: "6px", borderRadius: "4px", fontSize: "12px", cursor: "pointer" }}
@@ -2866,7 +2908,7 @@ function PropertyIntelligencePanel({
                                         Start Review
                                     </button>
                                 )}
-                                {(reviewStore[building.id]?.state === "IN REVIEW" || (reviewStore[building.id]?.state || "UNREVIEWED") === "UNREVIEWED") && (
+                                {(reviewStore[building.id]?.review_state === "IN REVIEW" || (reviewStore[building.id]?.review_state || "UNREVIEWED") === "UNREVIEWED") && (
                                     <button 
                                         onClick={() => onReviewUpdate(building.id, { state: "REVIEWED" })}
                                         style={{ flex: 1, backgroundColor: "#16a34a", color: "white", border: "none", padding: "6px", borderRadius: "4px", fontSize: "12px", cursor: "pointer" }}
@@ -2874,7 +2916,7 @@ function PropertyIntelligencePanel({
                                         Mark Reviewed
                                     </button>
                                 )}
-                                {reviewStore[building.id]?.state === "REVIEWED" && (
+                                {reviewStore[building.id]?.review_state === "REVIEWED" && (
                                     <button 
                                         onClick={() => onReviewUpdate(building.id, { state: "IN REVIEW" })}
                                         style={{ flex: 1, backgroundColor: "rgba(255,255,255,0.1)", color: "#e2e8f0", border: "none", padding: "6px", borderRadius: "4px", fontSize: "12px", cursor: "pointer" }}
@@ -2884,14 +2926,38 @@ function PropertyIntelligencePanel({
                                 )}
                             </div>
                             <div style={{ marginTop: "12px" }}>
-                                <div style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "4px" }}>Review Notes (optional)</div>
+                                <div style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "4px", display: "flex", justifyContent: "space-between" }}>
+                                    <span>Review Notes (optional)</span>
+                                    {reviewStore[building.id]?.updated_at && (
+                                        <span>Last updated: {new Date(reviewStore[building.id].updated_at).toLocaleString()}</span>
+                                    )}
+                                </div>
                                 <textarea 
-                                    value={reviewStore[building.id]?.notes || ""}
-                                    onChange={(e) => onReviewUpdate(building.id, { notes: e.target.value })}
+                                    key={building.id}
+                                    defaultValue={reviewStore[building.id]?.notes || ""}
+                                    onBlur={(e) => {
+                                        const newVal = e.target.value;
+                                        if (newVal !== (reviewStore[building.id]?.notes || "")) {
+                                            onReviewUpdate(building.id, { notes: newVal });
+                                        }
+                                    }}
                                     placeholder="Enter review observations here..."
                                     style={{ width: "100%", boxSizing: "border-box", backgroundColor: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.1)", color: "#e2e8f0", padding: "6px", fontSize: "12px", borderRadius: "4px", resize: "vertical", minHeight: "60px" }}
                                 />
                             </div>
+                            {reviewStore[building.id]?.history && reviewStore[building.id].history.length > 0 && (
+                                <div style={{ marginTop: "12px", padding: "8px", backgroundColor: "rgba(0,0,0,0.2)", borderRadius: "4px" }}>
+                                    <div style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "8px", textTransform: "uppercase" }}>Review History</div>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                                        {[...reviewStore[building.id].history].reverse().slice(0, 5).map((ev, i) => (
+                                            <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: "11px" }}>
+                                                <span style={{ color: "#cbd5e1" }}>{ev.event_type.replace("_", " ")}</span>
+                                                <span style={{ color: "#64748b" }}>{new Date(ev.timestamp).toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute:'2-digit' })}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </>
@@ -3244,6 +3310,35 @@ function PropertyIntelligencePanel({
                             </div>
                         </div>
                     </div>
+
+                    {mlProfile.explanation && (
+                        <>
+                            <div className="nz-section-title" style={{ marginTop: "16px" }}>EXPLAINABLE ML</div>
+                            <div className="nz-property-grid">
+                                <div className="nz-prop-item nz-prop-full">
+                                    <div style={{ fontSize: "14px", fontWeight: "600", color: "#e2e8f0" }}>{mlProfile.classification}</div>
+                                    <div style={{ fontSize: "12px", color: "#94a3b8" }}>{(mlProfile.normalized_deviation * 100).toFixed(1)}% deviation</div>
+                                </div>
+                                <div className="nz-prop-item nz-prop-full" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "8px", marginTop: "4px" }}>
+                                    <div style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "8px", textTransform: "uppercase" }}>Top contributors</div>
+                                    <ol style={{ margin: "0 0 12px 20px", padding: 0, fontSize: "12px", color: "#e2e8f0" }}>
+                                        {mlProfile.explanation.top_contributors.map((feat, idx) => (
+                                            <li key={idx} style={{ marginBottom: "2px" }}>{feat}</li>
+                                        ))}
+                                    </ol>
+                                    <div style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "4px", textTransform: "uppercase" }}>WHY FLAGGED</div>
+                                    <div style={{ fontSize: "12px", color: "#cbd5e1", lineHeight: 1.4 }}>
+                                        The strongest deviations are associated with <strong>{mlProfile.explanation.top_contributors[0].toLowerCase()}</strong> and <strong>{mlProfile.explanation.top_contributors[1]?.toLowerCase() || "other"}</strong> characteristics relative to the available LiDAR dataset.
+                                    </div>
+                                </div>
+                                <div className="nz-prop-item nz-prop-full" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "4px" }}>
+                                    <div className="nz-unspecified-text" style={{ fontSize: "10px", letterSpacing: "0.02em" }}>
+                                        Automated screening only.
+                                    </div>
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </>
             )}
 
@@ -3646,7 +3741,7 @@ interface AreaIntelligencePanelProps {
     buildings: NZBuilding[];
     parcelsAvailable: boolean;
     mlSummary?: NZBuildingMLSummary | null;
-    reviewStore: Record<string, ReviewData>;
+    reviewStore: Record<string, ReviewRecord>;
     
     // Phase 16 additions
     parcelsData: NZParcelsData | null;
@@ -3752,7 +3847,7 @@ function AreaIntelligencePanel({
             else priorityCount++;
 
             if (screenRes.status !== "NORMAL") {
-                const rState = reviewStore[b.id]?.state || "UNREVIEWED";
+                const rState = reviewStore[b.id]?.review_state || "UNREVIEWED";
                 if (rState === "UNREVIEWED") unreviewedCount++;
                 else if (rState === "IN REVIEW") inReviewCount++;
                 else if (rState === "REVIEWED") reviewedCount++;
@@ -3795,7 +3890,7 @@ function AreaIntelligencePanel({
             const vStruct = assoc?.vertical_structure || b.vertical_structure;
             const numVert = vStruct?.floors?.length || 0;
             const geomCheck = res.checks.find(c => c.rule === "geometry_integrity");
-            const reviewStatus = reviewStore[b.id]?.state || "UNREVIEWED";
+            const reviewStatus = reviewStore[b.id]?.review_state || "UNREVIEWED";
             
             let vUnitsText = "";
             const vUnitsList: { id: string, floorIndex: number }[] = [];
@@ -3829,6 +3924,7 @@ function AreaIntelligencePanel({
                 associationType: assoc?.association_type || "None",
                 numVerticalUnits: numVert,
                 mlClassification: mlProfile?.classification || "Unknown",
+                mlTopDriver: mlProfile?.explanation?.top_contributors?.[0] || null,
                 humanReviewStatus: reviewStatus,
                 geometryStatus: geomCheck?.status === "PASS" ? "Valid" : (geomCheck?.status === "WARNING" ? "Warning" : "Invalid"),
                 cadastralStatus,
@@ -3862,6 +3958,7 @@ function AreaIntelligencePanel({
                         associationType: "Vacant",
                         numVerticalUnits: "N/A",
                         mlClassification: "N/A",
+                        mlTopDriver: null,
                         humanReviewStatus: "N/A",
                         geometryStatus: "N/A",
                         cadastralStatus: "Vacant parcel",
@@ -4352,7 +4449,7 @@ function AreaIntelligencePanel({
                         <div className="nz-prop-section-title">7. ML STRUCTURAL ANALYSIS</div>
                         <div className="nz-prop-grid">
                             <div className="nz-prop-item nz-prop-full">
-                                <span>{mlSummary.training_sample_count} structures analyzed</span>
+                                <span>{mlSummary.training_sample_count} properties screened</span>
                                 <div className="nz-prop-note">Relative to available NZ LiDAR structures</div>
                             </div>
                             <div className="nz-prop-item">
@@ -4367,6 +4464,28 @@ function AreaIntelligencePanel({
                                 <span>Highly unusual</span>
                                 <strong style={{ color: "#f87171" }}>{mlSummary.profiles.filter(p => p.classification === "Highly unusual").length}</strong>
                             </div>
+                            {(() => {
+                                const contribCounts: Record<string, number> = {};
+                                mlSummary.profiles.forEach(p => {
+                                    if (p.classification !== "Typical" && p.explanation) {
+                                        p.explanation.top_contributors.forEach(feat => {
+                                            contribCounts[feat] = (contribCounts[feat] || 0) + 1;
+                                        });
+                                    }
+                                });
+                                const sortedFeats = Object.entries(contribCounts).sort((a, b) => b[1] - a[1]).map(e => e[0]).slice(0, 3);
+                                if (sortedFeats.length === 0) return null;
+                                return (
+                                    <div className="nz-prop-item nz-prop-full" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "8px", marginTop: "4px" }}>
+                                        <div style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "8px", textTransform: "uppercase" }}>Most frequent anomaly contributors:</div>
+                                        <ul style={{ margin: "0 0 0 20px", padding: 0, fontSize: "12px", color: "#e2e8f0" }}>
+                                            {sortedFeats.map(f => (
+                                                <li key={f} style={{ marginBottom: "2px" }}>{f}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                );
+                            })()}
                             <div className="nz-prop-item">
                                 <span>Model</span>
                                 <strong>Mahalanobis Distance</strong>
@@ -4492,7 +4611,11 @@ function AreaIntelligencePanel({
                                                 <div><span style={{ color: '#94a3b8' }}>Geometry: </span><span style={{ color: '#e2e8f0' }}>{r.geometryStatus}</span></div>
                                                 <div><span style={{ color: '#94a3b8' }}>Vertical: </span><span style={{ color: '#e2e8f0' }}>{(typeof r.numVerticalUnits === "number" && r.numVerticalUnits > 0) ? "Available" : "N/A"}</span></div>
                                                 <div><span style={{ color: '#94a3b8' }}>Topology: </span><span className={r.topologyStatus === "VALID" ? "nz-text-emerald" : r.topologyStatus === "WARNING" ? "nz-text-amber" : r.topologyStatus === "ERROR" ? "nz-text-rose" : ""}>{r.topologyStatus}</span></div>
-                                                <div><span style={{ color: '#94a3b8' }}>ML: </span><span style={{ color: '#e2e8f0' }}>{r.mlClassification}</span></div>
+                                                <div>
+                                                    <span style={{ color: '#94a3b8' }}>ML: </span>
+                                                    <span style={{ color: '#e2e8f0' }}>{r.mlClassification}</span>
+                                                    {r.mlTopDriver && <span style={{ color: '#94a3b8', marginLeft: '6px' }}>| Top driver: {r.mlTopDriver}</span>}
+                                                </div>
                                                 <div><span style={{ color: '#94a3b8' }}>Human Review: </span><span style={{ color: '#e2e8f0' }}>{r.humanReviewStatus}</span></div>
                                             </div>
 
@@ -4574,23 +4697,40 @@ function ParcelInspectorPanel({
             </div>
 
             {parcel.associated_building_ids.length === 0 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px", background: "rgba(15, 23, 42, 0.4)", padding: "12px", borderRadius: "6px", marginBottom: "16px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <div style={{ width: "2px", height: "24px", background: "#38bdf8", marginLeft: "4px" }}></div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px", background: "rgba(15, 23, 42, 0.4)", padding: "12px", borderRadius: "6px", marginBottom: "16px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <div style={{ width: "18px", height: "18px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M3 6l9-3 9 3v12l-9 3-9-3V6z"/>
+                                <path d="M12 3v18"/>
+                            </svg>
+                        </div>
                         <div>
                             <div style={{ fontSize: "10px", color: "#94a3b8" }}>LINZ PARCEL</div>
                             <div style={{ fontSize: "13px", fontWeight: 600, color: "#f8fafc" }}>{parcel.parcel_id}</div>
                         </div>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <div style={{ fontSize: "14px", color: "#94a3b8", width: "10px", textAlign: "center" }}>?</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <div style={{ width: "18px", height: "18px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="12" cy="12" r="10"/>
+                                <line x1="12" y1="8" x2="12" y2="12"/>
+                                <line x1="12" y1="16" x2="12.01" y2="16"/>
+                            </svg>
+                        </div>
                         <div>
                             <div style={{ fontSize: "10px", color: "#94a3b8" }}>STATUS</div>
                             <div style={{ fontSize: "13px", fontWeight: 600, color: "#cbd5e1" }}>Vacant parcel</div>
                         </div>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <div style={{ fontSize: "14px", color: "#94a3b8", width: "10px", textAlign: "center" }}>?</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <div style={{ width: "18px", height: "18px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                                <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                                <line x1="12" y1="22.08" x2="12" y2="12"/>
+                            </svg>
+                        </div>
                         <div>
                             <div style={{ fontSize: "10px", color: "#94a3b8" }}>3D PROPERTY ID</div>
                             <div style={{ fontSize: "13px", fontWeight: 600, color: "#64748b" }}>Not applicable</div>
@@ -4734,6 +4874,8 @@ interface DossierModalProps {
     matchedBuildings?: { building: NZBuilding; metricText: string }[];
     cadastralAssoc?: NZBuildingCadastralAssociation | null;
     verticalStructure?: NZVerticalStructure | null;
+    reviewRecord?: ReviewRecord;
+    mlProfile?: NZBuildingMLProfile | null;
 }
 
 function DossierModal({
@@ -4747,11 +4889,13 @@ function DossierModal({
     areaData,
     terrainMeta,
     elevationMin = 0,
-    elevationMax = 0,
+    elevationMax = 100,
     activeFilter = "all",
     matchedBuildings = [],
     cadastralAssoc,
-    verticalStructure
+    verticalStructure,
+    reviewRecord,
+    mlProfile
 }: DossierModalProps) {
     const [copied, setCopied] = useState(false);
     const overlayRef = useRef<HTMLDivElement>(null);
@@ -5002,7 +5146,9 @@ function DossierModal({
                 crsName: "EPSG:2193 (NZGD2000 / NZTM2000)",
                 cadastralAssoc,
                 verticalStructure,
-                topologyResult: validateBuildingTopology(building, cadastralAssoc ?? undefined)
+                topologyResult: validateBuildingTopology(building, cadastralAssoc ?? undefined),
+                reviewRecord,
+                mlProfile
             });
         } else if (areaData) {
             exportAreaSummaryPdf({
@@ -5596,7 +5742,17 @@ export default function NZDigitalTwin() {
         reviewStore,
         setReviewStore
     ] =
-        useState<Record<string, ReviewData>>({});
+        useState<Record<string, ReviewRecord>>({});
+
+    useEffect(() => {
+        getAllReviews()
+            .then(records => {
+                const map: Record<string, ReviewRecord> = {};
+                for (const r of records) map[r.building_id] = r;
+                setReviewStore(map);
+            })
+            .catch(err => console.warn("Failed to fetch reviews:", err));
+    }, []);
 
     const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -7022,14 +7178,15 @@ export default function NZDigitalTwin() {
                     mlSummary={mlSummary}
                     mlProfile={mlSummary?.profiles.find(p => p.building_id === selectedBuilding.id) || null}
                     reviewStore={reviewStore}
-                    onReviewUpdate={(id, update) => setReviewStore(prev => ({
-                        ...prev,
-                        [id]: {
-                            state: prev[id]?.state || "UNREVIEWED",
-                            notes: prev[id]?.notes || "",
-                            ...update
+                    onReviewUpdate={async (id, update) => {
+                        const pid = buildingAssociationMap?.get(id)?.property_id_3d || null;
+                        try {
+                            const updated = await updateReview(id, { review_state: update.state, notes: update.notes, property_id_3d: pid });
+                            setReviewStore(prev => ({ ...prev, [id]: updated }));
+                        } catch (err) {
+                            console.error("Failed to update review", err);
                         }
-                    }))}
+                    }}
                 />
             ) : areaIntelligence ? (
                 <AreaIntelligencePanel
@@ -7078,6 +7235,10 @@ export default function NZDigitalTwin() {
                     elevationMax={elevationMax}
                     activeFilter={activeFilter}
                     matchedBuildings={matchedBuildingData}
+                    reviewRecord={selectedBuilding ? reviewStore[selectedBuilding.id] : undefined}
+                    mlProfile={selectedBuilding ? mlSummary?.profiles.find(p => p.building_id === selectedBuilding.id) : undefined}
+                    cadastralAssoc={activeBuildingCadastralAssoc}
+                    verticalStructure={selectedBuilding?.vertical_structure}
                 />
             )}
 
