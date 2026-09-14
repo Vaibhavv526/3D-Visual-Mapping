@@ -1,4 +1,5 @@
 import type { NZBuilding, NZBuildingCadastralAssociation } from "./nzApi";
+import { generatePropertyId3D, generateVerticalUnitId } from "./propertyIdentity";
 
 export type TopologyStatus = "VALID" | "WARNING" | "ERROR" | "UNAVAILABLE";
 
@@ -69,7 +70,7 @@ export function validateBuildingTopology(
             }
             
             if (property_id_3d) {
-                const expectedFormat = `3DP-${primary_parcel_id}-${building_id}`;
+                const expectedFormat = generatePropertyId3D(primary_parcel_id, building_id);
                 if (property_id_3d === expectedFormat) {
                     messages.push("Property identity is project-defined and follows the expected format.");
                 } else if (property_id_3d.startsWith("3DP-")) {
@@ -131,7 +132,7 @@ export function validateBuildingTopology(
                 }
 
                 if (floor.vertical_unit_id) {
-                    const expectedVUnit = `${property_id_3d}-${expectedL}`;
+                    const expectedVUnit = generateVerticalUnitId(property_id_3d, floor.floor_index);
                     if (floor.vertical_unit_id !== expectedVUnit) {
                         idBelongsValid = false;
                     }

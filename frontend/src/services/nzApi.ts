@@ -1,3 +1,4 @@
+import { generatePropertyId3D } from "./propertyIdentity";
 const API_BASE_URL =
     import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000";
 
@@ -274,6 +275,15 @@ export interface NZBuildingMLProfile {
         "Ground Elevation": number;
         "Roof Elevation": number;
     };
+    explanation?: {
+        top_contributors: string[];
+        features: Array<{
+            feature: string;
+            contribution: number;
+            rank: number;
+            direction: string;
+        }>;
+    };
 }
 
 export interface NZBuildingMLSummary {
@@ -483,7 +493,7 @@ export function validate3DProperty(
     } else if (cadastralAssoc) {
         let idValid = true;
         if (cadastralAssoc.primary_parcel_id) {
-            const expectedId = `3DP-${cadastralAssoc.primary_parcel_id}-${building.id}`;
+            const expectedId = generatePropertyId3D(cadastralAssoc.primary_parcel_id, building.id);
             if (cadastralAssoc.property_id_3d !== expectedId) {
                 idValid = false;
             } else if (cadastralAssoc.vertical_unit_id && !cadastralAssoc.vertical_unit_id.startsWith(expectedId + "-L")) {
@@ -601,9 +611,42 @@ export interface BuildingScreeningResult {
 
 export type ReviewState = "UNREVIEWED" | "IN REVIEW" | "REVIEWED";
 
-export interface ReviewData {
-    state: ReviewState;
+export interface ReviewHistoryEvent {
+    event_type: "REVIEW_STARTED" | "NOTE_UPDATED" | "REVIEWED" | "REVIEW_REOPENED";
+    timestamp: string;
+}
+
+export interface ReviewRecord {
+    building_id: string;
+    property_id_3d: string | null;
+    review_state: ReviewState;
     notes: string;
+    created_at: string;
+    updated_at: string;
+    history: ReviewHistoryEvent[];
+}
+
+export async function getAllReviews(): Promise<ReviewRecord[]> {
+    const res = await fetch(`${API_BASE_URL}/api/nz/review`);
+    if (!res.ok) {
+        throw new Error(`Failed to fetch reviews: ${res.statusText}`);
+    }
+    return res.json();
+}
+
+export async function updateReview(
+    building_id: string,
+    update: { property_id_3d?: string | null; review_state?: ReviewState; notes?: string }
+): Promise<ReviewRecord> {
+    const res = await fetch(`${API_BASE_URL}/api/nz/review/${building_id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(update),
+    });
+    if (!res.ok) {
+        throw new Error(`Failed to update review for ${building_id}: ${res.statusText}`);
+    }
+    return res.json();
 }
 
 export function computeBuildingScreening(
