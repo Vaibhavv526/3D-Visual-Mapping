@@ -1,3 +1,4 @@
+import { generatePropertyId3D, generateVerticalUnitId, calculateIdentityStatistics } from "../../services/propertyIdentity";
 import {
     useEffect,
     useMemo,
@@ -3674,7 +3675,9 @@ function AreaIntelligencePanel({
 }: AreaIntelligencePanelProps) {
     const [activeTab, setActiveTab] = useState<"overview" | "registry">("overview");
     const totalBldgs = data.totalBuildings;
-    let identitiesCount = 0;
+    const associationsList = Array.from(buildingAssociationMap?.values() || []);
+    const idStats = calculateIdentityStatistics(associationsList, buildings);
+    let identitiesCount = idStats.generatedPropertyIds;
     let associatedCount = 0;
     let unassociatedCount = totalBldgs;
     let multiParcelCount = 0;
@@ -3796,15 +3799,16 @@ function AreaIntelligencePanel({
             
             let vUnitsText = "";
             const vUnitsList: { id: string, floorIndex: number }[] = [];
+            const propIdForLevel = generatePropertyId3D(assoc?.primary_parcel_id, b.id);
             if (vStruct?.floors) {
                 vStruct.floors.forEach(f => {
-                    const lId = `3DP-${assoc?.primary_parcel_id || 'UNKNOWN'}-${b.id}-L${f.floor_index.toString().padStart(2, '0')}`;
+                    const lId = generateVerticalUnitId(propIdForLevel, f.floor_index) || "ID unavailable";
                     vUnitsText += lId + " ";
                     vUnitsList.push({ id: lId, floorIndex: f.floor_index });
                 });
             }
             
-            const propertyId3D = assoc?.property_id_3d || `3DP-UNASSOCIATED-${b.id}`;
+            const propertyId3D = propIdForLevel || "Not applicable";
             const primaryParcel = assoc?.primary_parcel_id || "Unassociated";
             let cadastralStatus = "Unassociated";
             if (assoc) {
@@ -3945,8 +3949,37 @@ function AreaIntelligencePanel({
                     </div>
                 </div>
 
-                {/* SECTION 2: BUILT ENVIRONMENT */}
-                <div className="nz-prop-section-title">2. BUILT ENVIRONMENT</div>
+                {/* SECTION 2: PROPERTY IDENTITY */}
+                <div className="nz-prop-section-title">2. PROPERTY IDENTITY (PROJECT-DEFINED)</div>
+                <div className="nz-prop-grid">
+                    <div className="nz-prop-item">
+                        <span>Generated 3DP IDs</span>
+                        <strong className="nz-text-emerald">{idStats.generatedPropertyIds}</strong>
+                    </div>
+                    <div className="nz-prop-item">
+                        <span>Generated Vertical Units</span>
+                        <strong className="nz-text-emerald">{idStats.generatedVerticalUnits}</strong>
+                    </div>
+                    <div className="nz-prop-item">
+                        <span>Valid Identities</span>
+                        <strong>{idStats.validIdentities}</strong>
+                    </div>
+                    <div className="nz-prop-item">
+                        <span>Duplicate IDs</span>
+                        <strong className={idStats.duplicateIdentities > 0 ? "nz-text-amber" : "nz-text-emerald"}>{idStats.duplicateIdentities}</strong>
+                    </div>
+                    <div className="nz-prop-item">
+                        <span>Duplicate Vertical IDs</span>
+                        <strong className={idStats.duplicateVerticalUnitIds > 0 ? "nz-text-amber" : "nz-text-emerald"}>{idStats.duplicateVerticalUnitIds}</strong>
+                    </div>
+                    <div className="nz-prop-item">
+                        <span>Identity Unavailable</span>
+                        <strong>{idStats.unavailableIdentities}</strong>
+                        <div className="nz-prop-note">Unassociated / Vacant</div>
+                    </div>
+                </div>
+                {/* SECTION 3: BUILT ENVIRONMENT */}
+                <div className="nz-prop-section-title">3. BUILT ENVIRONMENT</div>
                 <div className="nz-prop-grid">
                     <div className="nz-prop-item">
                         <span>Structures</span>
@@ -4131,7 +4164,7 @@ function AreaIntelligencePanel({
                     })()}
                 </div>
                 {/* SECTION 3: TERRAIN & SPATIAL CONTEXT */}
-                <div className="nz-prop-section-title">{parcelsSummary ? "4. TERRAIN & SPATIAL CONTEXT" : "3. TERRAIN & SPATIAL CONTEXT"}</div>
+                <div className="nz-prop-section-title">{parcelsSummary ? "4. TERRAIN & SPATIAL CONTEXT" : "4. TERRAIN & SPATIAL CONTEXT"}</div>
 
                 <div className="nz-distrib-block">
                     <div className="nz-distrib-label">
@@ -4219,7 +4252,7 @@ function AreaIntelligencePanel({
                 </div>
 
                 {/* SECTION 4: SPATIAL QUERY */}
-                <div className="nz-prop-section-title">4. SPATIAL QUERY</div>
+                <div className="nz-prop-section-title">5. SPATIAL QUERY</div>
                 <div className="nz-query-chips">
                     <button
                         type="button"
@@ -4286,7 +4319,7 @@ function AreaIntelligencePanel({
                 )}
 
                 {/* SECTION 5: STRUCTURAL VALIDATION */}
-                <div className="nz-prop-section-title">5. STRUCTURAL VALIDATION</div>
+                <div className="nz-prop-section-title">6. STRUCTURAL VALIDATION</div>
                 <div className="nz-prop-grid">
                     <div className="nz-prop-item">
                         <span>Geometry Consistent</span>
@@ -4316,7 +4349,7 @@ function AreaIntelligencePanel({
                 {/* SECTION 6: ML STRUCTURAL ANALYSIS */}
                 {mlSummary && (
                     <>
-                        <div className="nz-prop-section-title">6. ML STRUCTURAL ANALYSIS</div>
+                        <div className="nz-prop-section-title">7. ML STRUCTURAL ANALYSIS</div>
                         <div className="nz-prop-grid">
                             <div className="nz-prop-item nz-prop-full">
                                 <span>{mlSummary.training_sample_count} structures analyzed</span>

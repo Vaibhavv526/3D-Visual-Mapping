@@ -1,3 +1,4 @@
+import { generateVerticalUnitId } from "./propertyIdentity";
 import { jsPDF } from "jspdf";
 import type { NZBuilding } from "./nzApi";
 
@@ -360,7 +361,7 @@ export function exportBuildingDossierPdf(options: BuildingDossierPdfOptions): js
         for (const f of floors) {
             const levelLabel = `L${String(f.floor_index).padStart(2, '0')}`;
             const unitId = f.vertical_unit_id
-                ?? (propertyId3D ? `${propertyId3D}-L${String(f.floor_index).padStart(2, '0')}` : "ID unavailable");
+                ?? (generateVerticalUnitId(propertyId3D, f.floor_index) || "ID unavailable");
             doc.setFont("helvetica", "bold");
             doc.text(levelLabel, 18, fy);
             doc.setFont("helvetica", "normal");

@@ -1,3 +1,4 @@
+import { generatePropertyId3D } from "./propertyIdentity";
 const API_BASE_URL =
     import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000";
 
@@ -483,7 +484,7 @@ export function validate3DProperty(
     } else if (cadastralAssoc) {
         let idValid = true;
         if (cadastralAssoc.primary_parcel_id) {
-            const expectedId = `3DP-${cadastralAssoc.primary_parcel_id}-${building.id}`;
+            const expectedId = generatePropertyId3D(cadastralAssoc.primary_parcel_id, building.id);
             if (cadastralAssoc.property_id_3d !== expectedId) {
                 idValid = false;
             } else if (cadastralAssoc.vertical_unit_id && !cadastralAssoc.vertical_unit_id.startsWith(expectedId + "-L")) {
