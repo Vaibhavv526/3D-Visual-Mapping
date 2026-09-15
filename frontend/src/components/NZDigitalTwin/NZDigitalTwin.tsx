@@ -50,6 +50,7 @@ import {
 
 import { buildPropertyEvidence } from "../../services/evidence";
 import { EvidenceLedger } from "./EvidenceLedger";
+import { ReviewQueuePanel } from "./ReviewQueue";
 
 import {
     exportBuildingDossierPdf,
@@ -3785,7 +3786,7 @@ function AreaIntelligencePanel({
     onOpenBuilding,
     onOpenVerticalUnit
 }: AreaIntelligencePanelProps) {
-    const [activeTab, setActiveTab] = useState<"overview" | "registry">("overview");
+    const [activeTab, setActiveTab] = useState<"overview" | "queue" | "registry">("overview");
     const totalBldgs = data.totalBuildings;
     const associationsList = Array.from(buildingAssociationMap?.values() || []);
     const idStats = calculateIdentityStatistics(associationsList, buildings);
@@ -4025,6 +4026,20 @@ function AreaIntelligencePanel({
                         OVERVIEW
                     </button>
                     <button 
+                        onClick={() => setActiveTab("queue")}
+                        style={{ 
+                            background: 'none', 
+                            border: 'none', 
+                            color: activeTab === "queue" ? '#38bdf8' : '#94a3b8', 
+                            padding: '10px 0', 
+                            borderBottom: activeTab === "queue" ? '2px solid #38bdf8' : '2px solid transparent',
+                            cursor: 'pointer',
+                            fontWeight: 600
+                        }}
+                    >
+                        REVIEW QUEUE
+                    </button>
+                    <button 
                         onClick={() => setActiveTab("registry")}
                         style={{ 
                             background: 'none', 
@@ -4179,64 +4194,54 @@ function AreaIntelligencePanel({
 
                 {/* 3D PROPERTY IDENTITIES */}
                 
-                {/* REVIEW WORKFLOW */}
-                <div className="nz-prop-section-title">REVIEW WORKFLOW</div>
+                {/* AREA REVIEW SUMMARY */}
+                <div className="nz-prop-section-title">AREA REVIEW SUMMARY</div>
                 <div className="nz-prop-grid">
                     <div className="nz-prop-item">
-                        <span>Priority Review</span>
-                        <strong style={{ color: "#f87171" }}>{screeningSummary.priorityCount}</strong>
+                        <span>Total buildings</span>
+                        <strong>{totalBldgs}</strong>
+                    </div>
+                    <div className="nz-prop-item">
+                        <span>Normal</span>
+                        <strong style={{ color: "#4ade80" }}>{screeningSummary.normalCount}</strong>
                     </div>
                     <div className="nz-prop-item">
                         <span>Review</span>
                         <strong style={{ color: "#fbbf24" }}>{screeningSummary.reviewCount}</strong>
                     </div>
                     <div className="nz-prop-item">
-                        <span>Normal</span>
-                        <strong style={{ color: "#4ade80" }}>{screeningSummary.normalCount}</strong>
+                        <span>Priority</span>
+                        <strong style={{ color: "#f87171" }}>{screeningSummary.priorityCount}</strong>
                     </div>
                 </div>
                 
                 <div className="nz-prop-grid" style={{ marginTop: "8px" }}>
                     <div className="nz-prop-item">
-                        <span>Unreviewed</span>
-                        <strong>{screeningSummary.unreviewedCount}</strong>
+                        <span>Reviewed</span>
+                        <strong>{screeningSummary.reviewedCount}</strong>
                     </div>
                     <div className="nz-prop-item">
                         <span>In Review</span>
                         <strong>{screeningSummary.inReviewCount}</strong>
                     </div>
                     <div className="nz-prop-item">
-                        <span>Reviewed</span>
-                        <strong>{screeningSummary.reviewedCount}</strong>
+                        <span>Unreviewed</span>
+                        <strong>{screeningSummary.unreviewedCount}</strong>
                     </div>
                 </div>
 
-                {screeningSummary.reviewList.length > 0 && (
-                    <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "6px" }}>
-                        {screeningSummary.reviewList.map(item => (
-                            <div key={item.id} className="nz-prop-item nz-prop-full" style={{ padding: "6px", backgroundColor: "rgba(0,0,0,0.2)", border: item.status === "PRIORITY REVIEW" ? "1px solid rgba(248, 113, 113, 0.3)" : "1px solid rgba(251, 191, 36, 0.3)" }}>
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
-                                    <strong style={{ color: item.status === "PRIORITY REVIEW" ? "#f87171" : "#fbbf24" }}>{item.status}</strong>
-                                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                                        <span style={{ fontSize: "11px", color: item.reviewState === "REVIEWED" ? "#4ade80" : item.reviewState === "IN REVIEW" ? "#fbbf24" : "#94a3b8" }}>{item.reviewState}</span>
-                                        <button 
-                                            className="nz-btn-link"
-                                            onClick={() => onFocusBuilding(item.building)}
-                                            style={{ background: "none", border: "none", color: "#38bdf8", cursor: "pointer", fontSize: "11px", padding: 0 }}
-                                        >
-                                            Focus
-                                        </button>
-                                    </div>
-                                </div>
-                                <div style={{ fontSize: "12px", color: "#e2e8f0", fontWeight: 600 }}>{item.id}</div>
-                                <div style={{ fontSize: "11px", color: "#94a3b8" }}>
-                                    {item.mlClass} &middot; {(item.deviation * 100).toFixed(1)}% deviation
-                                </div>
-                            </div>
-                        ))}
+                <div className="nz-prop-grid" style={{ marginTop: "8px" }}>
+                    <div className="nz-prop-item">
+                        <span>Multi-parcel</span>
+                        <strong>{multiParcelCount}</strong>
                     </div>
-                )}
-<div className="nz-prop-section-title">3D PROPERTY IDENTITIES</div>
+                    <div className="nz-prop-item">
+                        <span>Vacant parcels</span>
+                        <strong>{parcelsSummary?.vacant_parcels || 0}</strong>
+                    </div>
+                </div>
+
+                <div className="nz-prop-section-title">3D PROPERTY IDENTITIES</div>
                 <div className="nz-prop-grid">
                     <div className="nz-prop-item">
                         <span>Identities generated</span>
@@ -4585,6 +4590,19 @@ function AreaIntelligencePanel({
                     </>
                 )}
 
+                {activeTab === "queue" && (
+                    <ReviewQueuePanel
+                        buildings={buildings}
+                        buildingAssociationMap={buildingAssociationMap}
+                        mlSummary={mlSummary}
+                        reviewStore={reviewStore}
+                        parcelsAvailable={parcelsAvailable}
+                        onFocusBuildingOnly={onFocusBuildingOnly}
+                        onOpenBuilding={onOpenBuilding}
+                        onOpenVerticalUnit={onOpenVerticalUnit}
+                    />
+                )}
+
                 {activeTab === "registry" && (
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                         <div style={{ margin: '15px 0' }}>
@@ -4628,7 +4646,18 @@ function AreaIntelligencePanel({
                                                 <strong style={{ color: '#38bdf8', fontSize: '1.1em' }}>{r.propertyId3D}</strong>
                                                 <div style={{ display: 'flex', gap: '8px' }}>
                                                     <button className="nz-btn-query-focus" onClick={() => onFocusBuildingOnly(r.building!)}>Focus in 3D</button>
-                                                    <button className="nz-btn-query-focus" onClick={() => onOpenBuilding(r.building!)}>Open Property</button>
+                                                    <button className="nz-btn-query-focus" onClick={() => {
+                                                        const q = searchQuery.trim().toLowerCase();
+                                                        let matchedUnit = null;
+                                                        if (q.length >= 3 && r.verticalUnits) {
+                                                            matchedUnit = r.verticalUnits.find((u: any) => u.id.toLowerCase() === q);
+                                                        }
+                                                        if (matchedUnit) {
+                                                            onOpenVerticalUnit(r.building!, matchedUnit.floorIndex);
+                                                        } else {
+                                                            onOpenBuilding(r.building!);
+                                                        }
+                                                    }}>Open Property</button>
                                                 </div>
                                             </div>
                                             <div className="nz-prop-grid" style={{ gap: '4px', marginBottom: '8px' }}>
@@ -5853,6 +5882,7 @@ export default function NZDigitalTwin() {
     };
 
     const handleFocusBuildingOnly = (b: NZBuilding) => {
+        handleSelectBuilding(b);
         const info = buildingSceneInfoMap.get(b.id);
         if (!info) return;
         const boundingDiameter = Math.max(info.radius * 2, info.size.x, info.size.y, info.size.z);
