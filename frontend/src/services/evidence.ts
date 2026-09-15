@@ -225,6 +225,41 @@ export function buildPropertyEvidence(
         });
     }
 
+    // I. TEMPORAL INTELLIGENCE
+    if (building) {
+        items.push({
+            category: "TEMPORAL",
+            label: "Current Observation",
+            value: "Current available observation",
+            source_type: "SOURCE",
+            source: "Active LiDAR dataset",
+            method: "Current dataset",
+            status: "Available",
+            disclaimer: "Only one LiDAR observation is currently available in the dataset."
+        });
+        
+        items.push({
+            category: "TEMPORAL",
+            label: "Historical Comparison",
+            value: "COMPARISON UNAVAILABLE",
+            source_type: "DERIVED",
+            source: "No historical dataset",
+            method: "Change detection",
+            status: "Unavailable",
+            disclaimer: "Historical comparison unavailable because only one LiDAR observation is currently available."
+        });
+    } else {
+        items.push({
+            category: "TEMPORAL",
+            label: "Historical Comparison",
+            value: "Not applicable",
+            source_type: "DERIVED",
+            source: "No historical dataset",
+            method: "Not applicable",
+            status: "Unavailable"
+        });
+    }
+
     return {
         building_id: building?.id || null,
         parcel_id: parcel?.parcel_id || cadastralAssoc?.primary_parcel_id || null,

@@ -1,5 +1,6 @@
 import { generateVerticalUnitId } from "./propertyIdentity";
 import { jsPDF } from "jspdf";
+import { computeTemporalRecord } from "./temporalChange";
 import type { NZBuilding } from "./nzApi";
 
 export interface BuildingSiteAnalysis {
@@ -416,6 +417,39 @@ export function exportBuildingDossierPdf(options: BuildingDossierPdfOptions): js
         }
     }
 
+
+    // =========================================================================
+    // TEMPORAL INTELLIGENCE
+    // =========================================================================
+    const temporalRecord = computeTemporalRecord(building, options.cadastralAssoc);
+    y = drawSectionHeader(doc, y, "Temporal Intelligence", temporalRecord.comparisonStatus === "COMPARISON_UNAVAILABLE" ? "UNAVAILABLE" : temporalRecord.comparisonStatus);
+    
+    y = drawMetricRow(doc, y, [
+        {
+            label: "Current Observation",
+            value: temporalRecord.currentObservationLabel,
+            note: "Active dataset",
+            highlight: true
+        },
+        {
+            label: "Reference Observation",
+            value: temporalRecord.referenceObservationLabel || "None",
+            note: "Historical dataset"
+        },
+        {
+            label: "Comparison Status",
+            value: temporalRecord.comparisonStatus === "COMPARISON_UNAVAILABLE" ? "UNAVAILABLE" : temporalRecord.comparisonStatus,
+            note: "Change detection"
+        }
+    ]);
+    
+    if (temporalRecord.comparisonStatus === "COMPARISON_UNAVAILABLE") {
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(6.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text("Historical comparison unavailable because only one LiDAR observation is currently available.", 16, y);
+        y += 5.5;
+    }
 
     // =========================================================================
     // SECTION B: BUILDING GEOMETRY
