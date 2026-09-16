@@ -2,9 +2,9 @@
 
 > LiDAR + Sentinel-2 based 3D Digital Twin and Property Intelligence Platform
 
-3D Visual Mapping is a geospatial 3D Digital Twin platform that combines LiDAR point-cloud data, terrain modelling, Sentinel-2 satellite imagery, building reconstruction, spatial analytics, property intelligence, machine learning, and human review into an interactive 3D environment.
+3D Visual Mapping is a geospatial 3D Digital Twin platform that combines LiDAR point-cloud data, terrain modelling, Sentinel-2 satellite imagery, building reconstruction, cadastral integration, 3D property identity, vertical property mapping, spatial analytics, machine learning, topology validation, human review, evidence tracking, and analytical reporting into an interactive 3D environment.
 
-The current implementation focuses on a New Zealand Area of Interest (AOI) and provides an end-to-end workflow from geospatial data processing to 3D property analysis and human-in-the-loop review.
+The current implementation focuses on a New Zealand Area of Interest (AOI) and provides an end-to-end workflow from geospatial data processing to 3D property analysis, automated screening, human review, and property dossier generation.
 
 ---
 
@@ -12,24 +12,30 @@ The current implementation focuses on a New Zealand Area of Interest (AOI) and p
 
 The long-term goal is to build an intelligent 3D geospatial platform that transforms conventional 2D spatial information into an interactive property-aware Digital Twin.
 
-Instead of only showing where a property exists, the platform combines:
+Instead of only showing where a property exists, the platform connects:
 
 - Terrain
 - Buildings
-- Elevation
-- Building height
-- Vertical structure
-- Satellite-derived RGB
+- LiDAR-derived elevation
+- Building geometry
+- Vertical property structure
+- Sentinel-2 RGB
 - NDVI
-- Spatial relationships
+- Cadastral parcels
 - Property identity
-- Cadastral relationships
-- 3D validation
-- Machine learning-based screening
+- Spatial relationships
+- 3D topology validation
+- Machine learning screening
+- Explainable analysis
 - Human review
+- Evidence and provenance
 - Analytical reporting
 
-The intended experience is a modern interactive 3D map where users can explore an area, select individual properties, understand their spatial characteristics, identify unusual structures, and review them directly in the 3D environment.
+The intended experience is a modern interactive 3D environment where users can explore an area, identify properties, understand their cadastral relationships, inspect estimated vertical structures, analyze spatial and structural characteristics, identify unusual properties, review supporting evidence, and generate a property dossier.
+
+> **Deep underneath. Simple on top.**
+
+The underlying platform combines complex geospatial, cadastral, LiDAR, analytical and review workflows while keeping the user-facing workflow property-centric and understandable.
 
 ---
 
@@ -70,8 +76,14 @@ The intended experience is a modern interactive 3D map where users can explore a
                                │
                                ▼
                     ┌─────────────────────┐
-                    │ Property Intelligence│
-                    │ + 3D Identity       │
+                    │ Cadastral Parcels   │
+                    │ LINZ Primary Parcels│
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ 3D Property Identity│
+                    │ + Property Registry │
                     └──────────┬──────────┘
                                │
                                ▼
@@ -82,28 +94,66 @@ The intended experience is a modern interactive 3D map where users can explore a
                                │
                                ▼
                     ┌─────────────────────┐
-                    │ Validation + ML      │
-                    │ Property Screening   │
+                    │ Spatial Analysis    │
+                    │ + ML Screening      │
                     └──────────┬──────────┘
                                │
                                ▼
                     ┌─────────────────────┐
-                    │ Human Review         │
-                    │ Workflow             │
+                    │ Explainable ML      │
+                    │ + Topology Checks   │
                     └──────────┬──────────┘
                                │
                                ▼
                     ┌─────────────────────┐
-                    │ React + Three.js     │
-                    │ Interactive 3D UI   │
+                    │ Human Review        │
+                    │ + Evidence          │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ Property Dossier    │
+                    │ + 3D Interactive UI │
                     └─────────────────────┘
 ````
 
 ---
 
+# 🔄 End-to-End Property Workflow
+
+The current system connects the major property intelligence stages into a single workflow:
+
+```text
+LINZ Parcel
+     ↓
+LiDAR Building
+     ↓
+3D Property ID
+     ↓
+Vertical Units
+     ↓
+Automated Analysis
+     ↓
+ML Screening
+     ↓
+Explainable ML
+     ↓
+3D Topology Validation
+     ↓
+Human Review
+     ↓
+Evidence & Provenance
+     ↓
+Property Dossier
+```
+
+Each stage uses the existing spatial and property information rather than creating an isolated analytical layer.
+
+---
+
 # 🌍 New Zealand Dataset
 
-The current primary Digital Twin implementation uses real New Zealand LiDAR and Sentinel-2 data.
+The current primary Digital Twin implementation uses real New Zealand LiDAR, Sentinel-2 and cadastral data.
 
 The study area is located around the Franklin District / Bombay Hills / Ramarama area of South Auckland, New Zealand.
 
@@ -140,7 +190,7 @@ Approximately 960 m × 1,440 m
 
 # ⛰️ Terrain Model
 
-Terrain generation is based on the LiDAR ground data using a 2 m Digital Terrain Model (DTM).
+Terrain generation is based on LiDAR ground data using a 2 m Digital Terrain Model (DTM).
 
 Current terrain:
 
@@ -171,6 +221,7 @@ The interactive viewer provides:
 * RGB
 * NDVI
 * RGB + hillshade
+* Buildings
 
 ---
 
@@ -189,6 +240,7 @@ The building representation includes:
 * Building geometry
 * Ground elevation
 * Roof elevation
+* Structural roof elevation
 * Building height
 * Estimated footprint
 * Width
@@ -272,20 +324,29 @@ This allows geometric building information to be viewed alongside satellite-deri
 
 Selecting a building opens a property-level intelligence interface.
 
-## Property
+## Property Identity
 
 * Building ID
-* Project-defined 3D property identity
+* Project-defined 3D Property ID
+* LINZ primary parcel
+* Secondary/intersecting parcels
+* Identity status
+* Vertical unit IDs
+
+## Geometry
+
 * Centroid
 * Estimated footprint
 * Estimated width
 * Estimated depth
 * Estimated footprint area
+* Bounding dimensions
 
 ## Elevation
 
 * Ground elevation
 * Roof elevation
+* Structural roof elevation
 * Building height
 * Relative elevation
 * Local terrain context
@@ -293,6 +354,7 @@ Selecting a building opens a property-level intelligence interface.
 ## LiDAR / Environment
 
 * LiDAR-derived structural information
+* LiDAR point count
 * Sentinel-2 RGB
 * NDVI
 * Vegetation interpretation
@@ -307,6 +369,124 @@ Selecting a building opens a property-level intelligence interface.
 
 ---
 
+# 🆔 3D Property Identity
+
+The platform provides a project-defined 3D property identity model connecting cadastral parcels, buildings and vertical units.
+
+The identity chain is:
+
+```text
+LINZ Parcel
+     ↓
+Building
+     ↓
+3D Property
+     ↓
+Vertical Units
+```
+
+Example:
+
+```text
+3DP-4734388-NZ-B035
+```
+
+The project-defined 3D Property ID is generated deterministically from the primary parcel and building identity.
+
+Vertical units use the same property identity:
+
+```text
+3DP-4734388-NZ-B035-L01
+3DP-4734388-NZ-B035-L02
+3DP-4734388-NZ-B035-L03
+3DP-4734388-NZ-B035-L04
+```
+
+The identity system supports:
+
+* Building-linked property identities
+* Vertical unit identities
+* Multi-parcel buildings
+* Multiple intersecting parcels
+* Identity validation
+* Vacant parcel handling
+
+Vacant parcels do not receive fabricated building or 3D property identities.
+
+> **Important:** These are project-defined 3D property identifiers for demonstrating a ULPIN-style workflow. They are not official ULPINs.
+
+---
+
+# 🗺️ Cadastral Integration
+
+The platform integrates cadastral parcel information from the LINZ New Zealand Primary Parcels dataset.
+
+Target dataset:
+
+```text
+LINZ NZ Primary Parcels
+Layer: 50772
+CRS: EPSG:2193
+```
+
+The workflow is:
+
+```text
+LINZ Parcel Data
+       ↓
+Parcel Geometry
+       ↓
+Building–Parcel Spatial Association
+       ↓
+3D Property Identity
+       ↓
+Vertical Property Mapping
+```
+
+The system supports:
+
+* Parcel geometry
+* Parcel boundaries
+* Primary parcel identity
+* Secondary/intersecting parcels
+* Building-to-parcel associations
+* Occupied parcels
+* Vacant parcels
+* Multi-parcel buildings
+
+Building-to-parcel association uses spatial relationships such as:
+
+* Centroid containment
+* Building footprint intersection
+
+The system preserves multiple intersecting parcels rather than assigning a building to an arbitrary nearest parcel.
+
+The current processed dataset contains:
+
+```text
+31 parcels within the AOI
+14 parcels with buildings
+17 vacant parcels
+56 associated building footprints
+1 multi-parcel building
+```
+
+The cadastral acquisition pipeline is:
+
+```text
+pipeline/acquire_linz_parcels.py
+```
+
+Parcel processing is handled through:
+
+```text
+pipeline/process_nz_parcels.py
+```
+
+The current implementation requires access to the LINZ Data Service for authoritative parcel acquisition.
+
+---
+
 # 🧱 Vertical Property Mapping
 
 The platform provides an estimated vertical representation of buildings.
@@ -315,7 +495,7 @@ For supported buildings, the system generates:
 
 * Estimated floor count
 * Vertical levels
-* Level IDs
+* Vertical unit IDs
 * Base elevation
 * Top elevation
 * Level height
@@ -334,9 +514,17 @@ Building
    └── Level 04
 ```
 
+Each level can be inspected individually.
+
 Vertical levels are derived from LiDAR-based structural estimation.
 
-They are not architectural floor plans, BIM models, interior building models, or survey-certified floor boundaries.
+They are not:
+
+* Architectural floor plans
+* BIM models
+* Interior building models
+* Official cadastral floor units
+* Survey-certified floor boundaries
 
 Each vertical level is explicitly described as:
 
@@ -350,96 +538,56 @@ The current default floor-height assumption is approximately:
 3.2 m / floor
 ```
 
-This is an analytical estimation parameter and not a claim about the actual architectural floor height.
+This is an analytical estimation parameter and is not a claim about actual architectural floor height.
 
 ---
 
-# 🆔 3D Property Identity
+# 📐 Vertical Property Intelligence
 
-The project introduces a project-defined 3D property identity model that connects spatial building geometry with property-level information.
+Each estimated level can expose:
 
-The identity chain is:
+* Vertical unit ID
+* Level index
+* Base elevation
+* Top elevation
+* Level height
+* Estimated width
+* Estimated depth
+* Estimated footprint area
+* Height above building base
+* Structural consistency information
 
-```text
-Cadastral Parcel
-       │
-       ▼
-3D Property Identity
-       │
-       ▼
-Building
-       │
-       ▼
-Vertical Structure
-       │
-       ▼
-Vertical Units
-```
+The vertical model also performs internal consistency checks against the LiDAR-derived structural model.
 
-The identity system supports:
+The system distinguishes between:
 
-* Building-linked property identities
-* Vertical unit identities
-* Multi-parcel buildings
-* Unassociated buildings
-* Preservation of all intersecting parcels
+* Raw LiDAR apex elevation
+* Structural roof estimation
+* Estimated vertical structure
 
-Project-defined identifiers are deterministic and intended for the Digital Twin workflow.
-
-They are not claimed to be official legal ULPINs.
+This prevents sparse LiDAR apex points from automatically being treated as architectural floor evidence.
 
 ---
 
-# 🗺️ Cadastral Integration
-
-The platform includes a cadastral integration workflow designed around the LINZ New Zealand Primary Parcels dataset.
-
-Target dataset:
-
-```text
-LINZ NZ Primary Parcels
-Layer: 50772
-CRS: EPSG:2193
-```
-
-The intended workflow is:
-
-```text
-LINZ Parcel Data
-       ↓
-Parcel Geometry
-       ↓
-Building–Parcel Spatial Association
-       ↓
-3D Property Identity
-       ↓
-Vertical Property Mapping
-```
-
-Building-to-parcel relationships can be classified as:
-
-* Centroid contained
-* Footprint intersection
-* Multi-parcel association
-* Unassociated building
-
-The system does not fabricate parcel information when authoritative cadastral data is unavailable.
-
-Cadastral availability is therefore explicitly represented rather than replaced with synthetic data.
-
-The cadastral acquisition pipeline is:
-
-```text
-pipeline/acquire_linz_parcels.py
-```
-
-The current implementation requires access to the LINZ Data Service for authoritative parcel acquisition.
-
----
-
-# 📐 Spatial Analysis
+# 📊 Spatial Analysis
 
 The platform provides several spatial analysis tools.
+
+## Site Analysis
+
+A selected property can be evaluated using:
+
+* Local ground elevation
+* Local slope
+* Relative elevation
+* Nearby building count
+* Nearest building distance
+* Vegetation context
+* Composite contextual indicator
+
+The contextual indicator is intended for spatial interpretation and is not an engineering, flood, structural, zoning, or regulatory assessment.
+
+---
 
 ## Local Comparison
 
@@ -501,26 +649,6 @@ These classifications are intended for contextual visualization and are not form
 
 ---
 
-# 🔍 3D Property Validation
-
-The platform performs deterministic spatial and structural validation across the 3D property model.
-
-Validation covers areas such as:
-
-* Building geometry
-* Vertical structure
-* Property identity
-* Cadastral relationships when available
-* Spatial consistency
-
-The validation workflow distinguishes between genuine geometry issues and limitations caused by LiDAR-derived estimation.
-
-For example, moderate vertical consistency can represent uncertainty in estimated vertical structure rather than a genuine geometric failure.
-
-Cadastral data being unavailable is treated as a data availability state and does not automatically create a validation failure.
-
----
-
 # 🤖 ML-Based Property Screening
 
 The platform includes a lightweight unsupervised machine learning workflow for identifying structurally unusual buildings within the available NZ LiDAR population.
@@ -545,7 +673,7 @@ Moderately unusual
 Highly unusual
 ```
 
-These are then combined with deterministic validation into screening statuses:
+These classifications are combined with deterministic validation into screening statuses:
 
 ```text
 NORMAL
@@ -553,9 +681,7 @@ REVIEW
 PRIORITY REVIEW
 ```
 
-## Current Screening Summary
-
-For all 56 buildings:
+Current screening summary:
 
 | Screening Status | Count |
 | ---------------- | ----: |
@@ -566,7 +692,7 @@ For all 56 buildings:
 
 The purpose of ML screening is to prioritize properties for human inspection.
 
-An unusual ML result does not mean that a building is:
+An unusual ML result does not mean that a property is:
 
 * Unsafe
 * Illegal
@@ -578,13 +704,32 @@ The ML output is a relative analytical signal based on the available dataset.
 
 ---
 
-# 👤 Human Review Workflow
+# 🔍 Explainable ML
 
-Properties identified by the screening system can be passed into a human-in-the-loop review workflow.
+The platform provides an explanation for why a property received its anomaly score.
 
-The system separates analytical screening from human review state.
+The explanation uses leave-one-feature-out analysis.
 
-## Screening Status
+In simple terms:
+
+> One feature is removed at a time and the anomaly score is recalculated. The change in score is used to estimate how much that feature contributed to the original anomaly score.
+
+The system provides:
+
+* Top contributing features
+* Contribution magnitude
+* Direction relative to the dataset mean
+* Property-specific explanations
+
+This is an explanation of the existing screening model rather than a separate machine learning model.
+
+---
+
+# 🧭 Intelligent Property Screening
+
+Automated screening combines multiple existing analytical signals.
+
+The current workflow distinguishes:
 
 ```text
 NORMAL
@@ -592,7 +737,68 @@ REVIEW
 PRIORITY REVIEW
 ```
 
-## Human Review State
+Priority review can be triggered by highly unusual ML results or deterministic validation errors.
+
+Review status can be triggered by moderately unusual ML results or validation warnings.
+
+The screening result does not replace human review.
+
+---
+
+# 🧩 3D Property Topology
+
+The platform performs internal consistency checks across the 3D property model.
+
+## Geometry Validation
+
+Checks include:
+
+* Building geometry
+* Bounding dimensions
+* Building association state
+
+## Vertical Validation
+
+Checks include:
+
+* Floor index continuity
+* Level labels
+* Base/top ordering
+* Upward progression
+* Level overlap
+* Vertical unit IDs
+* Structural roof alignment
+
+## Identity Validation
+
+Checks include:
+
+* Project-defined property ID format
+* Vertical unit ID format
+* Identity chain consistency
+
+Validation states include:
+
+```text
+VALID
+WARNING
+ERROR
+UNAVAILABLE
+```
+
+These represent internal 3D property topology checks.
+
+They are not legal cadastral validation or regulatory certification.
+
+---
+
+# 👤 Human Review Workflow
+
+The platform includes a human-in-the-loop review workflow.
+
+Automated screening identifies properties that may require attention, while human review provides the final workflow state.
+
+## Review States
 
 ```text
 UNREVIEWED
@@ -600,45 +806,256 @@ IN REVIEW
 REVIEWED
 ```
 
-The review workflow provides:
+Users can:
 
-* Review queue
-* Priority-first ordering
-* Building focus
-* Screening reason
-* ML deviation
-* Validation information
 * Start Review
+* Add reviewer notes
 * Mark Reviewed
 * Reopen Review
-* Optional reviewer notes
-* Dynamic review counters
+* View review history
 
-Selecting a property from the review queue focuses the corresponding building in the 3D scene.
+The review workflow is connected to the property screening and evidence layers.
 
-Review actions do not alter the underlying screening result.
-
-The current prototype stores review state and notes client-side, so they are not persistent after a page refresh.
+Review actions do not alter the underlying ML screening result.
 
 ---
 
-# 📄 Property Intelligence Reports
+# 🧾 Evidence & Provenance
 
-The platform supports client-side generation of property dossier PDFs.
+The platform provides a property-level evidence and provenance layer.
 
-Reports can include:
+Information is distinguished between:
 
-* Property identification
-* Building geometry
-* Elevation
-* LiDAR/environment information
-* Local comparison
-* Measurements
-* Screening information
-* Data notes
-* Analytical disclosures
+### Source Information
 
-Reports are intended as analytical outputs from the Digital Twin and are not legal property documents.
+Examples:
+
+* LINZ cadastral data
+* LiDAR
+* Digital Terrain Model
+* Sentinel-2
+* Dataset metadata
+
+### Derived Information
+
+Examples:
+
+* Building measurements
+* Vertical structure
+* Spatial analysis
+* ML screening
+* Explainable ML
+* Topology validation
+
+The evidence layer helps users understand where a property-level result originated and whether it is directly sourced or derived from other data.
+
+---
+
+# ⏳ Temporal Intelligence
+
+The platform includes a temporal intelligence framework.
+
+The currently available NZ dataset is treated as the current observation.
+
+Historical reference data is currently unavailable.
+
+Therefore:
+
+* Current observations are supported
+* Historical observations are not fabricated
+* Historical deltas are unavailable
+* Change detection is unavailable until comparable historical data is provided
+
+This keeps temporal analysis explicitly tied to available evidence.
+
+---
+
+# 📋 Property Registry
+
+The Property Registry provides a searchable index of the property dataset.
+
+Users can search by:
+
+* Building ID
+* LINZ parcel ID
+* Project-defined 3D Property ID
+* Vertical unit ID
+
+Example vertical unit search:
+
+```text
+3DP-4734388-NZ-B035-L02
+```
+
+An exact vertical unit search opens the parent property and requested level.
+
+## Registry Filters
+
+```text
+All
+Normal
+Review
+Priority
+Multi-parcel
+Vacant
+```
+
+The registry includes both property records and vacant parcel records.
+
+Vacant parcels are explicitly represented without assigning fabricated building identities.
+
+---
+
+# 📝 Review Queue
+
+The Review Queue provides an operational view of properties requiring attention.
+
+Each review item can contain:
+
+* Building ID
+* Primary parcel
+* Project-defined 3D Property ID
+* Secondary parcels
+* ML screening status
+* Human review status
+* Topology status
+* ML explanation
+* Property actions
+
+The queue prioritizes properties requiring review while retaining the underlying analytical context.
+
+---
+
+# 🔄 Property Lifecycle
+
+The platform connects property data and analytical workflows through a unified lifecycle:
+
+```text
+┌──────────────────────┐
+│    LINZ Parcel       │
+└──────────┬───────────┘
+           ↓
+┌──────────────────────┐
+│    LiDAR Building    │
+└──────────┬───────────┘
+           ↓
+┌──────────────────────┐
+│    3D Property ID    │
+└──────────┬───────────┘
+           ↓
+┌──────────────────────┐
+│    Vertical Units    │
+└──────────┬───────────┘
+           ↓
+┌──────────────────────┐
+│ Automated Analysis   │
+└──────────┬───────────┘
+           ↓
+┌──────────────────────┐
+│    ML Screening      │
+└──────────┬───────────┘
+           ↓
+┌──────────────────────┐
+│   Explainable ML     │
+└──────────┬───────────┘
+           ↓
+┌──────────────────────┐
+│ Topology Validation  │
+└──────────┬───────────┘
+           ↓
+┌──────────────────────┐
+│    Human Review      │
+└──────────┬───────────┘
+           ↓
+┌──────────────────────┐
+│ Evidence & Provenance│
+└──────────┬───────────┘
+           ↓
+┌──────────────────────┐
+│   Property Dossier   │
+└──────────────────────┘
+```
+
+---
+
+# 📄 Property Dossier
+
+The platform supports client-side generation of property-level PDF dossiers.
+
+The dossier can contain:
+
+## Property Identity
+
+* Project-defined 3D Property ID
+* LINZ primary parcel
+* Building ID
+* Vertical unit IDs
+
+## Geometry
+
+* Footprint
+* Width
+* Depth
+* Area
+* Centroid
+
+## Elevation
+
+* Ground elevation
+* Roof elevation
+* Building height
+* Structural roof information
+
+## LiDAR / Environment
+
+* LiDAR information
+* RGB
+* NDVI
+* Terrain context
+
+## Local Comparison
+
+* Local building statistics
+* Relative property measurements
+
+## Measurements
+
+* Horizontal distance
+* Elevation difference
+* Height difference
+* 3D distance
+
+## ML Analysis
+
+* Screening classification
+* Anomaly score
+* Explainable feature contributions
+
+## Topology
+
+* Internal validation results
+
+## Human Review
+
+* Review state
+* Reviewer notes
+* Review history
+
+## Evidence & Provenance
+
+* Data sources
+* Derived information
+* Supporting evidence
+
+## Limitations
+
+* LiDAR-derived vertical structure
+* Project-defined property identity
+* Dataset-relative ML screening
+* Temporal data limitations
+* Scope of topology validation
+
+The dossier is an analytical output from the Digital Twin and is not a legal property document.
 
 ---
 
@@ -655,7 +1072,7 @@ The implementation includes:
 * FastAPI startup cache warming
 * Cache invalidation after relevant processing
 
-The optimization substantially reduces repeated processing and response size while preserving the existing geospatial data contract.
+The optimization reduces repeated processing and response size while preserving the existing geospatial data contract.
 
 ---
 
@@ -686,7 +1103,7 @@ requirements.txt
 
 # 🔌 API
 
-The FastAPI backend provides NZ-specific endpoints including:
+The FastAPI backend provides NZ-specific services including:
 
 ```text
 /api/nz/metadata
@@ -697,9 +1114,15 @@ The FastAPI backend provides NZ-specific endpoints including:
 /api/nz/review/buildings
 ```
 
-These endpoints provide the data required by the interactive Digital Twin.
+Review persistence is also exposed through review-specific endpoints implemented in `api.py`.
 
-Before changing an API response format, inspect the corresponding frontend API service to preserve the existing data contract.
+The API provides the data required by the interactive Digital Twin and property intelligence workflow.
+
+For the authoritative list of currently implemented endpoints, see:
+
+```text
+api.py
+```
 
 ---
 
@@ -719,66 +1142,52 @@ The main Digital Twin interface provides:
 
 * Interactive 3D terrain
 * Building selection
-* Property Intelligence
 * Area Intelligence
+* Property Intelligence
+* Property Registry
+* Review Queue
 * Terrain layer controls
 * Vertical building exploration
 * Spatial measurements
 * Spatial queries
 * ML screening
+* Explainable ML
+* Topology validation
 * Human review
+* Evidence and provenance
 * PDF reporting
 
 ---
 
-# 🗂️ Repository Structure
+# 🗂️ Important Project Files
+
+Key application files include:
 
 ```text
-3D-Visual-Mapping/
-│
-├── backend/
-│   └── app/
-│
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   └── NZDigitalTwin/
-│   │   ├── services/
-│   │   │   └── nzApi.ts
-│   │   └── App.tsx
-│   ├── public/
-│   └── package.json
-│
-├── pipeline/
-│   ├── acquire_linz_parcels.py
-│   ├── process_nz_parcels.py
-│   ├── vertical_structure.py
-│   ├── LiDAR processing scripts
-│   ├── Sentinel-2 processing scripts
-│   └── fusion scripts
-│
-├── data/
-│   ├── inputs/
-│   │   ├── lidar/
-│   │   └── sentinel2/
-│   │
-│   └── outputs/
-│       ├── nz_lidar/
-│       ├── satellite/
-│       └── terrain/
-│
-├── New Zealand data/
-├── lidar_data/
-│
-├── ml/
-│   ├── dataset/
-│   └── requirements.txt
-│
-├── requirements.txt
-├── .gitignore
-├── .gitattributes
-├── PROJECT_CONTEXT.md
-└── README.md
+api.py
+
+frontend/
+├── src/
+│   ├── components/
+│   │   └── NZDigitalTwin/
+│   ├── services/
+│   │   ├── nzApi.ts
+│   │   ├── propertyIdentity.ts
+│   │   ├── topologyValidation.ts
+│   │   ├── temporalChange.ts
+│   │   ├── evidence.ts
+│   │   └── dossierPdf.ts
+│   └── App.tsx
+
+pipeline/
+├── acquire_linz_parcels.py
+├── process_nz_parcels.py
+├── vertical_structure.py
+└── ...
+
+data/
+└── inputs/
+    └── parcels/
 ```
 
 ---
@@ -851,7 +1260,7 @@ pip install -r requirements.txt
 Start the backend:
 
 ```powershell
-.venv\Scripts\uvicorn api:app --port 8000 --host 0.0.0.0
+python -m uvicorn api:app --reload
 ```
 
 Backend:
@@ -898,46 +1307,27 @@ The API key can be supplied through the environment or entered interactively by 
 
 ---
 
-# 🧠 ML Dataset
+# 🧠 ML Architecture
 
-The repository may use a large ML dataset during development.
+The current structural screening system uses a lightweight unsupervised Mahalanobis-distance approach.
 
-The ML dataset is intentionally excluded from Git.
-
-If present:
+The feature vector contains:
 
 ```text
-ml/dataset/
+Estimated floors
+Height
+Ground elevation
+Roof elevation
+Footprint area
+Footprint width
+Footprint depth
 ```
 
-Do not use `git add` in a way that accidentally stages the dataset.
+The model compares each building against the available NZ building population.
 
----
+Explainability is calculated using leave-one-feature-out analysis.
 
-# 🗃️ Git LFS
-
-The project uses Git LFS for large geospatial and machine-learning related files.
-
-Tracked file types include:
-
-```text
-*.laz
-*.las
-*.jp2
-*.tif
-*.tiff
-*.vtp
-*.ply
-*.npz
-*.pth
-*.pt
-*.h5
-*.keras
-*.zip
-*.npy
-```
-
-Do not remove Git LFS configuration.
+No separate explainability model is required.
 
 ---
 
@@ -962,17 +1352,24 @@ npm run build
 npm run lint
 ```
 
-After significant changes, manually verify:
+Important workflows should also be manually verified after significant changes:
 
 * 3D rendering
 * Building selection
+* Building focus
 * Terrain layers
+* Cadastral parcel display
+* Property identity
+* Property Registry
 * Vertical exploration
+* Exact vertical unit search
 * Spatial measurements
 * Spatial queries
-* Property intelligence
 * ML screening
-* Human review workflow
+* Explainable ML
+* Topology validation
+* Human review
+* Evidence/provenance
 * PDF generation
 * Browser console
 
@@ -1006,127 +1403,33 @@ Do not make unrelated changes.
 
 Do not regenerate expensive geospatial outputs unnecessarily.
 
-Do not fabricate geospatial, cadastral, property, or ML results.
+Do not fabricate geospatial, cadastral, property, temporal, or ML results.
 
 Do not commit API keys or excluded datasets.
 
 ---
 
-# 🎯 Current Project Status
+# 🎯 Current Dataset Summary
 
-| Component                       | Status                     |
-| ------------------------------- | -------------------------- |
-| NZ LiDAR integration            | ✅ Complete                 |
-| LiDAR preprocessing             | ✅ Complete                 |
-| 2 m terrain generation          | ✅ Complete                 |
-| Building extraction             | ✅ Complete                 |
-| Building mesh generation        | ✅ Complete                 |
-| Sentinel-2 integration          | ✅ Complete                 |
-| RGB generation                  | ✅ Complete                 |
-| NDVI generation                 | ✅ Complete                 |
-| LiDAR + Sentinel-2 fusion       | ✅ Complete                 |
-| FastAPI backend                 | ✅ Working                  |
-| Terrain API                     | ✅ Working                  |
-| Building API                    | ✅ Working                  |
-| Property Intelligence           | ✅ Complete                 |
-| Area Intelligence               | ✅ Complete                 |
-| Terrain analytics               | ✅ Complete                 |
-| Spatial comparison              | ✅ Complete                 |
-| Measurement tools               | ✅ Complete                 |
-| Spatial queries                 | ✅ Complete                 |
-| Vertical property model         | ✅ Complete                 |
-| 3D level exploration            | ✅ Complete                 |
-| 3D property identity            | ✅ Complete                 |
-| 3D topology / validation        | ✅ Complete                 |
-| ML property screening           | ✅ Complete                 |
-| Human review workflow           | ✅ Complete                 |
-| Property dossier PDF            | ✅ Complete                 |
-| LINZ cadastral pipeline         | 🟡 Integration in progress |
-| Authoritative cadastral data    | 🟡 Pending acquisition     |
-| Persistent review storage       | 🔜 Future                  |
-| Broader geographic coverage     | 🔜 Future                  |
-| Additional urban infrastructure | 🔜 Future                  |
-
----
-
-# 🧭 Development Roadmap
-
-## Authoritative Cadastral Integration
-
-Complete the LINZ parcel acquisition and integrate the resulting parcel geometry with the existing 3D building model.
-
-Goals:
-
-* Retrieve authoritative parcel geometry
-* Associate buildings with parcels
-* Display parcel boundaries
-* Connect parcel identity with project-defined 3D property identity
-* Preserve multi-parcel relationships
-
----
-
-## Persistent Human Review
-
-Move review states and reviewer notes from client-side prototype state to persistent storage.
-
-Potential future architecture:
-
-```text
-React Review UI
-       ↓
-FastAPI
-       ↓
-Persistent Storage
-       ↓
-Review History
-```
-
----
-
-## Richer Vertical Property Data
-
-Improve vertical property representation where richer source data becomes available.
-
-Potential sources include:
-
-* Building plans
-* BIM
-* Architectural datasets
-* Additional LiDAR information
-* Other authoritative 3D building sources
-
----
-
-## Expanded Digital Twin
-
-Potential future layers include:
-
-* Roads
-* Infrastructure
-* Vegetation objects
-* Additional structures
-* Urban context
-* Additional authoritative geospatial datasets
-
----
-
-## Scalability
-
-Potential future architecture for larger geographic areas:
-
-```text
-Large Geospatial Dataset
-        ↓
-Spatial Tiling
-        ↓
-Chunked / Binary Data
-        ↓
-FastAPI / Data Layer
-        ↓
-Progressive Loading
-        ↓
-Three.js Digital Twin
-```
+| Category                 | Current Value      |
+| ------------------------ | ------------------ |
+| LiDAR points             | 21,138,016         |
+| LiDAR tiles              | 4 contiguous tiles |
+| Buildings                | 56                 |
+| Terrain vertices         | 346,801            |
+| Terrain triangles        | 691,200            |
+| DTM resolution           | 2 m                |
+| Survey extent            | ~960 m × 1,440 m   |
+| Survey area              | ~138.2 ha          |
+| CRS                      | EPSG:2193          |
+| LINZ parcels             | 31                 |
+| Parcels with buildings   | 14                 |
+| Vacant parcels           | 17                 |
+| Associated buildings     | 56                 |
+| Multi-parcel buildings   | 1                  |
+| Generated vertical units | 104                |
+| Sentinel-2               | T60HUD             |
+| Sentinel-2 resolution    | 10 m               |
 
 ---
 
@@ -1141,32 +1444,38 @@ LiDAR
   ↓
 3D Terrain + Buildings
   ↓
-Property Intelligence
+Cadastral Parcels
+  ↓
+3D Property Identity
   ↓
 Vertical Property Mapping
   ↓
-Property Identity
-  ↓
-Spatial Validation
+Spatial Intelligence
   ↓
 ML Screening
   ↓
+Explainable Analysis
+  ↓
+3D Topology Validation
+  ↓
 Human Review
   ↓
-Analytical Reporting
+Evidence
+  ↓
+Property Dossier
 ```
 
-This moves beyond conventional 2D mapping by connecting geospatial geometry with property-level intelligence, vertical structure, validation, machine learning, and human review.
+This moves beyond conventional 2D mapping by connecting geospatial geometry with property-level identity, vertical structure, cadastral context, analytical screening, validation, human review, and evidence-based reporting.
 
-The architecture also provides a path toward authoritative cadastral integration without replacing the existing 3D geospatial model.
+The architecture provides a foundation for demonstrating how 3D geospatial technology can support modern property mapping and land administration workflows.
 
 ---
 
-# ⚠️ Current Limitations
+# ⚠️ Limitations
 
 ## LiDAR-Derived Vertical Structure
 
-Vertical levels are estimated from available LiDAR-derived geometry.
+Vertical levels are estimated from available LiDAR-derived structural information.
 
 They are not:
 
@@ -1174,10 +1483,40 @@ They are not:
 * BIM models
 * Interior building models
 * Survey-certified floor boundaries
+* Official cadastral floor units
 
 ---
 
-## ML Screening
+## Property Identity
+
+Project-defined 3D Property IDs are deterministic identifiers used for the Digital Twin workflow.
+
+They are not official legal ULPINs.
+
+---
+
+## Cadastral Data
+
+Cadastral information is sourced from the LINZ Primary Parcels dataset.
+
+The system performs spatial associations and internal checks but does not establish:
+
+* Legal ownership
+* Legal title
+* Legal parcel boundaries
+* Regulatory compliance
+
+---
+
+## Topology
+
+Topology results represent internal 3D property consistency checks.
+
+They are not legal cadastral validation or regulatory certification.
+
+---
+
+## Machine Learning
 
 The ML system is relative to the available NZ LiDAR building population.
 
@@ -1193,25 +1532,27 @@ It does not determine:
 
 ---
 
-## Cadastral Data
+## Temporal Analysis
 
-Cadastral information depends on successful acquisition of authoritative external data.
+Historical reference data is currently unavailable.
 
-The system does not fabricate cadastral parcels when they are unavailable.
-
----
-
-## Property Identity
-
-Project-defined 3D property IDs are not official legal ULPINs.
+Therefore the system does not fabricate historical measurements or change-detection results.
 
 ---
 
-## Human Review
+## Human Review Persistence
 
-Review state and notes are currently client-side prototype data.
+The current review workflow uses persistent backend review records for review state, notes and history.
 
-They are not persistent after a page refresh.
+The review system should still be treated as an application-level review workflow rather than an official land administration record.
+
+---
+
+## Dataset Scope
+
+The current implementation is demonstrated using a specific New Zealand dataset.
+
+The workflows should not be assumed to represent every geographic region or cadastral system without appropriate data, standards and processing adaptation.
 
 ---
 
@@ -1242,14 +1583,14 @@ Git configuration:
 
 # ⚖️ Disclaimer
 
-This project is a geospatial visualization and analytical prototype.
+This project is a geospatial visualization, property intelligence and analytical prototype.
 
 LiDAR-derived building heights and vertical levels are estimates based on available spatial data.
 
-Machine learning outputs are intended to support human review and prioritization. An unusual result does not imply that a property or building is incorrect, unsafe, illegal, fraudulent, or defective.
+Machine learning outputs are intended to support screening and human review. An unusual result does not imply that a property or building is incorrect, unsafe, illegal, fraudulent, or defective.
 
 Cadastral and property-related conclusions require authoritative data and appropriate verification.
 
-Project-defined property identifiers should not be interpreted as official legal ULPINs.
+Project-defined 3D property identifiers are intended to demonstrate a ULPIN-style workflow and should not be interpreted as official legal ULPINs.
 
 ---
