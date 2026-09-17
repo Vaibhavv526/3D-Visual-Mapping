@@ -3350,3 +3350,139 @@ footer {
     font-weight: 700 !important;
     color: #ffffff !important;
 }
+
+/* =========================================================
+   CUSTOM FORMATTING FIXES
+========================================================= */
+
+/* Sub-headers within sections */
+.nz-sub-header {
+    font-size: 10px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.45);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-top: 14px;
+    margin-bottom: 6px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    display: block;
+}
+
+/* 1. Legends as chips */
+.nz-distrib-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+    align-items: center;
+}
+
+.nz-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    font-size: 10.5px;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+/* 4. Spatial query chips */
+.nz-query-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 8px 0 12px 0;
+}
+
+.nz-chip-btn {
+    padding: 4px 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-secondary);
+    font-size: 10.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.nz-chip-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+}
+
+.nz-chip-btn.active {
+    background: var(--orange-dim);
+    border-color: var(--orange-border);
+    color: var(--orange);
+}
+
+/* 2 & 5. Review tags & cards spacing */
+.nz-review-tag {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 3px 7px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.nz-review-tag.priority {
+    background: rgba(248, 113, 113, 0.15);
+    color: #f87171;
+}
+
+.nz-review-tag.review {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+}
+
+.nz-review-tag.normal {
+    background: rgba(74, 222, 128, 0.15);
+    color: #4ade80;
+}
+
+.nz-review-tag.reviewed {
+    background: rgba(74, 222, 128, 0.15);
+    color: #4ade80;
+}
+
+.nz-review-tag.in-review {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+}
+
+.nz-review-tag.unreviewed {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-secondary);
+}
+
+.nz-review-card {
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.nz-review-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.nz-review-card-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.nz-review-card.priority {
+    border: 1px solid rgba(248, 113, 113, 0.3);
+}
+.nz-review-card.review {
+    border: 1px solid rgba(251, 191, 36, 0.3);
+}
