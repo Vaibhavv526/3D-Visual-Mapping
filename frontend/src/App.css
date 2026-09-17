@@ -1594,10 +1594,10 @@ footer {
 
 /* Kicker (Panel Eyebrow) */
 .nz-kicker {
-    font-size: 10px;
-    font-weight: 500;
+    font-size: 9.5px;
+    font-weight: 600;
     letter-spacing: 0.14em;
-    color: #ea580c;
+    color: var(--orange);
     padding: 20px 20px 4px;
     text-transform: uppercase;
 }
@@ -1662,16 +1662,19 @@ footer {
 
 /* Section titles */
 .nz-section-title, .nz-prop-section-title {
-    font-size: 11px;
+    font-size: 11.5px;
     font-weight: 600;
     letter-spacing: 0.08em;
-    color: #a3a3a3;
-    margin-top: 16px;
+    color: #e5e5e5;
+    margin-top: 20px;
     margin-bottom: 12px;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    align-items: baseline;
+    justify-content: flex-start;
     text-transform: uppercase;
+    gap: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    padding-top: 16px;
 }
 
 
@@ -1697,23 +1700,20 @@ footer {
 
 .nz-prop-item span, .nz-prop-item > span:first-child {
     grid-column: 1;
-    font-size: 11px;
-    color: #737373;
+    font-size: 10px;
+    color: #8c8c8c;
     font-weight: 500;
 }
 
 .nz-prop-item strong {
     grid-column: 2;
-    font-size: 14px;
+    font-size: 12.5px;
     font-weight: 600;
     color: #ffffff;
     text-align: right;
 }
 
-.nz-prop-item .nz-prop-note {
-    grid-column: 1 / -1;
-    margin-top: 2px;
-}
+
 
 .nz-prop-item.nz-prop-full, .nz-prop-item.nz-prop-span2 {
     display: flex;
@@ -1724,6 +1724,9 @@ footer {
 
 .nz-prop-item.nz-prop-full strong, .nz-prop-item.nz-prop-span2 strong {
     text-align: left;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #ffffff;
 }
 
 /* Two-column layout */
@@ -1741,15 +1744,12 @@ footer {
 }
 .nz-prop-2col .nz-prop-item strong {
     text-align: left;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #ffffff;
 }
 
-.nz-prop-note {
-    font-size: 11px;
-    color: #737373;
-    line-height: 1.5;
-    margin-top: 2px;
-    font-style: normal;
-}
+
 
 .nz-prop-subtext {
     font-size: 10px;
@@ -3303,4 +3303,25 @@ footer {
 .nz-accordion-content {
     padding-bottom: 12px;
     padding-top: 2px;
+}
+
+.nz-area-content > .nz-prop-section-title:first-of-type {
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+}
+
+.nz-prop-note {
+    grid-column: 1 / -1;
+    font-size: 10px;
+    color: #737373;
+    line-height: 1.4;
+    margin-top: 6px;
+    font-style: italic;
+}
+
+.nz-metric-large {
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    color: #ffffff !important;
 }
