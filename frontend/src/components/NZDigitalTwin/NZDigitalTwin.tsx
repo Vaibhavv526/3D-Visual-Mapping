@@ -1806,18 +1806,9 @@ function NZTerrainMesh({
 
 
 
-                        colors[i * 3] = 0.08;
-
-
-
-                        colors[i * 3 + 1] = 0.10;
-
-
-
-                        colors[i * 3 + 2] = 0.12;
-
-
-
+                        colors[i * 3] = 0.22;
+                        colors[i * 3 + 1] = 0.24;
+                        colors[i * 3 + 2] = 0.20;
                         continue;
 
 
@@ -1858,7 +1849,7 @@ function NZTerrainMesh({
 
 
 
-                    const hillshadeFactor = THREE.MathUtils.clamp(1.0 + diff * 0.72, 0.80, 1.22);
+                    const hillshadeFactor = THREE.MathUtils.clamp(1.0 + diff * 0.45, 0.85, 1.15);
 
 
 
@@ -1926,15 +1917,15 @@ function NZTerrainMesh({
 
 
 
-                        colors[i * 3] = 0.08;
+                        colors[i * 3] = 0.22;
 
 
 
-                        colors[i * 3 + 1] = 0.10;
+                        colors[i * 3 + 1] = 0.24;
 
 
 
-                        colors[i * 3 + 2] = 0.12;
+                        colors[i * 3 + 2] = 0.20;
 
 
 
@@ -2679,13 +2670,7 @@ function SpatialMeasurementLine({
 
 
                 <meshBasicMaterial
-
-
-
-                    color="var(--orange)"
-
-
-
+                    color="#ea580c"
                     depthTest={false}
 
 
@@ -4003,37 +3988,13 @@ function NZVerticalLevelGuides({
 
 
             <lineSegments geometry={lineGeometry} raycast={() => null}>
-
-
-
                 <lineBasicMaterial
-
-
-
-                    color="var(--orange)"
-
-
-
+                    color="#ea580c"
                     transparent
-
-
-
-                    opacity={0.35}
-
-
-
+                    opacity={0.15}
                     depthTest={true}
-
-
-
                     depthWrite={false}
-
-
-
                 />
-
-
-
             </lineSegments>
 
 
@@ -4940,8 +4901,6 @@ function NZExplodedBuilding({
 
 function NZBuildingMesh({
 
-
-
     building,
 
 
@@ -5091,10 +5050,7 @@ function NZBuildingMesh({
 
 
 }) {
-
-
-
-
+    const [isHovered, setIsHovered] = useState(false);
 
 
 
@@ -6819,45 +6775,17 @@ function NZBuildingMesh({
 
 
                 onPointerOver={(e) => {
-
-
-
                     e.stopPropagation();
-
-
-
+                    setIsHovered(true);
                     if (measureMode) {
-
-
-
                         document.body.style.cursor = isOrigin ? "not-allowed" : "crosshair";
-
-
-
                     } else {
-
-
-
                         document.body.style.cursor = "pointer";
-
-
-
                     }
-
-
-
                 }}
-
-
-
                 onPointerOut={() => {
-
-
-
+                    setIsHovered(false);
                     document.body.style.cursor = measureMode ? "crosshair" : "auto";
-
-
-
                 }}
 
 
@@ -6867,49 +6795,16 @@ function NZBuildingMesh({
 
 
                 <meshStandardMaterial
-
-
-
                     vertexColors={true}
-
-
-
                     side={THREE.DoubleSide}
-
-
-
-                    roughness={isOrigin || isTarget ? 0.6 : isDeemphasized ? 0.88 : 0.72}
-
-
-
+                    roughness={isOrigin || isTarget ? 0.75 : isDeemphasized ? 0.88 : 0.85}
                     metalness={0.0}
-
-
-
-                    color={isDeemphasized ? "#76869a" : "#e0e0e0"}
-
-
-
+                    color={isOrigin || isTarget ? "#3a3f45" : isHovered ? "#52525b" : isDeemphasized ? "#272a2e" : "#3f3f46"}
                     transparent={isDeemphasized}
-
-
-
-                    opacity={isDeemphasized ? 0.55 : 1.0}
-
-
-
+                    opacity={isDeemphasized ? 0.6 : 1.0}
                     depthWrite={true}
-
-
-
-                    emissive={isOrigin ? "#2a1508" : isTarget ? "#302005" : "#000000"}
-
-
-
-                    emissiveIntensity={isOrigin || isTarget ? 0.25 : 0.0}
-
-
-
+                    emissive={isOrigin ? "#ea580c" : isTarget ? "#fbbf24" : "#000000"}
+                    emissiveIntensity={isTarget ? 0.15 : 0.0}
                 />
 
 
@@ -6922,17 +6817,11 @@ function NZBuildingMesh({
 
 
 
-            {(isOrigin || isTarget) && (
-
-
-
+            {(isOrigin || isTarget || isHovered) && (
                 <lineSegments raycast={() => null}>
-                    <edgesGeometry args={[geometry]} />
-                    <lineBasicMaterial color={isOrigin ? "var(--orange)" : "#fbbf24"} transparent opacity={0.65} depthTest={true} />
+                    <edgesGeometry args={[geometry, 60]} />
+                    <lineBasicMaterial color={isOrigin ? "#ea580c" : isHovered ? "#ea580c" : "#fbbf24"} transparent opacity={isOrigin ? 0.75 : 0.35} depthTest={true} />
                 </lineSegments>
-
-
-
             )}
 
 
@@ -7033,15 +6922,9 @@ interface ParcelsOverlayProps {
 
 
 
-const normalParcelMat = new THREE.LineBasicMaterial({ color: "var(--text-secondary)", transparent: true, opacity: 0.08, depthWrite: false });
-
-
-
-const secondaryParcelMat = new THREE.LineBasicMaterial({ color: "#fde047", transparent: true, opacity: 0.25, depthWrite: false });
-
-
-
-const primaryParcelMat = new THREE.LineBasicMaterial({ color: "#f59e0b", transparent: true, opacity: 0.5, depthWrite: false });
+const normalParcelMat = new THREE.LineBasicMaterial({ color: "#52525b", transparent: true, opacity: 0.1, depthWrite: false });
+const secondaryParcelMat = new THREE.LineBasicMaterial({ color: "#d97706", transparent: true, opacity: 0.2, depthWrite: false });
+const primaryParcelMat = new THREE.LineBasicMaterial({ color: "#ea580c", transparent: true, opacity: 0.4, depthWrite: false });
 
 
 
@@ -9481,6 +9364,7 @@ function PropertyIntelligencePanel({
 
 
 
+                <div className="nz-property-scroll-body">
                 <div className="nz-back-building-wrap" style={{ marginBottom: "16px" }}>
 
 
@@ -10394,6 +10278,7 @@ function PropertyIntelligencePanel({
 
 
             </div>
+            </div>
 
 
 
@@ -10485,6 +10370,7 @@ function PropertyIntelligencePanel({
 
 
 
+            <div className="nz-property-scroll-body">
             {parcelsAvailable && cadastralAssoc?.property_id_3d && (
 
 
@@ -10493,14 +10379,11 @@ function PropertyIntelligencePanel({
 
 
 
-                    <div style={{ marginBottom: "12px", background: "var(--bg-panel-raised)", padding: "12px", borderRadius: "8px", border: "1px solid var(--orange-border)" }}>
+                    <div style={{ marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid rgba(255, 255, 255, 0.04)" }}>
 
 
 
-                        <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-secondary)", letterSpacing: "0.05em", marginBottom: "6px" }}>
-
-
-
+                        <div style={{ fontSize: "10px", fontWeight: 600, color: "#a3a3a3", letterSpacing: "0.08em", marginBottom: "6px" }}>
                             3D PROPERTY IDENTITY
 
 
@@ -10513,7 +10396,7 @@ function PropertyIntelligencePanel({
 
 
 
-                            <h3 style={{ margin: 0, color: "var(--orange)", fontSize: "18px", wordBreak: "break-all" }}>{cadastralAssoc.property_id_3d}</h3>
+                            <h3 style={{ margin: 0, color: "#ffffff", fontSize: "20px", fontWeight: 700, wordBreak: "break-all" }}>{cadastralAssoc.property_id_3d}</h3>
 
 
 
@@ -10633,7 +10516,7 @@ function PropertyIntelligencePanel({
 
 
 
-                    <div style={{ background: "var(--orange-dim)", borderLeft: "3px solid var(--orange)", padding: "10px 12px", marginBottom: "20px" }}>
+                    <div style={{ background: "rgba(0, 0, 0, 0.2)", borderLeft: "2px solid var(--orange)", padding: "8px 10px", marginBottom: "16px" }}>
 
 
 
@@ -10641,7 +10524,7 @@ function PropertyIntelligencePanel({
 
 
 
-                        <div style={{ fontSize: "11px", color: "#e2e8f0", lineHeight: 1.4, marginBottom: "6px" }}>
+                        <div style={{ fontSize: "11px", color: "#ffffff", lineHeight: 1.4, marginBottom: "4px" }}>
 
 
 
@@ -10653,7 +10536,7 @@ function PropertyIntelligencePanel({
 
 
 
-                        <div style={{ fontSize: "10px", color: "var(--text-secondary)", lineHeight: 1.3, fontStyle: "italic" }}>
+                        <div style={{ fontSize: "10px", color: "#8a8a8a", lineHeight: 1.3, fontStyle: "italic" }}>
 
 
 
@@ -11549,11 +11432,11 @@ function PropertyIntelligencePanel({
 
 
 
-                            <div style={{ fontSize: "11px", color: "var(--text-secondary)", textTransform: "uppercase", marginBottom: "4px" }}>Automated Screening</div>
+                            <div className="nz-sub-header" style={{ marginTop: 0, borderTop: "none", paddingTop: 0 }}>Automated Screening</div>
 
 
 
-                            <strong style={{ color: screeningResult.status === "PRIORITY REVIEW" ? "#f87171" : "#fbbf24", fontSize: "13px" }}>
+                            <strong className={`nz-review-tag ${screeningResult.status === "PRIORITY REVIEW" ? "priority" : "review"}`}>
 
 
 
@@ -11577,7 +11460,7 @@ function PropertyIntelligencePanel({
 
 
 
-                                    <div style={{ fontSize: "11px", color: "var(--text-secondary)", textTransform: "uppercase", marginBottom: "4px" }}>Why Flagged</div>
+                                    <div className="nz-sub-header">Why Flagged</div>
 
 
 
@@ -11621,11 +11504,11 @@ function PropertyIntelligencePanel({
 
 
 
-                                <span>Review State</span>
+                                <span className="nz-sub-header" style={{ marginTop: 0, borderTop: "none", paddingTop: 0 }}>Review State</span>
 
 
 
-                                <strong style={{ color: (reviewStore[building.id]?.review_state || "UNREVIEWED") === "REVIEWED" ? "#4ade80" : (reviewStore[building.id]?.review_state || "UNREVIEWED") === "IN REVIEW" ? "#fbbf24" : "var(--text-secondary)" }}>
+                                <strong className={`nz-review-tag ${(reviewStore[building.id]?.review_state || "UNREVIEWED") === "REVIEWED" ? "reviewed" : (reviewStore[building.id]?.review_state || "UNREVIEWED") === "IN REVIEW" ? "in-review" : "unreviewed"}`}>
 
 
 
@@ -11753,7 +11636,7 @@ function PropertyIntelligencePanel({
 
 
 
-                                    <span>Review Notes (optional)</span>
+                                    <span className="nz-sub-header" style={{ marginTop: 0, borderTop: "none", paddingTop: 0, marginBottom: 0 }}>Review Notes (optional)</span>
 
 
 
@@ -12953,7 +12836,7 @@ function PropertyIntelligencePanel({
 
 
 
-                    <strong>{meanNdvi.toFixed(3)}</strong>
+                    <strong className="nz-text-emerald">{meanNdvi.toFixed(3)}</strong>
 
 
 
@@ -14782,6 +14665,7 @@ function PropertyIntelligencePanel({
 
 
             <div style={{ height: "24px" }} />
+            </div>
 
 
 
@@ -15537,7 +15421,7 @@ function AreaIntelligencePanel({
 
 
 
-                <div className="nz-prop-section-title">DATA SOURCES & PROVENANCE</div>
+                <div className="nz-prop-section-title" style={{ borderTop: "none", paddingTop: 0, marginTop: 0 }}>DATA SOURCES & PROVENANCE</div>
 
 
 
@@ -15549,7 +15433,7 @@ function AreaIntelligencePanel({
 
 
 
-                        <span style={{ color: "var(--orange)" }}>LiDAR</span>
+                        <span>LiDAR</span>
 
 
 
@@ -15565,7 +15449,7 @@ function AreaIntelligencePanel({
 
 
 
-                        <span style={{ color: "var(--orange)" }}>Terrain</span>
+                        <span>Terrain</span>
 
 
 
@@ -15581,7 +15465,7 @@ function AreaIntelligencePanel({
 
 
 
-                        <span style={{ color: "var(--orange)" }}>Imagery</span>
+                        <span>Imagery</span>
 
 
 
@@ -15597,7 +15481,7 @@ function AreaIntelligencePanel({
 
 
 
-                        <span style={{ color: "var(--orange)" }}>Cadastral</span>
+                        <span>Cadastral</span>
 
 
 
@@ -15609,19 +15493,10 @@ function AreaIntelligencePanel({
 
 
 
-                    <div className="nz-prop-item nz-prop-span2">
-
-
-
-                        <span style={{ color: "var(--orange)" }}>Buildings</span>
-
-
-
-                        <strong>56 LiDAR-derived footprints</strong>
-
-
-
-                    </div>
+                    <div className="nz-prop-item">
+    <span>Buildings</span>
+    <strong>56 LiDAR-derived footprints</strong>
+</div>
 
 
 
@@ -15637,7 +15512,7 @@ function AreaIntelligencePanel({
 
 
 
-                <div className="nz-prop-section-title">1. SURVEY SCOPE</div>
+                <div className="nz-prop-section-title"><span className="nz-section-num">01</span><span>SURVEY SCOPE</span></div>
 
 
 
@@ -15653,7 +15528,7 @@ function AreaIntelligencePanel({
 
 
 
-                        <strong>{data.tileWidth.toLocaleString()} × {data.tileHeight.toLocaleString()} m</strong>
+                        <strong className="nz-metric-large">{data.tileWidth.toLocaleString()} × {data.tileHeight.toLocaleString()} m</strong>
 
 
 
@@ -15665,11 +15540,11 @@ function AreaIntelligencePanel({
 
 
 
-                        <span>Survey Are</span>
+                        <span>Survey Area</span>
 
 
 
-                        <strong>{data.surveyAreaHa.toFixed(1)} ha</strong>
+                        <strong className="nz-metric-large">{data.surveyAreaHa.toFixed(1)} ha</strong>
 
 
 
@@ -15689,11 +15564,11 @@ function AreaIntelligencePanel({
 
 
 
-                            {data.totalFootprintM2.toLocaleString()} m²
+                            <span className="nz-metric-large">{data.totalFootprintM2.toLocaleString()} m²</span>
 
 
 
-                            <span className="nz-coverage-pill">{data.coveragePct.toFixed(1)}% of tile are</span>
+                            <span className="nz-coverage-pill">{data.coveragePct.toFixed(1)}% of tile area</span>
 
 
 
@@ -15721,7 +15596,7 @@ function AreaIntelligencePanel({
 
 
 
-                <div className="nz-prop-section-title">2. PROPERTY IDENTITY (PROJECT-DEFINED)</div>
+                <div className="nz-prop-section-title"><span className="nz-section-num">02</span><span>PROPERTY IDENTITY</span></div>
 
 
 
@@ -15737,7 +15612,7 @@ function AreaIntelligencePanel({
 
 
 
-                        <strong className="nz-text-emerald">{idStats.generatedPropertyIds}</strong>
+                        <strong className="nz-metric-large">{idStats.generatedPropertyIds}</strong>
 
 
 
@@ -15753,7 +15628,7 @@ function AreaIntelligencePanel({
 
 
 
-                        <strong className="nz-text-emerald">{idStats.generatedVerticalUnits}</strong>
+                        <strong className="nz-metric-large">{idStats.generatedVerticalUnits}</strong>
 
 
 
@@ -15769,7 +15644,7 @@ function AreaIntelligencePanel({
 
 
 
-                        <strong>{idStats.validIdentities}</strong>
+                        <strong className="nz-metric-large">{idStats.validIdentities}</strong>
 
 
 
@@ -15809,7 +15684,7 @@ function AreaIntelligencePanel({
 
 
 
-                    <div className="nz-prop-item">
+                    <div className="nz-prop-item" style={{ display: "grid", gridTemplateColumns: "1fr auto", gridTemplateRows: "auto auto", alignItems: "baseline", gap: "4px 12px" }}>
 
 
 
@@ -15817,11 +15692,11 @@ function AreaIntelligencePanel({
 
 
 
-                        <strong>{idStats.unavailableIdentities}</strong>
+                        <strong style={{ gridRow: "1", gridColumn: "2" }}>{idStats.unavailableIdentities}</strong>
 
 
 
-                        <div className="nz-prop-note">Unassociated / Vacant</div>
+                        <span className="nz-prop-note" style={{ gridColumn: "1 / -1", margin: 0, fontStyle: "italic" }}>Unassociated / Vacant</span>
 
 
 
@@ -15837,7 +15712,7 @@ function AreaIntelligencePanel({
 
 
 
-                <div className="nz-prop-section-title">3. BUILT ENVIRONMENT</div>
+                <div className="nz-prop-section-title"><span className="nz-section-num">03</span><span>BUILT ENVIRONMENT</span></div>
 
 
 
@@ -15853,7 +15728,7 @@ function AreaIntelligencePanel({
 
 
 
-                        <strong>{data.totalBuildings}</strong>
+                        <strong className="nz-metric-large">{data.totalBuildings}</strong>
 
 
 
@@ -15877,7 +15752,7 @@ function AreaIntelligencePanel({
 
 
 
-                    <div className="nz-prop-item">
+                    <div className="nz-prop-item" style={{ display: "grid", gridTemplateColumns: "1fr auto", gridTemplateRows: "auto auto", alignItems: "baseline", gap: "4px 12px" }}>
 
 
 
@@ -15885,11 +15760,11 @@ function AreaIntelligencePanel({
 
 
 
-                        <strong>{data.tallestHeight.toFixed(1)} m</strong>
+                        <strong style={{ gridRow: "1", gridColumn: "2" }}>{data.tallestHeight.toFixed(1)} m</strong>
 
 
 
-                        <div className="nz-prop-note">{data.tallestBuildingId}</div>
+                        <span className="nz-prop-note" style={{ gridColumn: "1 / -1", margin: 0 }}>ID: {data.tallestBuildingId}</span>
 
 
 
@@ -15945,7 +15820,7 @@ function AreaIntelligencePanel({
 
 
 
-                        <div className="nz-prop-section-title">IDENTITY SUMMARY</div>
+                        <div className="nz-prop-section-title"><span className="nz-section-num">04</span><span>IDENTITY SUMMARY</span></div>
 
 
 
@@ -15977,7 +15852,7 @@ function AreaIntelligencePanel({
 
 
 
-                                <strong>{data.totalBuildings}</strong>
+                                <strong className="nz-metric-large">{data.totalBuildings}</strong>
 
 
 
@@ -16077,7 +15952,7 @@ function AreaIntelligencePanel({
 
 
 
-                <div className="nz-prop-section-title">REVIEW WORKFLOW</div>
+                <div className="nz-prop-section-title"><span className="nz-section-num">05</span><span>REVIEW WORKFLOW</span></div>
 
 
 
@@ -16137,11 +16012,19 @@ function AreaIntelligencePanel({
 
 
 
-                
+                <div className="nz-prop-grid" style={{ borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: "8px", marginTop: "4px" }}>
 
 
 
-                <div className="nz-prop-grid" style={{ marginTop: "8px" }}>
+                    <div className="nz-prop-item" style={{ gridColumn: "1 / -1", border: "none", padding: "0 0 4px 0" }}>
+
+
+
+                        <span className="nz-sub-header" style={{ marginTop: 0, borderTop: "none", paddingTop: 0 }}>Review State</span>
+
+
+
+                    </div>
 
 
 
@@ -16205,7 +16088,7 @@ function AreaIntelligencePanel({
 
 
 
-                    <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
 
 
 
@@ -16213,78 +16096,24 @@ function AreaIntelligencePanel({
 
 
 
-                            <div key={item.id} className="nz-prop-item nz-prop-full" style={{ padding: "6px", backgroundColor: "rgba(0,0,0,0.2)", border: item.status === "PRIORITY REVIEW" ? "1px solid rgba(248, 113, 113, 0.3)" : "1px solid rgba(251, 191, 36, 0.3)" }}>
-
-
-
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
-
-
-
-                                    <strong style={{ color: item.status === "PRIORITY REVIEW" ? "#f87171" : "#fbbf24" }}>{item.status}</strong>
-
-
-
-                                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-
-
-
-                                        <span style={{ fontSize: "11px", color: item.reviewState === "REVIEWED" ? "#4ade80" : item.reviewState === "IN REVIEW" ? "#fbbf24" : "var(--text-secondary)" }}>{item.reviewState}</span>
-
-
-
+                            <div key={item.id} className={`nz-prop-item nz-prop-full nz-review-card ${item.status === "PRIORITY REVIEW" ? "priority" : "review"}`}>
+                                <div className="nz-review-card-header">
+                                    <strong className={`nz-review-tag ${item.status === "PRIORITY REVIEW" ? "priority" : "review"}`}>{item.status}</strong>
+                                    <div className="nz-review-card-actions">
+                                        <span className={`nz-review-tag ${item.reviewState === "REVIEWED" ? "reviewed" : item.reviewState === "IN REVIEW" ? "in-review" : "unreviewed"}`}>{item.reviewState}</span>
                                         <button 
-
-
-
                                             className="nz-btn-link"
-
-
-
                                             onClick={() => onFocusBuilding(item.building)}
-
-
-
-                                            style={{ background: "none", border: "none", color: "var(--orange)", cursor: "pointer", fontSize: "11px", padding: 0 }}
-
-
-
+                                            style={{ background: "rgba(249, 115, 22, 0.15)", border: "1px solid rgba(249, 115, 22, 0.3)", borderRadius: "4px", color: "var(--orange)", cursor: "pointer", fontSize: "10px", fontWeight: 700, padding: "3px 8px" }}
                                         >
-
-
-
                                             Focus
-
-
-
                                         </button>
-
-
-
                                     </div>
-
-
-
                                 </div>
-
-
-
-                                <div style={{ fontSize: "12px", color: "#e2e8f0", fontWeight: 600 }}>{item.id}</div>
-
-
-
+                                <div style={{ fontSize: "13px", color: "#e2e8f0", fontWeight: 600 }}>{item.id}</div>
                                 <div style={{ fontSize: "11px", color: "var(--text-secondary)" }}>
-
-
-
                                     {item.mlClass} &middot; {(item.deviation * 100).toFixed(1)}% deviation
-
-
-
                                 </div>
-
-
-
                             </div>
 
 
@@ -16301,7 +16130,7 @@ function AreaIntelligencePanel({
 
 
 
-<div className="nz-prop-section-title">3D PROPERTY IDENTITIES</div>
+                <div className="nz-prop-section-title"><span className="nz-section-num">06</span><span>3D PROPERTY IDENTITIES</span></div>
 
 
 
@@ -16385,7 +16214,7 @@ function AreaIntelligencePanel({
 
 
 
-                <div className="nz-prop-section-title">VERTICAL STRUCTURE ANALYSIS</div>
+                <div className="nz-prop-section-title"><span className="nz-section-num">07</span><span>VERTICAL STRUCTURE ANALYSIS</span></div>
 
 
 
@@ -16393,7 +16222,7 @@ function AreaIntelligencePanel({
 
 
 
-                    <div className="nz-prop-item nz-prop-full">
+                    <div className="nz-prop-item" style={{ display: "grid", gridTemplateColumns: "1fr auto", gridTemplateRows: "auto auto", alignItems: "baseline", gap: "4px 12px" }}>
 
 
 
@@ -16401,11 +16230,11 @@ function AreaIntelligencePanel({
 
 
 
-                        <strong>{totalBldgs}</strong>
+                        <strong style={{ gridRow: "1", gridColumn: "2" }}>{totalBldgs}</strong>
 
 
 
-                        <div className="nz-prop-note">Based on available LiDAR-derived geometry.</div>
+                        <span className="nz-prop-note" style={{ gridColumn: "1 / -1", margin: 0 }}>Based on available LiDAR-derived geometry.</span>
 
 
 
@@ -16577,7 +16406,7 @@ function AreaIntelligencePanel({
 
 
 
-                <div className="nz-prop-section-title">{parcelsSummary ? "4. TERRAIN & SPATIAL CONTEXT" : "4. TERRAIN & SPATIAL CONTEXT"}</div>
+                <div className="nz-prop-section-title"><span className="nz-section-num">08</span><span>TERRAIN &amp; SPATIAL CONTEXT</span></div>
 
 
 
@@ -16929,7 +16758,7 @@ function AreaIntelligencePanel({
 
 
 
-                <div className="nz-prop-section-title">5. SPATIAL QUERY</div>
+                <div className="nz-prop-section-title"><span className="nz-section-num">09</span><span>SPATIAL QUERY</span></div>
 
 
 
@@ -17197,7 +17026,7 @@ function AreaIntelligencePanel({
 
 
 
-                <div className="nz-prop-section-title">6. STRUCTURAL VALIDATION</div>
+                <div className="nz-prop-section-title"><span className="nz-section-num">10</span><span>STRUCTURAL VALIDATION</span></div>
 
 
 
@@ -17317,7 +17146,7 @@ function AreaIntelligencePanel({
 
 
 
-                        <div className="nz-prop-section-title">7. ML STRUCTURAL ANALYSIS</div>
+                        <div className="nz-prop-section-title"><span className="nz-section-num">11</span><span>ML STRUCTURAL ANALYSIS</span></div>
 
 
 
@@ -17325,15 +17154,19 @@ function AreaIntelligencePanel({
 
 
 
-                            <div className="nz-prop-item nz-prop-full">
+                            <div className="nz-prop-item" style={{ display: "grid", gridTemplateColumns: "1fr auto", gridTemplateRows: "auto auto", alignItems: "baseline", gap: "4px 12px" }}>
 
 
 
-                                <span>{mlSummary.training_sample_count} properties screened</span>
+                                <span>Screened</span>
 
 
 
-                                <div className="nz-prop-note">Relative to available NZ LiDAR structures</div>
+                                <strong style={{ gridRow: "1", gridColumn: "2" }}>{mlSummary.training_sample_count}</strong>
+
+
+
+                                <span className="nz-prop-note" style={{ gridColumn: "1 / -1", margin: 0 }}>Relative to available NZ LiDAR structures</span>
 
 
 
@@ -17850,6 +17683,7 @@ function ParcelInspectorPanel({
 
 
             </div>
+            <div className="nz-property-scroll-body">
 
 
 
@@ -18365,6 +18199,7 @@ function ParcelInspectorPanel({
 
 
 
+            </div>
             </div>
 
 
@@ -26330,17 +26165,8 @@ export default function NZDigitalTwin() {
 
 
                 <ambientLight
-
-
-
-                    intensity={0.35}
-
-
-
-                    color="#dbe4ee"
-
-
-
+                    intensity={0.65}
+                    color="#f8fafc"
                 />
 
 
@@ -26354,40 +26180,12 @@ export default function NZDigitalTwin() {
 
 
                 <directionalLight
-
-
-
                     castShadow
                     shadow-mapSize={[4096, 4096]}
                     shadow-bias={-0.0005}
-                    position={[
-
-
-
-                        -350,
-
-
-
-                        480,
-
-
-
-                        260
-
-
-
-                    ]}
-
-
-
-                    intensity={2.5}
-
-
-
+                    position={[-350, 480, 260]}
+                    intensity={1.7}
                     color="#ffffff"
-
-
-
                 />
 
 
@@ -28913,6 +28711,13 @@ export default function NZDigitalTwin() {
 
 
 }
+
+
+
+
+
+
+
 
 
 
