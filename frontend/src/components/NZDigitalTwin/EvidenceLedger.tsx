@@ -42,12 +42,12 @@ export function EvidenceLedger({ evidence }: { evidence: PropertyEvidence | null
                         marginBottom: idx !== evidence.items.length - 1 ? "12px" : "0"
                     }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "8px" }}>
-                            <span style={{ fontSize: "11px", fontWeight: 600, color: "#a3a3a3", letterSpacing: "0.08em", textTransform: "uppercase" }}>{item.category}</span>
+                            <span style={{ fontSize: "10px", fontWeight: 500, color: "#8a8a8a", letterSpacing: "0.08em", textTransform: "uppercase" }}>{item.category}</span>
                             <div style={{ 
-                                fontSize: "9px", 
-                                fontWeight: 700, 
-                                padding: "2px 6px", 
-                                borderRadius: "4px", 
+                                fontSize: "8.5px",
+                                fontWeight: 600,
+                                padding: "1px 4px",
+                                borderRadius: "3px", 
                                 color: getSourceTypeColor(item.source_type),
                                 background: "rgba(255,255,255,0.05)",
                                 border: `1px solid ${getSourceTypeColor(item.source_type)}40`,
@@ -59,15 +59,15 @@ export function EvidenceLedger({ evidence }: { evidence: PropertyEvidence | null
                         </div>
                         
                         <div className="nz-property-grid" style={{ marginBottom: "0" }}>
-                            <div className="nz-prop-item">
+                            <div className="nz-prop-item nz-prop-evidence">
                                 <span>Value</span>
                                 <strong>{item.value}</strong>
                             </div>
-                            <div className="nz-prop-item">
+                            <div className="nz-prop-item nz-prop-evidence">
                                 <span>Source</span>
                                 <strong>{item.source}</strong>
                             </div>
-                            <div className="nz-prop-item" style={{ borderBottom: item.disclaimer ? "1px solid var(--border-subtle)" : "none" }}>
+                            <div className="nz-prop-item nz-prop-evidence" style={{ borderBottom: item.disclaimer ? "1px solid var(--border-subtle)" : "none" }}>
                                 <span>Method</span>
                                 <strong>{item.method}</strong>
                             </div>
@@ -83,3 +83,6 @@ export function EvidenceLedger({ evidence }: { evidence: PropertyEvidence | null
         </details>
     );
 }
+
+
+

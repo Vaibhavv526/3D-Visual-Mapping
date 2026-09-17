@@ -15684,11 +15684,19 @@ function AreaIntelligencePanel({
 
 
 
-                    <div className="nz-prop-item">
+                    <div className="nz-prop-item" style={{ display: "grid", gridTemplateColumns: "1fr auto", gridTemplateRows: "auto auto", alignItems: "baseline", gap: "4px 12px" }}>
 
 
 
-                        <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}><span>Identity Unavailable</span><span className="nz-prop-note" style={{ margin: 0 }}>Unassociated / Vacant</span></div><strong>{idStats.unavailableIdentities}</strong>
+                        <span>Identity Unavailable</span>
+
+
+
+                        <strong style={{ gridRow: "1", gridColumn: "2" }}>{idStats.unavailableIdentities}</strong>
+
+
+
+                        <span className="nz-prop-note" style={{ gridColumn: "1 / -1", margin: 0, fontStyle: "italic" }}>Unassociated / Vacant</span>
 
 
 
@@ -15744,7 +15752,7 @@ function AreaIntelligencePanel({
 
 
 
-                    <div className="nz-prop-item">
+                    <div className="nz-prop-item" style={{ display: "grid", gridTemplateColumns: "1fr auto", gridTemplateRows: "auto auto", alignItems: "baseline", gap: "4px 12px" }}>
 
 
 
@@ -15752,11 +15760,11 @@ function AreaIntelligencePanel({
 
 
 
-                        <strong>{data.tallestHeight.toFixed(1)} m</strong>
+                        <strong style={{ gridRow: "1", gridColumn: "2" }}>{data.tallestHeight.toFixed(1)} m</strong>
 
 
 
-                        <div className="nz-prop-note">{data.tallestBuildingId}</div>
+                        <span className="nz-prop-note" style={{ gridColumn: "1 / -1", margin: 0 }}>ID: {data.tallestBuildingId}</span>
 
 
 
@@ -15812,7 +15820,7 @@ function AreaIntelligencePanel({
 
 
 
-                        <div className="nz-prop-section-title">IDENTITY SUMMARY</div>
+                        <div className="nz-prop-section-title"><span className="nz-section-num">04</span><span>IDENTITY SUMMARY</span></div>
 
 
 
@@ -15944,7 +15952,7 @@ function AreaIntelligencePanel({
 
 
 
-                <div className="nz-prop-section-title">REVIEW WORKFLOW</div>
+                <div className="nz-prop-section-title"><span className="nz-section-num">05</span><span>REVIEW WORKFLOW</span></div>
 
 
 
@@ -16004,11 +16012,19 @@ function AreaIntelligencePanel({
 
 
 
-                
+                <div className="nz-prop-grid" style={{ borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: "8px", marginTop: "4px" }}>
 
 
 
-                <div className="nz-prop-grid" style={{ marginTop: "8px" }}>
+                    <div className="nz-prop-item" style={{ gridColumn: "1 / -1", border: "none", padding: "0 0 4px 0" }}>
+
+
+
+                        <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.38)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Review State</span>
+
+
+
+                    </div>
 
 
 
@@ -16168,7 +16184,7 @@ function AreaIntelligencePanel({
 
 
 
-<div className="nz-prop-section-title">3D PROPERTY IDENTITIES</div>
+                <div className="nz-prop-section-title"><span className="nz-section-num">06</span><span>3D PROPERTY IDENTITIES</span></div>
 
 
 
@@ -16252,7 +16268,7 @@ function AreaIntelligencePanel({
 
 
 
-                <div className="nz-prop-section-title">VERTICAL STRUCTURE ANALYSIS</div>
+                <div className="nz-prop-section-title"><span className="nz-section-num">07</span><span>VERTICAL STRUCTURE ANALYSIS</span></div>
 
 
 
@@ -16260,7 +16276,7 @@ function AreaIntelligencePanel({
 
 
 
-                    <div className="nz-prop-item nz-prop-full">
+                    <div className="nz-prop-item" style={{ display: "grid", gridTemplateColumns: "1fr auto", gridTemplateRows: "auto auto", alignItems: "baseline", gap: "4px 12px" }}>
 
 
 
@@ -16268,11 +16284,11 @@ function AreaIntelligencePanel({
 
 
 
-                        <strong>{totalBldgs}</strong>
+                        <strong style={{ gridRow: "1", gridColumn: "2" }}>{totalBldgs}</strong>
 
 
 
-                        <div className="nz-prop-note">Based on available LiDAR-derived geometry.</div>
+                        <span className="nz-prop-note" style={{ gridColumn: "1 / -1", margin: 0 }}>Based on available LiDAR-derived geometry.</span>
 
 
 
@@ -16444,7 +16460,7 @@ function AreaIntelligencePanel({
 
 
 
-                <div className="nz-prop-section-title">{parcelsSummary ? "4. TERRAIN & SPATIAL CONTEXT" : "4. TERRAIN & SPATIAL CONTEXT"}</div>
+                <div className="nz-prop-section-title"><span className="nz-section-num">08</span><span>TERRAIN &amp; SPATIAL CONTEXT</span></div>
 
 
 
@@ -16796,7 +16812,7 @@ function AreaIntelligencePanel({
 
 
 
-                <div className="nz-prop-section-title">5. SPATIAL QUERY</div>
+                <div className="nz-prop-section-title"><span className="nz-section-num">09</span><span>SPATIAL QUERY</span></div>
 
 
 
@@ -17064,7 +17080,7 @@ function AreaIntelligencePanel({
 
 
 
-                <div className="nz-prop-section-title">6. STRUCTURAL VALIDATION</div>
+                <div className="nz-prop-section-title"><span className="nz-section-num">10</span><span>STRUCTURAL VALIDATION</span></div>
 
 
 
@@ -17184,7 +17200,7 @@ function AreaIntelligencePanel({
 
 
 
-                        <div className="nz-prop-section-title">7. ML STRUCTURAL ANALYSIS</div>
+                        <div className="nz-prop-section-title"><span className="nz-section-num">11</span><span>ML STRUCTURAL ANALYSIS</span></div>
 
 
 
@@ -17192,15 +17208,19 @@ function AreaIntelligencePanel({
 
 
 
-                            <div className="nz-prop-item nz-prop-full">
+                            <div className="nz-prop-item" style={{ display: "grid", gridTemplateColumns: "1fr auto", gridTemplateRows: "auto auto", alignItems: "baseline", gap: "4px 12px" }}>
 
 
 
-                                <span>{mlSummary.training_sample_count} properties screened</span>
+                                <span>Screened</span>
 
 
 
-                                <div className="nz-prop-note">Relative to available NZ LiDAR structures</div>
+                                <strong style={{ gridRow: "1", gridColumn: "2" }}>{mlSummary.training_sample_count}</strong>
+
+
+
+                                <span className="nz-prop-note" style={{ gridColumn: "1 / -1", margin: 0 }}>Relative to available NZ LiDAR structures</span>
 
 
 

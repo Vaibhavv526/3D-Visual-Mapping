@@ -1689,26 +1689,33 @@ footer {
     display: grid;
     grid-template-columns: 1fr auto;
     align-items: baseline;
-    gap: 8px 16px;
-    padding: 5px 0;
+    gap: 6px 12px;
+    padding: 4px 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    transition: background 0.12s;
+    border-radius: 2px;
 }
 
 .nz-prop-item:last-child {
     border-bottom: none;
 }
 
+.nz-area-content .nz-prop-item:hover {
+    background: rgba(255,255,255,0.02);
+}
+
 .nz-prop-item span, .nz-prop-item > span:first-child {
     grid-column: 1;
-    font-size: 10px;
-    color: #8c8c8c;
-    font-weight: 500;
+    font-size: 10.5px;
+    color: rgba(255,255,255,0.54);
+    font-weight: 400;
+    letter-spacing: 0.03em;
 }
 
 .nz-prop-item strong {
     grid-column: 2;
-    font-size: 12.5px;
-    font-weight: 600;
+    font-size: 14px;
+    font-weight: 700;
     color: #ffffff;
     text-align: right;
 }
@@ -1724,8 +1731,8 @@ footer {
 
 .nz-prop-item.nz-prop-full strong, .nz-prop-item.nz-prop-span2 strong {
     text-align: left;
-    font-size: 12.5px;
-    font-weight: 600;
+    font-size: 14px;
+    font-weight: 700;
     color: #ffffff;
 }
 
@@ -2379,15 +2386,31 @@ footer {
 }
 
 
-/* Area sections */
+/* Area sections — numbered section headers */
 .nz-prop-section-title {
     font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    color: #a3a3a3;
-    margin-top: 20px;
-    margin-bottom: 12px;
+    font-weight: 700;
+    letter-spacing: 0.10em;
+    color: #e5e5e5;
+    margin-top: 28px;
+    margin-bottom: 10px;
     text-transform: uppercase;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    padding-top: 16px;
+}
+
+/* Orange anchor for numbered section prefix */
+.nz-section-num {
+    font-size: 11px;
+    font-weight: 700;
+    color: #e5e5e5;
+    border-left: 3px solid var(--orange);
+    padding-left: 6px;
+    line-height: 1;
+    flex-shrink: 0;
 }
 
 .nz-prop-grid {
@@ -3313,11 +3336,13 @@ footer {
 
 .nz-prop-note {
     grid-column: 1 / -1;
-    font-size: 10px;
-    color: #737373;
+    font-size: 10px !important;
+    color: rgba(255,255,255,0.40) !important;
+    font-weight: 400 !important;
     line-height: 1.4;
-    margin-top: 6px;
+    margin-top: 4px;
     font-style: italic;
+    letter-spacing: 0;
 }
 
 .nz-metric-large {
