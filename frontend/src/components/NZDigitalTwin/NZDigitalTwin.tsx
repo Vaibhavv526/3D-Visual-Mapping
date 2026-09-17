@@ -17350,7 +17350,7 @@ function AreaIntelligencePanel({
 
 
 
-                <div className="nz-area-prompt">
+                <div className="nz-area-prompt" style={{ marginBottom: "24px" }}>
 
 
 
@@ -17374,11 +17374,11 @@ function AreaIntelligencePanel({
 
 
 
-                <div className="nz-dossier-trigger-wrap" style={{ marginTop: "10px" }}>
+                <div className="nz-area-action-zone">
 
 
 
-                    <div className="nz-dossier-btn-row">
+                    <div className="nz-area-action-buttons">
 
 
 
@@ -17478,7 +17478,7 @@ function AreaIntelligencePanel({
 
 
 
-                    <div className="nz-prop-note">
+                    <div className="nz-area-action-caption">
 
 
 
@@ -17502,7 +17502,7 @@ function AreaIntelligencePanel({
 
 
 
-                <div className="nz-property-disclaimer" style={{ marginTop: "8px" }}>
+                <div className="nz-area-disclaimer">
 
 
 
