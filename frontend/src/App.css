@@ -3592,3 +3592,42 @@ footer {
 .nz-review-card.review {
     border: 1px solid rgba(251, 191, 36, 0.3);
 }
+/* =========================================================
+   AREA INTELLIGENCE FOOTER (ZONE 1, 2, 3)
+========================================================= */
+
+.nz-area-action-zone {
+    background: var(--bg-panel-raised);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.nz-area-action-buttons {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.nz-area-action-caption {
+    font-size: 10px;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+.nz-area-disclaimer {
+    font-size: 9px;
+    color: var(--text-muted);
+    opacity: 0.6;
+    font-weight: 400;
+    line-height: 1.6;
+    padding-bottom: 16px;
+    margin-top: 20px;
+    border-top: 1px solid var(--border-subtle);
+    padding-top: 16px;
+}
