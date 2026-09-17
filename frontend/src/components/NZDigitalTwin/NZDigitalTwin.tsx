@@ -16958,7 +16958,11 @@ function AreaIntelligencePanel({
 
 
 
-                                        <span className="nz-query-metric">{metricText}</span>
+                                        <span className="nz-query-separator">·</span>
+
+
+
+                                        <span className="nz-query-metric-badge">{metricText}</span>
 
 
 
