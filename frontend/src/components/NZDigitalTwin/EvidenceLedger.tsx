@@ -6,7 +6,7 @@ export function EvidenceLedger({ evidence }: { evidence: PropertyEvidence | null
     const getSourceTypeColor = (type: string) => {
         switch (type) {
             case "SOURCE": return "#4ade80";
-            case "DERIVED": return "#38bdf8";
+            case "DERIVED": return "#f97316";
             case "ESTIMATED": return "#a78bfa";
             case "AUTOMATED": return "#f472b6";
             case "HUMAN_REVIEW": return "#fbbf24";
@@ -25,9 +25,16 @@ export function EvidenceLedger({ evidence }: { evidence: PropertyEvidence | null
     };
 
     return (
-        <div style={{ marginBottom: "20px" }}>
-            <div className="nz-prop-section-title">PROPERTY EVIDENCE</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        <details className="nz-accordion" open>
+            <summary className="nz-accordion-header">
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span className="nz-accordion-title">PROPERTY EVIDENCE</span>
+                </div>
+                <svg className="nz-accordion-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </summary>
+            <div className="nz-accordion-content" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 {evidence.items.map((item, idx) => (
                     <div key={idx} style={{ background: "rgba(15, 23, 42, 0.4)", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.05)", padding: "10px" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "4px" }}>
@@ -41,7 +48,7 @@ export function EvidenceLedger({ evidence }: { evidence: PropertyEvidence | null
                                 borderRadius: "4px", 
                                 color: getSourceTypeColor(item.source_type),
                                 background: "rgba(255,255,255,0.05)",
-                                border: "1px solid ${getSourceTypeColor(item.source_type)}40"
+                                border: `1px solid ${getSourceTypeColor(item.source_type)}40`
                             }}>
                                 {getSourceTypeLabel(item.source_type)}
                             </div>
@@ -69,6 +76,6 @@ export function EvidenceLedger({ evidence }: { evidence: PropertyEvidence | null
                     </div>
                 ))}
             </div>
-        </div>
+        </details>
     );
 }
