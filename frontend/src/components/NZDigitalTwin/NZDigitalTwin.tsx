@@ -9481,6 +9481,7 @@ function PropertyIntelligencePanel({
 
 
 
+                <div className="nz-property-scroll-body">
                 <div className="nz-back-building-wrap" style={{ marginBottom: "16px" }}>
 
 
@@ -10394,6 +10395,7 @@ function PropertyIntelligencePanel({
 
 
             </div>
+            </div>
 
 
 
@@ -10485,6 +10487,7 @@ function PropertyIntelligencePanel({
 
 
 
+            <div className="nz-property-scroll-body">
             {parcelsAvailable && cadastralAssoc?.property_id_3d && (
 
 
@@ -14782,6 +14785,7 @@ function PropertyIntelligencePanel({
 
 
             <div style={{ height: "24px" }} />
+            </div>
 
 
 
@@ -17850,6 +17854,7 @@ function ParcelInspectorPanel({
 
 
             </div>
+            <div className="nz-property-scroll-body">
 
 
 
@@ -18365,6 +18370,7 @@ function ParcelInspectorPanel({
 
 
 
+            </div>
             </div>
 
 

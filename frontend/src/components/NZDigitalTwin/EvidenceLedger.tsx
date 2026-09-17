@@ -36,11 +36,13 @@ export function EvidenceLedger({ evidence }: { evidence: PropertyEvidence | null
             </summary>
             <div className="nz-accordion-content" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 {evidence.items.map((item, idx) => (
-                    <div key={idx} style={{ background: "rgba(15, 23, 42, 0.4)", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.05)", padding: "10px" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "4px" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                                <span style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8" }}>{item.category}</span>
-                            </div>
+                    <div key={idx} style={{ 
+                        borderBottom: idx !== evidence.items.length - 1 ? "1px solid var(--border-subtle)" : "none",
+                        paddingBottom: idx !== evidence.items.length - 1 ? "12px" : "0",
+                        marginBottom: idx !== evidence.items.length - 1 ? "12px" : "0"
+                    }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "8px" }}>
+                            <span style={{ fontSize: "11px", fontWeight: 600, color: "#a3a3a3", letterSpacing: "0.08em", textTransform: "uppercase" }}>{item.category}</span>
                             <div style={{ 
                                 fontSize: "9px", 
                                 fontWeight: 700, 
@@ -48,28 +50,30 @@ export function EvidenceLedger({ evidence }: { evidence: PropertyEvidence | null
                                 borderRadius: "4px", 
                                 color: getSourceTypeColor(item.source_type),
                                 background: "rgba(255,255,255,0.05)",
-                                border: `1px solid ${getSourceTypeColor(item.source_type)}40`
+                                border: `1px solid ${getSourceTypeColor(item.source_type)}40`,
+                                letterSpacing: "0.06em",
+                                whiteSpace: "nowrap"
                             }}>
                                 {getSourceTypeLabel(item.source_type)}
                             </div>
                         </div>
                         
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: "6px" }}>
-                            <div>
-                                <div style={{ fontSize: "9px", color: "#64748b" }}>Value</div>
-                                <div style={{ fontSize: "12px", color: "#f8fafc", fontWeight: 600 }}>{item.value}</div>
+                        <div className="nz-property-grid" style={{ marginBottom: "0" }}>
+                            <div className="nz-prop-item">
+                                <span>Value</span>
+                                <strong>{item.value}</strong>
                             </div>
-                            <div>
-                                <div style={{ fontSize: "9px", color: "#64748b" }}>Source</div>
-                                <div style={{ fontSize: "11px", color: "#e2e8f0" }}>{item.source}</div>
+                            <div className="nz-prop-item">
+                                <span>Source</span>
+                                <strong>{item.source}</strong>
                             </div>
-                            <div>
-                                <div style={{ fontSize: "9px", color: "#64748b" }}>Method</div>
-                                <div style={{ fontSize: "11px", color: "#cbd5e1" }}>{item.method}</div>
+                            <div className="nz-prop-item" style={{ borderBottom: item.disclaimer ? "1px solid var(--border-subtle)" : "none" }}>
+                                <span>Method</span>
+                                <strong>{item.method}</strong>
                             </div>
                         </div>
                         {item.disclaimer && (
-                            <div style={{ marginTop: "8px", fontSize: "10px", color: "#94a3b8", fontStyle: "italic", borderTop: "1px dashed rgba(255,255,255,0.1)", paddingTop: "6px" }}>
+                            <div style={{ marginTop: "6px", fontSize: "10px", color: "var(--text-muted)", fontStyle: "italic", lineHeight: "1.4" }}>
                                 {item.disclaimer}
                             </div>
                         )}
