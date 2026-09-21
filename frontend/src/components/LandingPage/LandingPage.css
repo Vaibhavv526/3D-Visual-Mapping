@@ -177,15 +177,16 @@
   width: 40px;
   height: 2px;
   background-color: var(--accent);
-  margin-bottom: 32px;
+  margin-bottom: 20px; /* hugs the heading — reads as its eyebrow, not a floating rule */
 }
 
 .hero-centered h1 {
-  font-size: clamp(48px, 6vw, 84px);
+  /* −19% vs the previous 48/6vw/84: bold but no longer viewport-spanning */
+  font-size: clamp(40px, 4.9vw, 68px);
   font-weight: 700;
   line-height: 1.1;
   letter-spacing: -0.02em;
-  margin-bottom: 24px;
+  margin-bottom: 32px;
 }
 
 .hero-description {
@@ -194,6 +195,8 @@
   color: var(--text-secondary);
   max-width: 600px;
   margin-bottom: 40px;
+  /* Legibility over the point cloud — invisible as a treatment, no card/blur */
+  text-shadow: 0 1px 14px rgba(0, 0, 0, 0.6);
 }
 
 .hero-ctas-centered {
@@ -329,6 +332,13 @@
   font-size: 20px;
   margin-bottom: 32px;
 }
+
+/* Step 01 ("LiDAR") is a short block — its tall margins read sparse next to
+   the longer Step 02. Pull its counter/title/description closer so every step
+   shares the same designed rhythm. Other steps keep their existing spacing. */
+.step-text-block:first-child .step-counter { margin-bottom: 14px; }
+.step-text-block:first-child h2 { margin-bottom: 14px; }
+.step-text-block:first-child p { margin-bottom: 18px; }
 
 /* Responsive — stack text to top on tablet/mobile */
 @media (max-width: 1024px) {
