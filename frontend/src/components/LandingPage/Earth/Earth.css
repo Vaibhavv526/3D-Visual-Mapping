@@ -1,0 +1,89 @@
+/* ============================================================
+   Earth Canvas Wrapper
+   Fills its parent container (hero-motion-bg-placeholder).
+   The Canvas itself is transparent — background comes from
+   the LandingPage hero section.
+
+   COMPOSITION OFFSET
+   ──────────────────
+   transform: translate(X, Y) shifts the entire canvas div
+   relative to its own size, which equals the hero viewport.
+   Because the Three.js Earth renders at the canvas center,
+   this moves the Earth center to (50% + X, 50% + Y) of the
+   hero — placing it right-of-centre and slightly below.
+
+   Overflow is clipped by .hero-motion-bg-placeholder which
+   already has overflow: hidden, so nothing bleeds outside
+   the hero section.
+   ============================================================ */
+
+.earth-canvas-wrapper {
+  position: absolute;
+  inset: 0;
+  /*
+   * --earth-center-glide: 1 = hero composition (right-of-centre, low).
+   *                        0 = Earth layer exactly centred. The LandingPage
+   * scroll handler drives this var during the NZ → Digital Twin transition
+   * so the deep zoom converges on New Zealand instead of pushing it off-frame.
+   */
+  --earth-center-glide: 1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* hero text stays interactive above */
+  z-index: 0;
+
+  /*
+   * Desktop composition — Earth sits right-of-centre, slightly low.
+   * translate(X%, Y%) is relative to the element's own width/height,
+   * which equals the hero viewport dimensions:
+   *   18% horiz  ≈ 18% of viewport width  → satisfies "15–20%"
+   *   10% vert   ≈ 10% of viewport height → satisfies "8–12%"
+   */
+  transform: translate(
+    calc(18% * var(--earth-center-glide, 1)),
+    calc(10% * var(--earth-center-glide, 1))
+  );
+}
+
+/* Give the Three.js canvas full dimensions */
+.earth-canvas-wrapper canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* When used in a positioned hero context, ensure it doesn't leak */
+.earth-canvas-wrapper * {
+  outline: none;
+}
+
+/* ── Responsive offsets ─────────────────────────────────────── */
+
+/*
+ * Tablet (769 – 1024 px):
+ * Reduce horizontal shift so the Earth stays mostly visible
+ * while still leaning right.
+ */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .earth-canvas-wrapper {
+    transform: translate(
+      calc(10% * var(--earth-center-glide, 1)),
+      calc(9% * var(--earth-center-glide, 1))
+    );
+  }
+}
+
+/*
+ * Mobile (≤ 768 px):
+ * Minimal horizontal shift — prevents the Earth from leaving
+ * the viewport. A small downward offset keeps it from
+ * obscuring the headline too heavily.
+ */
+@media (max-width: 768px) {
+  .earth-canvas-wrapper {
+    transform: translate(
+      calc(5% * var(--earth-center-glide, 1)),
+      calc(6% * var(--earth-center-glide, 1))
+    );
+  }
+}

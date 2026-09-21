@@ -1,0 +1,47 @@
+
+> frontend@0.0.0 dev
+> vite --port 5199 --strictPort
+
+
+  [32m[1mVITE[22m v8.2.2[39m  [2mready in [0m[1m432[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5199[22m/[39m
+[2m  [32m➜[39m  [1mNetwork[22m[2m: use [22m[1m--host[22m[2m to expose[22m
+[2m7:46:35 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/LandingPage/LandingPage.css[22m
+[2m8:57:57 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/LandingPage/LandingPage.tsx[22m
+[2m8:59:05 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/LandingPage/LandingPage.css[22m
+[2m9:05:39 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/LandingPage/LandingPage.css[22m
+[2m9:06:08 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/LandingPage/LandingPage.tsx[22m
+[2m9:06:18 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/LandingPage/LandingPage.css[22m
+[2m9:09:45 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/LandingPage/LandingPage.css[22m
+[2m9:24:20 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/NZDigitalTwin/NZDigitalTwin.tsx[22m
+[2m9:24:20 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/components/NZDigitalTwin/NZDigitalTwin.tsx[22m Could not Fast Refresh ("CAMERA_PRESETS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m9:24:20 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/LandingPage/LandingPage.tsx[22m
+[2m10:25:50 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/NZDigitalTwin/NZDigitalTwin.tsx[22m
+[2m10:25:51 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/components/NZDigitalTwin/NZDigitalTwin.tsx[22m Could not Fast Refresh ("CAMERA_PRESETS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m10:25:51 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/LandingPage/LandingPage.tsx[22m
+[2m10:26:03 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/NZDigitalTwin/NZDigitalTwin.tsx[22m
+[2m10:26:03 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/components/NZDigitalTwin/NZDigitalTwin.tsx[22m Could not Fast Refresh ("CAMERA_PRESETS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m10:26:03 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/LandingPage/LandingPage.tsx[22m
+[2m10:26:15 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/NZDigitalTwin/NZDigitalTwin.tsx[22m
+[2m10:26:16 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/components/NZDigitalTwin/NZDigitalTwin.tsx[22m Could not Fast Refresh ("CAMERA_PRESETS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m10:26:16 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/LandingPage/LandingPage.tsx[22m
+[2m10:26:34 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/NZDigitalTwin/NZDigitalTwin.tsx[22m
+[2m10:26:34 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/components/NZDigitalTwin/NZDigitalTwin.tsx[22m Could not Fast Refresh ("CAMERA_PRESETS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m10:26:34 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/LandingPage/LandingPage.tsx[22m
+[2m10:26:50 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/NZDigitalTwin/NZCameraConstraints.tsx[22m
+[2m10:27:28 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/NZDigitalTwin/NZCameraConstraints.tsx[22m
+[2m10:42:02 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/NZDigitalTwin/NZDigitalTwin.tsx[22m
+[2m10:42:02 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/components/NZDigitalTwin/NZDigitalTwin.tsx[22m Could not Fast Refresh ("CAMERA_PRESETS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m10:42:02 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/LandingPage/LandingPage.tsx[22m
+[2m10:45:29 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/NZDigitalTwin/NZDigitalTwin.tsx[22m
+[2m10:45:29 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/components/NZDigitalTwin/NZDigitalTwin.tsx[22m Could not Fast Refresh ("CAMERA_PRESETS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m10:45:29 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/LandingPage/LandingPage.tsx[22m
+[2m10:50:13 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/NZDigitalTwin/NZDigitalTwin.tsx[22m
+[2m10:50:13 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/components/NZDigitalTwin/NZDigitalTwin.tsx[22m Could not Fast Refresh ("CAMERA_PRESETS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m10:50:13 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/LandingPage/LandingPage.tsx[22m
+[2m11:21:52 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/LandingPage/LandingPage.tsx[22m
+[2m11:32:50 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/LandingPage/LandingPage.tsx[22m
+[2m11:56:15 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/NZDigitalTwin/NZDigitalTwin.tsx[22m
+[2m11:56:15 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/components/NZDigitalTwin/NZDigitalTwin.tsx[22m Could not Fast Refresh ("CAMERA_PRESETS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m11:56:15 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/LandingPage/LandingPage.tsx[22m

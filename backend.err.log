@@ -1,0 +1,13 @@
+INFO:     Started server process [8200]
+INFO:     Waiting for application startup.
+INFO:     [STARTUP] Pre-warming NZ Digital Twin in-memory cache...
+INFO:     [PERF:CACHE] Warming NZ terrain cache...
+INFO:     [PERF:CACHE] NZ terrain cached in 5.896s: 78.29 MB raw, 12.67 MB gzip
+INFO:     [PERF:CACHE] Warming NZ buildings cache...
+INFO:     [PERF:CACHE] NZ buildings cached in 2.409s: 2.41 MB raw, 0.33 MB gzip (56 buildings)
+INFO:     [PERF:CACHE] Warming NZ parcels cache...
+INFO:     [PERF:CACHE] NZ parcels cached in 0.007s: 168.0 KB raw, 14.3 KB gzip (31 parcels)
+INFO:     Application startup complete.
+ERROR:    [Errno 10048] error while attempting to bind on address ('127.0.0.1', 8000): [winerror 10048] only one usage of each socket address (protocol/network address/port) is normally permitted
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.

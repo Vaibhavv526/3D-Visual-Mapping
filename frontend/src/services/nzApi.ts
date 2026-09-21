@@ -339,7 +339,10 @@ export function validate3DProperty(
         else if (check.status === "NOT_AVAILABLE") unavailableCount++;
     };
 
-    if (!building) {
+    // Guard: missing building OR malformed geometry (e.g. an unexpected
+    // selection shape) degrades to NOT_AVAILABLE instead of throwing inside a
+    // render path — a throw here unmounts the whole twin (no error boundary).
+    if (!building || !Array.isArray(building.vertices) || !Array.isArray(building.faces) || !building.bounds) {
         return {
             overallStatus: "NOT_AVAILABLE",
             passCount: 0,
