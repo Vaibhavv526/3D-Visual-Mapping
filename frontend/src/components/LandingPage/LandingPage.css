@@ -148,16 +148,19 @@
 }
 
 /* 2. HERO */
+/* Composition: heading in the upper-middle, Earth owns the centre/lower
+   viewport. Content flows from the top; the stats pill follows in-flow so the
+   globe is never covered by a pinned UI block. */
 .hero-centered {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
   position: relative;
   max-width: 1640px;
   margin: 0 auto;
-  padding: 120px 48px 40px;
+  padding: 96px 48px 40px;
   text-align: center;
 }
 
@@ -166,7 +169,7 @@
   flex-direction: column;
   align-items: center;
   max-width: 800px;
-  margin: auto auto 0 auto;
+  margin: 0 auto;
   z-index: 10;
 }
 
@@ -206,8 +209,8 @@
 
 
 .hero-stats-pill-container {
-  margin-top: auto; /* pushes pill to bottom */
-  padding-top: 80px;
+  margin-top: 64px;
+  padding-top: 0;
   width: 100%;
   display: flex;
   justify-content: center;
@@ -559,6 +562,25 @@
 }
 
 @media (max-width: 768px) {
+  .hero-centered {
+    padding: 84px 24px 32px;
+  }
+  /* Compress the stack so the Earth stays visible under the content */
+  .eyebrow-line-centered {
+    margin-bottom: 20px;
+  }
+  .hero-centered h1 {
+    font-size: clamp(34px, 10vw, 44px);
+    margin-bottom: 16px;
+  }
+  .hero-description {
+    font-size: 15px;
+    margin-bottom: 28px;
+  }
+  .hero-stats-pill-container {
+    margin-top: 44px;
+  }
+
   .hero {
     grid-template-columns: 1fr;
     padding: 100px 24px 40px;
@@ -641,21 +663,49 @@
   }
 }
 
+/* Scroll cue: minimal edge treatment (right side), clear of the globe's
+   focal area. Non-interactive (inherits the hero's pointer-events: none). */
 .scroll-cue {
   position: absolute;
-  bottom: 40px;
-  left: 50%;
-  transform: translateX(-50%);
-  color: var(--accent);
-  font-size: 24px;
-  animation: bounce 2s infinite;
+  bottom: 36px;
+  right: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
   z-index: 10;
-  transition: opacity 0.3s;
+  pointer-events: none;
 }
-@keyframes bounce {
-  0%, 20%, 50%, 80%, 100% { transform: translateY(0) translateX(-50%); }
-  40% { transform: translateY(-20px) translateX(-50%); }
-  60% { transform: translateY(-10px) translateX(-50%); }
+.scroll-cue-label {
+  font-size: 10px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+.scroll-cue-line {
+  width: 1px;
+  height: 44px;
+  background: linear-gradient(to bottom, var(--accent), transparent);
+  opacity: 0.55;
+}
+.scroll-cue-chevron {
+  width: 12px;
+  height: 12px;
+  color: var(--accent);
+  opacity: 0.7;
+  animation: cue-drift 2.6s ease-in-out infinite;
+}
+@keyframes cue-drift {
+  0%, 100% { transform: translateY(0); opacity: 0.7; }
+  50% { transform: translateY(5px); opacity: 0.35; }
+}
+/* Mobile: the stats pill owns the hero bottom — the cue stays off it.
+   (Must follow the base rule: later source order wins the cascade.) */
+@media (max-width: 768px) {
+  .scroll-cue {
+    display: none;
+  }
 }
 .side-dots {
   position: absolute;
