@@ -69,10 +69,14 @@ interface EarthStop {
 // scale 1.70 → 26.2° (NZ: generous zoom, island clearly visible)
 const EARTH_STOPS: EarthStop[] = [
   { label: 'Hero',          lat:  23.4, lon:    0, scale: 1.00 }, // 0
-  { label: 'North America', lat:  38,   lon: -100, scale: 1.45 }, // 1
-  { label: 'Europe',        lat:  50,   lon:   10, scale: 1.50 }, // 2
-  { label: 'Asia',          lat:  35,   lon:  105, scale: 1.45 }, // 3
-  { label: 'Africa',        lat:   5,   lon:   20, scale: 1.50 }, // 4
+  // Pipeline targets are land-biased (labels unchanged): each dwell frame shows
+  // continent interior, and the great-circle legs exit/enter along coasts and
+  // archipelagos instead of long open-ocean frames (which read as a black
+  // coastline-only sphere mid-travel).
+  { label: 'North America', lat:  43,   lon: -78, scale: 1.45 }, // 1  NE US / Great Lakes
+  { label: 'Europe',        lat:  49,   lon:  16, scale: 1.50 }, // 2  Central Europe
+  { label: 'Asia',          lat:  28,   lon: 112, scale: 1.45 }, // 3  S China / SE Asia — Indonesia fills the Asia→NZ leg
+  { label: 'Africa',        lat:  12,   lon:  22, scale: 1.50 }, // 4  Sahara/Sahel — Arabia+India edge the Africa→NZ leg
   { label: 'New Zealand',   lat: -41,   lon:  174, scale: 1.70 }, // 5
 ];
 

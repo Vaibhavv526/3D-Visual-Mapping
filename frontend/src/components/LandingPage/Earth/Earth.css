@@ -33,15 +33,14 @@
   z-index: 0;
 
   /*
-   * Desktop composition — Earth sits right-of-centre, slightly low.
+   * Desktop composition — Earth sits right-of-centre and low, its top edge
+   * beginning under the heading/description block rather than behind it.
    * translate(X%, Y%) is relative to the element's own width/height,
-   * which equals the hero viewport dimensions:
-   *   18% horiz  ≈ 18% of viewport width  → satisfies "15–20%"
-   *   10% vert   ≈ 10% of viewport height → satisfies "8–12%"
+   * which equals the hero viewport dimensions.
    */
   transform: translate(
-    calc(18% * var(--earth-center-glide, 1)),
-    calc(10% * var(--earth-center-glide, 1))
+    calc(21% * var(--earth-center-glide, 1)),
+    calc(19% * var(--earth-center-glide, 1))
   );
 }
 
@@ -67,8 +66,8 @@
 @media (min-width: 769px) and (max-width: 1024px) {
   .earth-canvas-wrapper {
     transform: translate(
-      calc(10% * var(--earth-center-glide, 1)),
-      calc(9% * var(--earth-center-glide, 1))
+      calc(12% * var(--earth-center-glide, 1)),
+      calc(15% * var(--earth-center-glide, 1))
     );
   }
 }
@@ -83,7 +82,7 @@
   .earth-canvas-wrapper {
     transform: translate(
       calc(5% * var(--earth-center-glide, 1)),
-      calc(6% * var(--earth-center-glide, 1))
+      calc(10% * var(--earth-center-glide, 1))
     );
   }
 }
