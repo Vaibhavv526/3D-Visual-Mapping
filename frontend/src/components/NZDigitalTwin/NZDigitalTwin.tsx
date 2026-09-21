@@ -6785,9 +6785,14 @@ function NZBuildingMesh({
                 <meshStandardMaterial
                     vertexColors={true}
                     side={THREE.DoubleSide}
-                    roughness={isOrigin || isTarget ? 0.75 : isDeemphasized ? 0.88 : 0.85}
+                    flatShading={true}
+                    roughness={isOrigin || isTarget ? 0.75 : isDeemphasized ? 0.88 : 0.72}
                     metalness={0.0}
-                    color={isOrigin || isTarget ? "#3a3f45" : isHovered ? "#52525b" : isDeemphasized ? "#272a2e" : "#3f3f46"}
+                    // Base color MULTIPLIES the per-vertex Sentinel-2 RGB. The old
+                    // #3f3f46 (≈0.06 linear) crushed buildings into the terrain;
+                    // lifted bases keep them dark-technical but readable, and flat
+                    // shading separates roofs from walls without extra geometry.
+                    color={isOrigin || isTarget ? "#3a3f45" : isHovered ? "#b8b8c2" : isDeemphasized ? "#272a2e" : "#9a9aa4"}
                     transparent={isDeemphasized}
                     opacity={isDeemphasized ? 0.6 : 1.0}
                     depthWrite={true}
