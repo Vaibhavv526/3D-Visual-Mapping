@@ -464,7 +464,7 @@ const LandingPage: React.FC = () => {
             - Earth is always visible
             - Map is faded in during cinematic transition
           */}
-          <div style={reducedMotion ? {} : { position: 'sticky', top: 0, height: '100vh', overflow: 'hidden', zIndex: 0 }}>
+          <div style={reducedMotion ? {} : { position: 'sticky', top: 0, height: '100vh', overflow: 'hidden', zIndex: 0, marginBottom: '-100vh' }}>
             {/* Map Layer (Cinematic Mode Only) — UNDER the Earth so the Digital
                 Twin emerges behind the still-visible geographic point cloud */}
             {!reducedMotion && (
@@ -507,6 +507,15 @@ const LandingPage: React.FC = () => {
                 <button className="cta-btn orange-btn">Open 3D Digital Twin &rarr;</button>
                 <a href="#pipeline" className="ghost-link">View pipeline &darr;</a>
               </div>
+            </div>
+
+            {/* Minimal edge scroll cue — clear of the globe focal area */}
+            <div className="scroll-cue" aria-hidden="true">
+              <span className="scroll-cue-label">Scroll</span>
+              <span className="scroll-cue-line" />
+              <svg className="scroll-cue-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M6 9l6 6 6-6" />
+              </svg>
             </div>
 
             {/* Floating Stats Pill */}
