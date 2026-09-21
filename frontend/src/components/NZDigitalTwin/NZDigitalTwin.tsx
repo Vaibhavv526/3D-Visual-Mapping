@@ -58,23 +58,11 @@ import {
 
 
 
-} from "@react-three/fiber";
-
-
-
-
-
-
-
-import {
-
-
-
+} from "@react-three/fiber";import {
     OrbitControls
-
-
-
 } from "@react-three/drei";
+
+import { NZCameraConstraints, type CameraBounds } from "./NZCameraConstraints";
 
 
 
@@ -22848,23 +22836,32 @@ export default function NZDigitalTwin() {
 
 
 
-            height,
-
-
-
-            areaM2,
-
-
-
+            height,            areaM2,
             areaHa
-
-
-
         };
-
-
-
     }, [terrain]);
+
+    // Camera constraint bounds — straight from the loaded terrain extent.
+    // terrainMeta.minY/maxY are RAW NZTM northings (vertex[1]); the mesh build
+    // maps world Y = (elevation − elevationMean) × Z_EXAGGERATION (see
+    // NZTerrainMesh), so the clamp box must mirror that exact transform.
+    const cameraBounds = useMemo<CameraBounds | null>(() => {
+        if (!terrainMeta || !terrain) return null;
+        const Z_EXAGGERATION = 1.5; // must match NZTerrainMesh
+        let eMin = Infinity;
+        let eMax = -Infinity;
+        for (const e of terrain.elevation) {
+            if (e < eMin) eMin = e;
+            if (e > eMax) eMax = e;
+        }
+        const elevationMean = terrainMeta.elevationMean;
+        return {
+            halfX: terrainMeta.width / 2,
+            halfZ: terrainMeta.height / 2,
+            minY: (eMin - elevationMean) * Z_EXAGGERATION,
+            maxY: (eMax - elevationMean) * Z_EXAGGERATION
+        };
+    }, [terrainMeta, terrain]);
 
 
 
@@ -26120,23 +26117,7 @@ export default function NZDigitalTwin() {
 
 
 
-            </div>
-
-
-
-
-
-
-
-            <Canvas
-                shadows
-                dpr={[1, 2]}
-                gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
-                camera={{
-                    position: [360, 240, 480],
-                    fov: 45
-                }}
-            >
+            </div>            <Canvas                shadows                dpr={[1, 2]}                gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}                camera={{                    position: [360, 240, 480],                    fov: 45                }}                onPointerMissed={() => {                    // Click on empty space (no building/parcel/UI handler caught it):                    // clear selection so the property panel closes. R3F does NOT fire                    // this after an orbit drag, so camera interaction is unaffected.                    setSelectedBuilding(null);                    setSelectedParcel(null);                }}            >
 
 
 
@@ -26562,15 +26543,10 @@ export default function NZDigitalTwin() {
 
 
 
-                    dampingFactor={0.08}
-
-
-
-                    minDistance={50}
-
-
-
+                    dampingFactor={0.08}                    minDistance={50}
                     maxDistance={1400}
+                    minPolarAngle={0.05}
+                    maxPolarAngle={1.4}
 
 
 
@@ -26610,23 +26586,14 @@ export default function NZDigitalTwin() {
 
 
 
-                    buildingSceneInfoMap={buildingSceneInfoMap}
-
-
-
-                    controlsRef={controlsRef}
-
-
-
+                    buildingSceneInfoMap={buildingSceneInfoMap}                    controlsRef={controlsRef}
                     presetRequest={cameraPresetRequest}
-
-
-
                     onUserOrbit={() => setActivePreset(null)}
-
-
-
                 />
+
+                {/* Keep the camera tied to the real site: pan clamp, zoom band,
+                    and no under-terrain orbits. See NZCameraConstraints.tsx. */}
+                <NZCameraConstraints bounds={cameraBounds} />
 
 
 

@@ -289,13 +289,14 @@
 }
 
 .pipeline-text-col {
+  /* Left half — Earth occupies the right half via its own absolute/sticky layer */
   width: 50%;
   padding-right: 80px;
   padding-bottom: 30vh;
 }
 
 .step-text-block {
-  height: 100vh;
+  height: 120vh;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -326,147 +327,19 @@
   margin-bottom: 32px;
 }
 
-.pipeline-visual-col {
-  width: 50%;
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.sticky-visual-wrapper {
-  position: relative;
-  width: 100%;
-  max-width: 600px;
-  aspect-ratio: 1 / 1;
-  border-radius: 40px;
-  background: linear-gradient(145deg, rgba(30,30,30,0.4) 0%, rgba(10,10,10,0.8) 100%);
-  border: 1px solid rgba(255,255,255,0.05);
-  box-shadow: 0 30px 60px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.1);
-  overflow: hidden;
-}
-
-.glow-orb {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 80%;
-  height: 80%;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.15;
-  transition: background 1s ease;
-  z-index: 0;
-}
-
-.glow-orb.step-0 { background: #e8650a; }
-.glow-orb.step-1 { background: #3b82f6; }
-.glow-orb.step-2 { background: #a855f7; }
-.glow-orb.step-3 { background: #22c55e; }
-.glow-orb.step-4 { background: #ef4444; }
-
-.svg-visual {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  padding: 40px;
-  z-index: 1;
-  opacity: 0;
-  transform: scale(0.9) translateY(20px);
-  transition: opacity 0.8s cubic-bezier(0.22, 1, 0.36, 1), transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
-  pointer-events: none;
-}
-
-.svg-visual.active {
-  opacity: 1;
-  transform: scale(1) translateY(0);
-}
-
-/* Animations */
-@keyframes pulseAnim {
-  0%, 100% { opacity: 0.4; transform: scale(0.8); }
-  50% { opacity: 1; transform: scale(1.2); }
-}
-.anim-pulse {
-  animation: pulseAnim 2s infinite ease-in-out;
-  transform-origin: center;
-  transform-box: fill-box;
-}
-
-@keyframes dashAnim {
-  to { stroke-dashoffset: -20; }
-}
-.anim-dash {
-  stroke-dasharray: 4 4;
-  animation: dashAnim 2s linear infinite;
-}
-
-@keyframes bounceAnim {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-5px); }
-}
-.anim-bounce {
-  animation: bounceAnim 3s infinite ease-in-out;
-  transform-origin: center;
-  transform-box: fill-box;
-}
-
-@keyframes drawAnim {
-  0% { stroke-dasharray: 200; stroke-dashoffset: 200; }
-  100% { stroke-dasharray: 200; stroke-dashoffset: 0; }
-}
-.active .anim-draw {
-  animation: drawAnim 2s ease-out forwards;
-}
-
-@keyframes fadeInAnim {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-.active .anim-fade-in {
-  animation: fadeInAnim 1s ease forwards;
-}
-
-@keyframes scaleUpAnim {
-  0% { transform: scale(0); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
-}
-.active .anim-scale-up {
-  animation: scaleUpAnim 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-  transform-origin: center;
-  transform-box: fill-box;
-}
-
-/* Responsive */
+/* Responsive — stack text to top on tablet/mobile */
 @media (max-width: 1024px) {
-  .pipeline-premium-container {
-    flex-direction: column;
-  }
-  .pipeline-text-col, .pipeline-visual-col {
-    width: 100%;
-    padding: 0;
-  }
-  .pipeline-visual-col {
-    position: sticky;
-    top: 80px;
-    height: 50vh;
-    order: -1;
-    background: var(--bg-dark);
-    z-index: 50;
-  }
-  .step-text-block {
-    height: auto;
-    padding: 100px 0;
-  }
   .pipeline-text-col {
+    width: 100%;
+    padding-right: 0;
     padding-bottom: 100px;
   }
+  .step-text-block {
+    height: 100vh;
+    padding: 20vh 0 10vh 0;
+    justify-content: center;
+  }
 }
-
 
 /* 5. CAPABILITIES */
 .capabilities-section {
@@ -533,6 +406,19 @@
   margin-bottom: 32px;
 }
 
+/* Clear the fixed 52px navbar with real layout spacing — the header must be
+   fully visible before the map card begins (no z-index tricks). The card then
+   flex-fills the remaining height. */
+.map-section {
+  padding-top: 72px; /* 52px navbar + breathing space */
+  padding-bottom: 16px;
+}
+.map-section #map-container {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+}
+
 .map-header-left h2 {
   font-size: 32px;
   margin-top: 16px;
@@ -556,13 +442,79 @@
 
 #map-container {
   width: 100%;
-  height: min(78vh, 850px);
-  min-height: 600px;
+  /* Section is a 100vh flex column with 72px top / 28px bottom padding and a
+     ~122px header — sizing the card to the remainder keeps the header fully
+     visible below the navbar and the card inside the viewport. */
+  height: min(72vh, 780px);
+  min-height: 480px;
   border-radius: 12px;
   border: 0.5px solid var(--border-medium);
   overflow: hidden;
   position: relative;
   background-color: var(--surface-1);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NZ → Digital Twin transition — TERRAIN / UI layer split
+
+   The twin renders <div class="nz-twin"> with its terrain <Canvas> as an
+   UNCLASSED direct child and all chrome (search bar, panels, overlays) as
+   classed children. This lets us fade chrome separately from terrain via a
+   scroll-scrubbed CSS var (--nz-ui-op, written directly in the scroll
+   handler — no CSS animations, no React state, pure scroll scrubbing).
+   Reverses perfectly; at 100% every value is 1 and the map is pixel-identical
+   to a normal Digital Twin.
+   ═════════════════════════════════════════════════════════════════════ */
+
+/* Chrome only: classed children of .nz-twin (search bar, panels, overlays).
+   Effective opacity = terrain (wrapper) × ui (this) → UI arrives strictly
+   after the terrain. The terrain canvas is an UNCLASSED child and inherits
+   only the wrapper's terrain fade. */
+.nz-twin > [class] {
+  opacity: var(--nz-ui-op, 1);
+}
+
+/* Map header (LandingPage markup) rises in with the UI layer.
+   Movement is driven by --nz-ui-move (1 = fully offset 24px/0.975, 0 = rest),
+   a separate scroll-scrubbed track from opacity — eased reveal from terrain. */
+.nz-ui-reveal {
+  opacity: var(--nz-ui-op, 1);
+  transform: translateY(calc(var(--nz-ui-move, 0) * 24px))
+    scale(calc(1 - var(--nz-ui-move, 0) * 0.025));
+  /* Interactivity is gated by the map wrapper's pointer-events; no extra rule
+     needed here — while the wrapper is pointer-events:none the header cannot
+     receive clicks either. */
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Digital Twin interaction — Earth event punch-through fix
+
+   @react-three/fiber writes `pointer-events: auto` INLINE on its Canvas
+   container div, which defeats any CSS `pointer-events: none` on the
+   wrapper above it. In the sticky hero/pipeline stack the Earth layer is
+   the LATER sibling of the map layer, so the Earth canvas ends up on top
+   of the Digital Twin: it swallowed clicks aimed at the twin's DOM chrome
+   (search input, toolbar, panels) and intercepted the pointer events the
+   twin's R3F raycasting needs for building selection — leaving only some
+   controls reachable, depending on which twin overlay happened to stack
+   higher. The Earth canvas has no pointer handlers of its own (verified:
+   zero onPointer/onClick/onPointerDown in Earth.tsx), so its event surface
+   is dead weight in every scroll state:
+
+     • while the map wrapper is pointer-events:none (transition scrub) it
+       cannot shield the twin from the Earth canvas above it;
+     • once the twin is interactive, the Earth canvas still covers it.
+
+   These rules disable the Earth event surface for the whole lifecycle
+   WITHOUT touching Earth.tsx, its rendering, or NZDigitalTwin. Not part of
+   the scrubbed state at all, so reverse scroll is unaffected. The twin's
+   own canvas keeps its default interactive behavior and remains gated only
+   by the existing scroll-scrubbed map-wrapper pointerEvents.
+   ═══════════════════════════════════════════════════════════════════════ */
+.earth-canvas-wrapper,
+.earth-canvas-wrapper > div,
+.earth-canvas-wrapper canvas {
+  pointer-events: none !important;
 }
 
 .map-fade {
@@ -660,7 +612,7 @@
   }
 
   .map-section {
-    padding: 0 24px;
+    padding: 64px 24px 12px; /* keep navbar clearance at mobile widths too */
   }
 
   .map-header {
