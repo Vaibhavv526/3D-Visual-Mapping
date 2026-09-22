@@ -1,0 +1,102 @@
+INFO:     Started server process [9496]
+INFO:     Waiting for application startup.
+INFO:     [STARTUP] Pre-warming NZ Digital Twin in-memory cache...
+INFO:     [PERF:CACHE] Warming NZ terrain cache...
+INFO:     [PERF:CACHE] NZ terrain cached in 14.045s: 78.29 MB raw, 12.67 MB gzip
+INFO:     [PERF:CACHE] Warming NZ buildings cache...
+INFO:     [PERF:CACHE] NZ buildings cached in 5.604s: 2.41 MB raw, 0.33 MB gzip (56 buildings)
+INFO:     [PERF:CACHE] Warming NZ parcels cache...
+INFO:     [PERF:CACHE] NZ parcels cached in 0.036s: 168.0 KB raw, 14.3 KB gzip (31 parcels)
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:56983 - "GET /api/properties HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:57016 - "GET /api/nz/review HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57017 - "GET /api/nz/terrain HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57018 - "GET /api/nz/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57019 - "GET /api/nz/parcels HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57016 - "GET /api/nz/terrain HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57021 - "GET /api/nz/review HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57019 - "GET /api/nz/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57021 - "GET /api/nz/parcels HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57020 - "GET /api/nz/ml/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57021 - "GET /api/nz/ml/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58098 - "GET /api/nz/review HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58099 - "GET /api/nz/terrain HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58100 - "GET /api/nz/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58101 - "GET /api/nz/parcels HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58102 - "GET /api/nz/ml/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58098 - "GET /api/nz/review HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58103 - "GET /api/nz/terrain HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58098 - "GET /api/nz/ml/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58101 - "GET /api/nz/parcels HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58102 - "GET /api/nz/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49924 - "GET /api/nz/review HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49925 - "GET /api/nz/terrain HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49926 - "GET /api/nz/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49924 - "GET /api/nz/parcels HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49927 - "GET /api/nz/ml/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49929 - "GET /api/nz/terrain HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49928 - "GET /api/nz/review HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49927 - "GET /api/nz/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49924 - "GET /api/nz/parcels HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49928 - "GET /api/nz/ml/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49617 - "GET /api/nz/review HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49618 - "GET /api/nz/terrain HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49619 - "GET /api/nz/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49620 - "GET /api/nz/parcels HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49621 - "GET /api/nz/ml/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49642 - "GET /api/nz/terrain HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49641 - "GET /api/nz/review HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49644 - "GET /api/nz/parcels HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49643 - "GET /api/nz/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49645 - "GET /api/nz/ml/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49758 - "GET /api/nz/review HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49758 - "GET /api/nz/terrain HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49759 - "GET /api/nz/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49761 - "GET /api/nz/ml/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49760 - "GET /api/nz/parcels HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49762 - "GET /api/nz/review HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49763 - "GET /api/nz/terrain HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49760 - "GET /api/nz/ml/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49762 - "GET /api/nz/parcels HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49761 - "GET /api/nz/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59178 - "GET /api/nz/review HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59179 - "GET /api/nz/terrain HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59180 - "GET /api/nz/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59181 - "GET /api/nz/parcels HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59182 - "GET /api/nz/ml/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59178 - "GET /api/nz/review HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59183 - "GET /api/nz/terrain HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59178 - "GET /api/nz/ml/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59182 - "GET /api/nz/parcels HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59181 - "GET /api/nz/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60123 - "GET /api/nz/review HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60124 - "GET /api/nz/terrain HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60126 - "GET /api/nz/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60125 - "GET /api/nz/parcels HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60127 - "GET /api/nz/ml/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60128 - "GET /api/nz/terrain HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60123 - "GET /api/nz/review HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60127 - "GET /api/nz/parcels HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60125 - "GET /api/nz/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60123 - "GET /api/nz/ml/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50586 - "GET /api/nz/review HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50587 - "GET /api/nz/terrain HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50588 - "GET /api/nz/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50589 - "GET /api/nz/parcels HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50590 - "GET /api/nz/ml/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50586 - "GET /api/nz/terrain HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50591 - "GET /api/nz/review HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50589 - "GET /api/nz/parcels HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50590 - "GET /api/nz/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50591 - "GET /api/nz/ml/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50734 - "GET /api/nz/review HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50735 - "GET /api/nz/terrain HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50736 - "GET /api/nz/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50737 - "GET /api/nz/parcels HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50738 - "GET /api/nz/ml/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50739 - "GET /api/nz/terrain HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50734 - "GET /api/nz/review HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50737 - "GET /api/nz/buildings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50738 - "GET /api/nz/parcels HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50734 - "GET /api/nz/ml/buildings HTTP/1.1" 200 OK

@@ -177,11 +177,18 @@ const LandingPage: React.FC = () => {
   });
 
   // pipelineQuatsRef: the 6 quaternions for the pipeline slerp chain.
-  // Index 0 is overwritten at hero-exit with the actual spin quaternion,
-  // so there's no jump from hero -> pipeline.
+  // Index 0 is overwritten at hero-exit with the actual spin quaternion, and
+  // the scroll handler blends from that captured orientation into the track
+  // across a scroll-anchored handoff window — the hero → pipeline handoff is
+  // continuous in BOTH scroll directions (no snap, no freeze, no timers).
   const pipelineQuatsRef = useRef<THREE.Quaternion[]>(
     STOP_QUATS.map(q => q.clone())
   );
+  // Scroll position where the hero handed control over. Anchor for the
+  // scroll-driven handoff blend (0 = no handoff window yet).
+  const handoffScrollRef = useRef(0);
+  // Scratch quaternion for the handoff blend (no per-scroll allocations).
+  const handoffTargetQ = useRef(new THREE.Quaternion());
 
   const [reducedMotion, setReducedMotion] = useState(false);
 
@@ -231,8 +238,13 @@ const LandingPage: React.FC = () => {
     const handleScroll = () => {
       const pipeline = pipelineRef.current;
 
-      // ── Earth orientation via quaternion slerp ────────────────────────────
-      if (pipeline && !inHero) {
+      // ── Earth track: scale = pure function of scroll ──────────────────────
+      // Runs in BOTH hero and pipeline modes.  The scale track must stay
+      // deterministic from scroll position in either direction — otherwise
+      // reversing into the hero leaves the last pipeline scale stuck on the
+      // ref (Earth.tsx useFrame only reads it).  In hero mode the quaternion
+      // is owned by the autonomous spin, so only the scale is written here.
+      if (pipeline) {
         const yCenter = window.scrollY + window.innerHeight / 2;
 
         // Collect exact pixel centers of each key scroll location
@@ -363,12 +375,54 @@ const LandingPage: React.FC = () => {
             }
           }
 
-          rotationRef.current.q.slerpQuaternions(
-            pipelineQuatsRef.current[seg],
-            pipelineQuatsRef.current[seg + 1],
-            rotT,
-          );
+          // Scale is written unconditionally — the SAME track forward and
+          // reverse, so transT back at 0 restores the exact hero scale.
           rotationRef.current.scale = currentScale;
+
+          if (!inHero) {
+            // Hero mode: orientation belongs to the autonomous spin and
+            // opacity/layer state is already at hero defaults.  Pipeline
+            // mode: drive the quaternion chain + reset transition layers.
+            rotationRef.current.q.slerpQuaternions(
+              pipelineQuatsRef.current[seg],
+              pipelineQuatsRef.current[seg + 1],
+              rotT,
+            );
+
+            // ── Hero → pipeline rotation handoff ──────────────────────
+            // The hero hands over mid-hold (the IO fires at 5% hero
+            // visibility, already inside the Step-01 hold where the track
+            // renders q[1] exactly), so a raw pipeline frame would SNAP
+            // from the live spun orientation to the Step-01 target.
+            // Instead, across a short window anchored at the handoff
+            // scroll position, blend captured-spin → current track value.
+            // The endpoint equals the untouched track, so Steps 01–05 math
+            // is unchanged; inputs are scroll-only, so forward and reverse
+            // are identical (no timers, no rAF loops).
+            if (handoffScrollRef.current > 0) {
+              const HANDOFF_LEN = 0.2 * window.innerHeight;
+              const handoffT = Math.max(0, Math.min(1,
+                (window.scrollY - handoffScrollRef.current) / HANDOFF_LEN));
+              if (handoffT < 1) {
+                handoffTargetQ.current.copy(rotationRef.current.q);
+                rotationRef.current.q.slerpQuaternions(
+                  pipelineQuatsRef.current[0],
+                  handoffTargetQ.current,
+                  smoothstep(handoffT),
+                );
+              }
+            }
+          }
+
+          // ── Opacity + layer state: deterministic from scroll position ──
+          // Written in EVERY mode (hero included). In hero/pipeline these are
+          // exact no-ops (full opacity, hero glide, hidden map). Hoisting them
+          // out of the !inHero gate closes a real leak: a scroll event that
+          // runs BEFORE the IntersectionObserver delivers the hero→false flip
+          // (direct jumps, refresh with restored scroll, very fast scrolling)
+          // used to skip restoration and leave the transition's zeroed
+          // opacities + hidden earth layer stuck — the "blank Earth" state.
+          // Only the quaternion remains hero-owned (autonomous spin).
           rotationRef.current.bodyOpacity = 1.0;
           rotationRef.current.pointOpacity = 1.0;
           rotationRef.current.anchorOpacity = 1.0;
@@ -416,13 +470,16 @@ const LandingPage: React.FC = () => {
   // ── Hero IntersectionObserver ─────────────────────────────────────────────
   useEffect(() => {
     const heroObserver = new IntersectionObserver(([entry]) => {
-      const heroVisible = entry.isIntersecting;
-
-      if (!heroVisible) {
-        // Capture the current hero-spin quaternion as the start of the pipeline chain.
-        // This means segment 0 (hero → North America) begins exactly where the
-        // autonomous spin left off — zero visual discontinuity.
+      const heroVisible = entry.isIntersecting;      if (!heroVisible) {
+        // Capture the live hero-spin quaternion + anchor the scroll-driven
+        // handoff at this exact scroll position. The scroll handler blends
+        // from the captured orientation into the pipeline track across the
+        // first ~30% of segment 0, so the handoff is continuous in BOTH
+        // directions and deterministic from scroll position (no timers).
         pipelineQuatsRef.current[0] = rotationRef.current.q.clone();
+        handoffScrollRef.current = heroRef.current
+          ? heroRef.current.offsetTop + heroRef.current.offsetHeight * 0.95 // mirrors the IO threshold
+          : 0;
       }
 
       setInHero(heroVisible);
