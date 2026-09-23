@@ -306,11 +306,10 @@ function generatePointCloud(mask: Uint8ClampedArray, radius: number): PointCloud
   const szArr:  number[] = [];
 
   // ── Color palette (linear light, intentionally dark) ────────────────────
-  const clrCoast  = [0.36, 0.42, 0.50] as const; // medium-dark cool gray
-  const clrNZCst  = [0.50, 0.56, 0.64] as const; // slightly brighter — NZ only
-  // Interior land: lifted ~40% from the original [0.10,0.13,0.18] so continents
-  // read during pipeline frames. Still dark; coast remains the bright boundary.
-  const clrLand   = [0.15, 0.18, 0.24] as const; // dark blue-gray interior
+  const clrCoast  = [0.28, 0.34, 0.42] as const; // restrained coast (less contrast)
+  const clrNZCst  = [0.42, 0.48, 0.56] as const; // slightly brighter — NZ only
+  // Interior land: brightened to reduce contrast with coast, preventing "pop"
+  const clrLand   = [0.20, 0.25, 0.32] as const; // readable blue-gray interior
   const clrOcean  = [0.008, 0.012, 0.022] as const; // barely visible
 
   // ── Orange data-marker anchors (lon, lat) ─────────────────────────────────
@@ -408,12 +407,107 @@ const POINT_VERT = /* glsl */ `
   attribute vec3  aColor;
   varying   vec3  vColor;
 
+  uniform float uReconstructProgress;
+  uniform float uVolumeProgress;
+  uniform float uSpatialProgress;
+
   void main() {
     vColor = aColor;
-    vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
-    // Size attenuation calibrated for 4 px coast / 2 px interior at camera depth ~4.
-    // (280 → 8): old value produced 60-80 px blobs; this gives individual dots.
-    gl_PointSize = aSize * (8.0 / -mvPos.z);
+
+    // Use aSize to classify the point
+    bool isOcean = aSize < 0.75;
+    bool isInterior = aSize > 0.75 && aSize < 1.5;
+    bool isCoast = aSize > 1.5 && aSize < 2.5;
+    bool isAnchor = aSize > 2.5;
+
+    // Small readability adjustment to interior points so relief structure is perceivable
+    if (isInterior) {
+      vColor *= mix(1.0, 1.35, uReconstructProgress);
+    }
+
+    // 1. Reconstruct: Terrain-like spatial variation
+    // Deterministic low-frequency math for broad elevated regions, ridges, and valleys
+    float nx = position.x;
+    float ny = position.y;
+    float nz = position.z;
+    
+    float n1 = sin(nx * 3.5) * cos(ny * 3.5 + nz * 3.5);
+    float n2 = cos(nx * 6.0 - ny * 6.0) * sin(nz * 6.0);
+    float n3 = sin(nx * 12.0 + nz * 12.0) * cos(ny * 12.0);
+    
+    // Normalize combination to ~[0, 1] range
+    float relief = (n1 + n2 * 0.5 + n3 * 0.25) * 0.2857 + 0.5;
+    
+    float displacement = 0.0;
+    if (!isOcean) {
+      // Base height provides foundation, relief provides terrain variation
+      float baseHeight = isCoast ? 0.08 : (isAnchor ? 0.12 : 0.03);
+      float terrainVariationAmplitude = 0.10;
+      displacement = baseHeight + (relief * terrainVariationAmplitude);
+    }
+    float h = displacement * uReconstructProgress;
+
+    // 2. Volume: subtly structured point representation
+    // Step 04 inherits the EXACT SAME terrain-like displacement as Step 03.
+    // We only introduce a VERY small depth separation (5%) and brightness lift.
+    float volAmplitude = mix(1.0, 1.05, uVolumeProgress);
+    h *= volAmplitude;
+    
+    // Slightly stronger interior/land point definition
+    float structBright = isInterior ? 1.08 : 1.0;
+    vColor *= mix(1.0, structBright, uVolumeProgress);
+
+    // 3. Spatial Intelligence: Convergence Stage
+    // Strengthen NZ focus, let existing NZ anchors become more relevant, emphasize land/terrain
+    float lat = asin(normalize(position).y) * 180.0 / 3.14159;
+    float lon = atan(normalize(position).z, normalize(position).x) * 180.0 / 3.14159;
+    
+    // New Zealand region bounds
+    bool inNZ = (lon >= 165.0 && lon <= 179.0) && (lat >= -48.0 && lat <= -33.0);
+    
+    // Brighten NZ and Anchors, slightly dim ocean and other continents
+    float spatialBright = 1.0;
+    float spatialSize = 1.0;
+    
+    if (inNZ) {
+      spatialBright = 1.5;
+      spatialSize = 1.25;
+    } else if (isAnchor) {
+      spatialBright = 1.2;
+      spatialSize = 1.1;
+    } else if (!isOcean) {
+      spatialBright = 0.85;
+      spatialSize = 1.0;
+    } else {
+      spatialBright = 0.6;
+      spatialSize = 0.8;
+    }
+    
+    float blendedBright = mix(1.0, spatialBright, uSpatialProgress);
+    float blendedSize = mix(1.0, spatialSize, uSpatialProgress);
+    
+    vColor *= blendedBright;
+
+    vec3 finalPos = position + normalize(position) * h;
+    vec4 mvPos = modelViewMatrix * vec4(finalPos, 1.0);
+    
+    // 4. View-facing Falloff (Anti-Pop)
+    // Soften the boundary where points emerge from behind the globe.
+    vec3 sphereNormal = normalize(normalMatrix * normalize(position));
+    vec3 viewDir = normalize(-mvPos.xyz);
+    float viewDot = dot(sphereNormal, viewDir);
+    
+    // back-facing / near-hidden -> very low visibility
+    // gradual emergence -> normal visibility
+    // fully front-facing -> normal visibility
+    float viewVisibility = smoothstep(0.0, 0.35, viewDot);
+    vColor *= mix(0.1, 1.0, viewVisibility);
+    
+    // Step 04: Increase point size modestly to help volumetric structure read
+    float volumeSizeMultiplier = mix(1.0, 1.18, uVolumeProgress);
+    
+    // Size attenuation calibrated for depth
+    gl_PointSize = (aSize * volumeSizeMultiplier * blendedSize) * (8.0 / -mvPos.z);
     gl_Position  = projectionMatrix * mvPos;
   }
 `;
@@ -497,6 +591,9 @@ interface SceneProps {
     bodyOpacity?: number;
     pointOpacity?: number;
     anchorOpacity?: number;
+    reconstructProgress?: number;
+    volumeProgress?: number;
+    spatialProgress?: number;
   }>;
   inHero: boolean;
 }
@@ -531,7 +628,10 @@ function EarthScene({ reducedMotion, rotationRef, inHero }: SceneProps) {
       transparent:    true,
       depthWrite:     false,
       uniforms: {
-        uOpacity: { value: 1.0 }
+        uOpacity: { value: 1.0 },
+        uReconstructProgress: { value: 0.0 },
+        uVolumeProgress: { value: 0.0 },
+        uSpatialProgress: { value: 0.0 }
       }
     });
 
@@ -557,7 +657,12 @@ function EarthScene({ reducedMotion, rotationRef, inHero }: SceneProps) {
       fragmentShader: POINT_FRAG,
       transparent:    true,
       depthWrite:     false,
-      uniforms:       { uOpacity: { value: 1.0 } },
+      uniforms:       { 
+        uOpacity: { value: 1.0 },
+        uReconstructProgress: { value: 0.0 },
+        uVolumeProgress: { value: 0.0 },
+        uSpatialProgress: { value: 0.0 }
+      },
     });
     return { anchorGeo: geo, anchorMat: mat };
   }, [radius]);
@@ -657,9 +762,19 @@ function EarthScene({ reducedMotion, rotationRef, inHero }: SceneProps) {
     const bodyOp   = rotationRef.current.bodyOpacity  ?? 1.0;
     const pointOp  = rotationRef.current.pointOpacity ?? 1.0;
     const anchorOp = rotationRef.current.anchorOpacity ?? 1.0;
+    
+    const recP = rotationRef.current.reconstructProgress ?? 0.0;
+    const volP = rotationRef.current.volumeProgress ?? 0.0;
+    const spatialP = rotationRef.current.spatialProgress ?? 0.0;
 
     if (pointMat.uniforms.uOpacity) pointMat.uniforms.uOpacity.value = pointOp;
-    gridMat.opacity = 0.10 * pointOp;   // graticule: slightly more legible, still subordinate
+    if (pointMat.uniforms.uReconstructProgress) pointMat.uniforms.uReconstructProgress.value = recP;
+    if (pointMat.uniforms.uVolumeProgress) pointMat.uniforms.uVolumeProgress.value = volP;
+    if (pointMat.uniforms.uSpatialProgress) pointMat.uniforms.uSpatialProgress.value = spatialP;
+
+    // spatialProgress modulates graticule opacity (significantly brighter to suggest spatial framework)
+    gridMat.opacity = (0.10 + 0.35 * spatialP) * pointOp;
+    
     atmMat.uniforms.uRim.value = bodyOp; // silhouette rim fades with the solid body
     baseMat.opacity = bodyOp;
 
@@ -674,6 +789,10 @@ function EarthScene({ reducedMotion, rotationRef, inHero }: SceneProps) {
     // with its OWN opacity track — it outlives the general point cloud and
     // dissolves last, as the terrain resolves beneath it.
     if (anchorMat.uniforms.uOpacity) anchorMat.uniforms.uOpacity.value = anchorOp;
+    if (anchorMat.uniforms.uReconstructProgress) anchorMat.uniforms.uReconstructProgress.value = recP;
+    if (anchorMat.uniforms.uVolumeProgress) anchorMat.uniforms.uVolumeProgress.value = volP;
+    if (anchorMat.uniforms.uSpatialProgress) anchorMat.uniforms.uSpatialProgress.value = spatialP;
+    
     if (anchorPointsRef.current) anchorPointsRef.current.visible = anchorOp > 0.001;
   });
 
@@ -742,6 +861,9 @@ interface EarthProps {
     bodyOpacity?: number;
     pointOpacity?: number;
     anchorOpacity?: number;
+    reconstructProgress?: number;
+    volumeProgress?: number;
+    spatialProgress?: number;
   }>;
   inHero: boolean;
   reducedMotion: boolean;
