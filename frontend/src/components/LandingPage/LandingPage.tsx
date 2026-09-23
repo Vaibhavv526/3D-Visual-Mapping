@@ -614,15 +614,15 @@ const LandingPage: React.FC = () => {
             - Earth is always visible
             - Map is faded in during cinematic transition
           */}
-          <div style={reducedMotion ? {} : { position: 'sticky', top: 0, height: '100vh', overflow: 'hidden', zIndex: 0 }}>
+          <div style={reducedMotion ? {} : { position: 'sticky', top: 0, minHeight: '100vh', overflow: 'hidden', zIndex: 0 }}>
             {/* Map Layer (Cinematic Mode Only) — UNDER the Earth so the Digital
                 Twin emerges behind the still-visible geographic point cloud */}
             {!reducedMotion && (
               <div 
                 ref={mapWrapperRef} 
-                style={{ position: 'absolute', inset: 0, opacity: 0, pointerEvents: 'none' }}
+                style={{ position: 'relative', opacity: 0, pointerEvents: 'none' }}
               >
-                <section id="map" className="map-section" style={{ height: '100vh', margin: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+                <section id="map" className="map-section" style={{ minHeight: '100vh', margin: '0 auto', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
                   <div className="map-header nz-ui-reveal">
                     <div className="map-header-left">
                       <span className="pill map-pill">3D digital twin</span>
@@ -639,11 +639,13 @@ const LandingPage: React.FC = () => {
 
             {/* Earth Layer — ABOVE the map: body dissolves first, point cloud
                 remains visible on top while terrain appears underneath */}
-            <div
-              ref={earthLayerRef}
-              style={reducedMotion ? { height: '100vh', position: 'relative' } : { position: 'absolute', inset: 0, pointerEvents: 'none' }}
-            >
-              <Earth rotationRef={rotationRef} inHero={inHero} reducedMotion={reducedMotion} />
+            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+              <div
+                ref={earthLayerRef}
+                style={reducedMotion ? { height: '100vh', position: 'relative' } : { position: 'sticky', top: 0, height: '100vh', pointerEvents: 'none' }}
+              >
+                <Earth rotationRef={rotationRef} inHero={inHero} reducedMotion={reducedMotion} />
+              </div>
             </div>
           </div>
 

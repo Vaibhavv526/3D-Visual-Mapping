@@ -460,11 +460,7 @@
   padding-top: 72px; /* 52px navbar + breathing space */
   padding-bottom: 16px;
 }
-.map-section #map-container {
-  flex: 1 1 auto;
-  height: auto;
-  min-height: 0;
-}
+
 
 .map-header-left h2 {
   font-size: 32px;
@@ -489,12 +485,12 @@
 
 #map-container {
   width: 100%;
-  /* Section is a 100vh flex column with 72px top / 28px bottom padding and a
-     ~122px header — sizing the card to the remainder keeps the header fully
-     visible below the navbar and the card inside the viewport. */
-  height: min(72vh, 780px);
-  min-height: 480px;
-  border-radius: 12px;
+  max-width: 1500px;
+  height: calc(100vh - 220px);
+  min-height: 500px;
+  flex-shrink: 0;
+  margin: 0 auto;
+  border-radius: 24px;
   border: 0.5px solid var(--border-medium);
   overflow: hidden;
   position: relative;
@@ -776,3 +772,15 @@
 }
 
 .hero-motion-bg-placeholder { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+
+@media (max-width: 1024px) {
+  #map-container {
+    height: clamp(650px, 75vh, 800px);
+  }
+}
+
+@media (max-width: 768px) {
+  #map-container {
+    height: clamp(550px, 70vh, 700px);
+  }
+}

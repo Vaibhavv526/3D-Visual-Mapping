@@ -1,6 +1,7 @@
 import pyvista as pv
 import rasterio
 import numpy as np
+import scipy.ndimage
 from pathlib import Path
 
 TERRAIN_PATH = Path("data/outputs/nz_lidar/terrain_layers.vtp")
@@ -48,17 +49,14 @@ ndvi_path = SENTINEL_DIR / "NDVI_10m_epsg2193.tif"
 
 # RGB raster has 3 bands.
 with rasterio.open(rgb_path) as src:
-    coords = list(zip(x, y))
-
-    rgb = np.array(
-        list(src.sample(coords)),
-        dtype=np.float32,
-    )
-
-    # Raster order is R, G, B.
-    red = rgb[:, 0]
-    green = rgb[:, 1]
-    blue = rgb[:, 2]
+    img = src.read()
+    inv_transform = ~src.transform
+    cols, rows = inv_transform * (x, y)
+    coords_for_scipy = np.vstack([rows, cols])
+    
+    red = scipy.ndimage.map_coordinates(img[0], coords_for_scipy, order=1, mode='nearest').astype(np.float32)
+    green = scipy.ndimage.map_coordinates(img[1], coords_for_scipy, order=1, mode='nearest').astype(np.float32)
+    blue = scipy.ndimage.map_coordinates(img[2], coords_for_scipy, order=1, mode='nearest').astype(np.float32)
 
 ndvi = sample_raster(ndvi_path)
 
