@@ -684,22 +684,44 @@ function EarthScene({ reducedMotion, rotationRef, inHero }: SceneProps) {
       <ambientLight intensity={0.015} color={0x040810} />
 
       <group ref={groupRef}>
+        { /*
+          Explicit renderOrder on every Earth child.
+
+          All five layers use transparent materials, so three.js sorts them
+          into one back-to-front transparent list. Their bounding-sphere
+          centres all project to the same screen point, so the sort key
+          degenerates to float noise that flips with the globe's rotation —
+          at some orientations the alpha-1 body sphere painted AFTER the
+          point cloud and erased it (the "blank Earth at Step 03" bug).
+
+          Pinning renderOrder makes the draw sequence constant in every
+          orientation and every scroll state (renderOrder is compared
+          before screen-depth in reversePainterSortStable):
+            0  body      — paints first, writes depth (unchanged behaviour)
+            10 pointCloud — always above the body
+            20 grid      — graticule above the cloud
+            30 atmosphere — silhouette rim over everything behind it
+            40 anchor    — NZ marker always last (dissolves last)
+
+          Values preserve the intended stacking exactly; no transparency,
+          opacity, depth or transition behaviour is altered.
+        */ }
         {/* 1. Solid black globe silhouette (dissolve material) */}
-        <mesh ref={baseMeshRef} material={baseMat}>
+        <mesh ref={baseMeshRef} material={baseMat} renderOrder={0}>
           <sphereGeometry args={[radius, 64, 64]} />
         </mesh>
 
         {/* 2. Geographic point cloud */}
-        <points geometry={pointGeo} material={pointMat} />
+        <points geometry={pointGeo} material={pointMat} renderOrder={10} />
 
         {/* 2b. NZ signature anchor (separate track — dissolves last) */}
-        <points ref={anchorPointsRef} geometry={anchorGeo} material={anchorMat} />
+        <points ref={anchorPointsRef} geometry={anchorGeo} material={anchorMat} renderOrder={40} />
 
         {/* 3. Lat/lon graticule */}
-        <lineSegments geometry={gridGeo} material={gridMat} />
+        <lineSegments geometry={gridGeo} material={gridMat} renderOrder={20} />
 
         {/* 4. Atmospheric rim */}
-        <mesh ref={atmMeshRef} material={atmMat}>
+        <mesh ref={atmMeshRef} material={atmMat} renderOrder={30}>
           <sphereGeometry args={[radius * 1.055, 40, 40]} />
         </mesh>
       </group>
