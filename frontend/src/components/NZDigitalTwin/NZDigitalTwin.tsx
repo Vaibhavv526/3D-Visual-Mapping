@@ -28632,7 +28632,7 @@ export default function NZDigitalTwin() {
 
 
 
-                    <span className="nz-hud-value accent">{slopeMax.toFixed(1)}�</span>
+                    <span className="nz-hud-value accent">{slopeMax.toFixed(1)}&deg;</span>
 
 
 

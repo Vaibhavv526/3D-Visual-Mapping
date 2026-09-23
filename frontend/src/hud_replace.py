@@ -20,7 +20,7 @@ hud_jsx = """
                 
                 <div className="nz-hud-item">
                     <span className="nz-hud-label">MAX SLOPE</span>
-                    <span className="nz-hud-value accent">{slopeMax.toFixed(1)}A</span>
+                    <span className="nz-hud-value accent">{slopeMax.toFixed(1)}&deg;</span>
                 </div>
                 
                 <div className="nz-hud-item">
