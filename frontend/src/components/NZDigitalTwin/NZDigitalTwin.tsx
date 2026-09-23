@@ -6784,8 +6784,7 @@ function NZBuildingMesh({
 
                 <meshStandardMaterial
                     vertexColors={true}
-                    side={THREE.DoubleSide}
-                    flatShading={true}
+                    side={THREE.DoubleSide} flatShading={true}
                     roughness={isOrigin || isTarget ? 0.75 : isDeemphasized ? 0.88 : 0.72}
                     metalness={0.0}
                     // Base color MULTIPLIES the per-vertex Sentinel-2 RGB. The old
@@ -26122,7 +26121,22 @@ export default function NZDigitalTwin() {
 
 
 
-            </div>            <Canvas                shadows                dpr={[1, 2]}                gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}                camera={{                    position: [360, 240, 480],                    fov: 45                }}                onPointerMissed={() => {                    // Click on empty space (no building/parcel/UI handler caught it):                    // clear selection so the property panel closes. R3F does NOT fire                    // this after an orbit drag, so camera interaction is unaffected.                    setSelectedBuilding(null);                    setSelectedParcel(null);                }}            >
+            </div>            <Canvas
+                shadows
+                dpr={typeof window !== 'undefined' ? Math.min(window.devicePixelRatio, 2) : 2}
+                gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
+                camera={{
+                    position: [360, 240, 480],
+                    fov: 45
+                }}
+                onPointerMissed={() => {
+                    // Click on empty space (no building/parcel/UI handler caught it):
+                    // clear selection so the property panel closes. R3F does NOT fire
+                    // this after an orbit drag, so camera interaction is unaffected.
+                    setSelectedBuilding(null);
+                    setSelectedParcel(null);
+                }}
+            >
 
 
 
@@ -28618,7 +28632,7 @@ export default function NZDigitalTwin() {
 
 
 
-                    <span className="nz-hud-value accent">{slopeMax.toFixed(1)}�</span>
+                    <span className="nz-hud-value accent">{slopeMax.toFixed(1)}&deg;</span>
 
 
 

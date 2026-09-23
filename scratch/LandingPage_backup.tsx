@@ -112,27 +112,19 @@ function lerp(a: number, b: number, t: number): number {
 // and the UI is strictly last.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ZOOM_START = 0.15;  // give NZ framing time to settle before deep zoom
-const ZOOM_END   = 0.45;  // deep-zoom phase: 15% → 45%
-const GLIDE_START = 0.05;
+const ZOOM_END   = 0.30;  // deep-zoom phase: 0 → 30%
 const GLIDE_END  = 0.40;  // Earth layer reaches viewport centre here
 const DEEP_ZOOM  = 2.35;  // tuned so New Zealand stays readable, not a black disc
-
-// Over-extrapolate the Spatial Intelligence shader to darken the rest of the globe
-// and make NZ points dominant.
-const SPATIAL_STOPS   = [0, 0.15, 0.30, 0.45];
-const SPATIAL_KEYS    = [1.0, 1.3, 1.6, 1.6];
 
 const POINT_STOPS     = [0, 0.25, 0.40, 0.50, 0.60, 0.68, 0.72];
 const POINT_OP_KEYS   = [1.0, 1.0, 0.90, 0.60, 0.22, 0.06, 0];
 const TERRAIN_STOPS   = [0, 0.30, 0.40, 0.50, 0.60, 0.70, 0.82, 1];
 const TERRAIN_OP_KEYS = [0.0, 0.0, 0.10, 0.40, 0.72, 0.90, 1.0, 1];
 // UI entrance: interface revealed from the terrain — LAST. Earth must be
-// fully gone before the UI completes.
-// Pushed later to give terrain a short visual settling moment before UI dominates.
-const UI_OP_STOPS     = [0.75, 0.82, 0.90, 0.96, 1];
-const UI_OP_KEYS      = [0.0, 0.0, 0.25, 0.75, 1.0];
-const UI_MOVE_STOPS   = [0.82, 0.90, 0.96, 1.00];
+// fully gone before the UI completes: points/anchor/layer all zero by ~86%.
+const UI_OP_STOPS     = [0.65, 0.75, 0.82, 0.90, 1];
+const UI_OP_KEYS      = [0.0, 0.05, 0.25, 0.65, 1.0];
+const UI_MOVE_STOPS   = [0.75, 0.85, 0.94, 1.00];
 const UI_MOVE_KEYS    = [1.0, 0.5, 0.12, 0.0]; // 1 = full offset: 24px / 0.975
 
 // Body: fast clean fade — dead by 38%, well before terrain dominance.
@@ -294,15 +286,13 @@ const LandingPage: React.FC = () => {
 
           // 1. Deep zoom 0–30%, then hold. 2.35 keeps NZ legible (2.6 turned the
           //    frame into a black sphere face before the twin arrived).
-          const zoomLocal = Math.max(0, Math.min(1, (transT - ZOOM_START) / (ZOOM_END - ZOOM_START)));
-          const zoomT = smoothstep(zoomLocal);
+          const zoomT = smoothstep(Math.min(1, transT / ZOOM_END));
           const earthScale = lerp(STOP_SCALES[5], DEEP_ZOOM, zoomT);
 
           // 2. NZ stays near the visual centre: the Earth layer glides from its
           //    hero composition offset to the viewport centre across 0–40%, so
           //    the zoom converges ON New Zealand instead of past it.
-          const glideLocal = Math.max(0, Math.min(1, (transT - GLIDE_START) / (GLIDE_END - GLIDE_START)));
-          const glide = 1 - smoothstep(glideLocal);
+          const glide = 1 - smoothstep(Math.min(1, transT / GLIDE_END));
 
           // 3. "Point cloud → terrain → interface" — the point cloud is the hero
           //    while the body fades fast and clean; terrain is "born" UNDER it;
@@ -318,17 +308,16 @@ const LandingPage: React.FC = () => {
 
           // 4. Effects: displacement and spatial intelligence resolve back to normal as
           //    the transition resolves into the real twin.
-          const geomEffectOp = 1 - smoothstep(Math.min(1, transT / 0.60));
-          const spatialOp = sampleStops(SPATIAL_STOPS, SPATIAL_KEYS, transT);
+          const effectOp = 1 - smoothstep(Math.min(1, transT / 0.60));
 
           rotationRef.current.q.copy(STOP_QUATS[5]);
           rotationRef.current.scale = earthScale;
           rotationRef.current.bodyOpacity = bodyOp;
           rotationRef.current.pointOpacity = pointOp;
           rotationRef.current.anchorOpacity = anchorOp;
-          rotationRef.current.reconstructProgress = geomEffectOp;
-          rotationRef.current.volumeProgress = geomEffectOp;
-          rotationRef.current.spatialProgress = spatialOp;
+          rotationRef.current.reconstructProgress = effectOp;
+          rotationRef.current.volumeProgress = effectOp;
+          rotationRef.current.spatialProgress = effectOp;
 
           if (earthLayerRef.current) {
             earthLayerRef.current.style.setProperty('--earth-center-glide', glide.toFixed(3));
@@ -563,22 +552,6 @@ const LandingPage: React.FC = () => {
   }, []);
 
 
-  const scrollToMap = (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (reducedMotion) {
-      document.getElementById('map')?.scrollIntoView({ behavior: 'smooth' });
-    } else {
-      if (transitionRef.current) {
-        const rect = transitionRef.current.getBoundingClientRect();
-        const absoluteBottom = rect.bottom + window.scrollY;
-        window.scrollTo({
-          top: absoluteBottom - window.innerHeight,
-          behavior: 'smooth'
-        });
-      }
-    }
-  };
-
   return (
     <div className="landing-page">
       {/* 1. Fixed NAV */}
@@ -601,7 +574,7 @@ const LandingPage: React.FC = () => {
           </div>
           <span className="pill">NZ LiDAR</span>
           <span className="pill">EPSG:2193</span>
-          <button className="cta-btn orange-btn" onClick={scrollToMap}>Open 3D Map</button>
+          <button className="cta-btn orange-btn">Open 3D Map</button>
         </div>
       </nav>
       
@@ -614,15 +587,15 @@ const LandingPage: React.FC = () => {
             - Earth is always visible
             - Map is faded in during cinematic transition
           */}
-          <div style={reducedMotion ? {} : { position: 'sticky', top: 0, minHeight: '100vh', overflow: 'hidden', zIndex: 0 }}>
+          <div style={reducedMotion ? {} : { position: 'sticky', top: 0, height: '100vh', overflow: 'hidden', zIndex: 0, marginBottom: '-100vh' }}>
             {/* Map Layer (Cinematic Mode Only) — UNDER the Earth so the Digital
                 Twin emerges behind the still-visible geographic point cloud */}
             {!reducedMotion && (
               <div 
                 ref={mapWrapperRef} 
-                style={{ position: 'relative', opacity: 0, pointerEvents: 'none' }}
+                style={{ position: 'absolute', inset: 0, opacity: 0, pointerEvents: 'none' }}
               >
-                <section id="map" className="map-section" style={{ minHeight: '100vh', margin: '0 auto', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+                <section id="map" className="map-section" style={{ height: '100vh', margin: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
                   <div className="map-header nz-ui-reveal">
                     <div className="map-header-left">
                       <span className="pill map-pill">3D digital twin</span>
@@ -639,24 +612,22 @@ const LandingPage: React.FC = () => {
 
             {/* Earth Layer — ABOVE the map: body dissolves first, point cloud
                 remains visible on top while terrain appears underneath */}
-            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-              <div
-                ref={earthLayerRef}
-                style={reducedMotion ? { height: '100vh', position: 'relative' } : { position: 'sticky', top: 0, height: '100vh', pointerEvents: 'none' }}
-              >
-                <Earth rotationRef={rotationRef} inHero={inHero} reducedMotion={reducedMotion} />
-              </div>
+            <div
+              ref={earthLayerRef}
+              style={reducedMotion ? { height: '100vh', position: 'relative' } : { position: 'absolute', inset: 0, pointerEvents: 'none' }}
+            >
+              <Earth rotationRef={rotationRef} inHero={inHero} reducedMotion={reducedMotion} />
             </div>
           </div>
 
           {/* 2. HERO */}
-          <header className="hero-centered" ref={heroRef} style={{ pointerEvents: 'none', zIndex: 1, marginTop: reducedMotion ? undefined : '-100vh' }}>
+          <header className="hero-centered" ref={heroRef} style={{ pointerEvents: 'none', zIndex: 1 }}>
             <div className="hero-content" style={{ pointerEvents: 'auto' }}>
               <div className="eyebrow-line-centered"></div>
               <h1>From LiDAR<br />to <span className="orange-text">3D Reality.</span></h1>
               <p className="hero-description">Visual Mapping is a browser-based geospatial Digital Twin that transforms NZ LiDAR point clouds into interactive 3D terrain, property models, and ML-powered property screening.</p>
               <div className="hero-ctas-centered">
-                <button className="cta-btn orange-btn" onClick={scrollToMap}>Open 3D Digital Twin &rarr;</button>
+                <button className="cta-btn orange-btn">Open 3D Digital Twin &rarr;</button>
                 <a href="#pipeline" className="ghost-link">View pipeline &darr;</a>
               </div>
             </div>
