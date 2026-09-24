@@ -21405,6 +21405,37 @@ function DossierModal({
 
 
 
+function PrecompileScene() {
+    const { gl, scene, camera } = useThree();
+    const compiled = useRef(false);
+    useEffect(() => {
+        if (compiled.current) return;
+        
+        // Hide scene to prevent synchronous compilation during render loop
+        // while the cinematic transition is happening.
+        scene.visible = false;
+        
+        const timer = setTimeout(() => {
+            const t0 = performance.now();
+            console.log("[PERF:PRECOMPILE_START]");
+            if (typeof gl.compileAsync === 'function') {
+                gl.compileAsync(scene, camera).then(() => {
+                    console.log(`[PERF:PRECOMPILE_END] ${performance.now() - t0}ms (async)`);
+                    compiled.current = true;
+                    scene.visible = true;
+                });
+            } else {
+                gl.compile(scene, camera);
+                console.log(`[PERF:PRECOMPILE_END] ${performance.now() - t0}ms (sync)`);
+                compiled.current = true;
+                scene.visible = true;
+            }
+        }, 50);
+        return () => clearTimeout(timer);
+    }, [gl, scene, camera]);
+    return null;
+}
+
 export default function NZDigitalTwin() {
 
 
@@ -26457,6 +26488,7 @@ export default function NZDigitalTwin() {
 
 
 
+                <PrecompileScene />
             </Canvas>
 
 
