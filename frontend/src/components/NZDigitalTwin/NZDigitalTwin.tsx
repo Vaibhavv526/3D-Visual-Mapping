@@ -2345,6 +2345,15 @@ function NZTerrainMesh({
 
 
 
+    
+    useEffect(() => {
+        return () => {
+            if (geometry) {
+                geometry.dispose();
+            }
+        };
+    }, [geometry]);
+
     return (
 
 
@@ -4949,10 +4958,8 @@ function NZBuildingMesh({
 
 
 
-    onMeasureSelect
-
-
-
+    onMeasureSelect,
+    terrainIndex
 }: {
 
 
@@ -5034,9 +5041,7 @@ function NZBuildingMesh({
 
 
     ) => void;
-
-
-
+    terrainIndex: number;
 }) {
     const [isHovered, setIsHovered] = useState(false);
 
@@ -5070,7 +5075,7 @@ function NZBuildingMesh({
 
 
 
-            const terrainVertices =
+
 
 
 
@@ -5114,7 +5119,7 @@ function NZBuildingMesh({
 
 
 
-            const buildingCenterX =
+            /* const buildingCenterX =
 
 
 
@@ -5134,7 +5139,7 @@ function NZBuildingMesh({
 
 
 
-                ) / points.length;
+                ) / points.length; */
 
 
 
@@ -5142,7 +5147,7 @@ function NZBuildingMesh({
 
 
 
-            const buildingCenterY =
+            /* const buildingCenterY =
 
 
 
@@ -5162,7 +5167,7 @@ function NZBuildingMesh({
 
 
 
-                ) / points.length;
+                ) / points.length; */
 
 
 
@@ -5186,131 +5191,7 @@ function NZBuildingMesh({
 
 
 
-            let nearestIndex = 0;
-
-
-
-            let nearestDistance = Infinity;
-
-
-
-
-
-
-
-            for (
-
-
-
-                let i = 0;
-
-
-
-                i < terrainVertices.length;
-
-
-
-                i++
-
-
-
-            ) {
-
-
-
-
-
-
-
-                const dx =
-
-
-
-                    terrainVertices[i][0] -
-
-
-
-                    buildingCenterX;
-
-
-
-
-
-
-
-                const dy =
-
-
-
-                    terrainVertices[i][1] -
-
-
-
-                    buildingCenterY;
-
-
-
-
-
-
-
-                const distance =
-
-
-
-                    dx * dx + dy * dy;
-
-
-
-
-
-
-
-                if (
-
-
-
-                    distance <
-
-
-
-                    nearestDistance
-
-
-
-                ) {
-
-
-
-
-
-
-
-                    nearestDistance =
-
-
-
-                        distance;
-
-
-
-
-
-
-
-                    nearestIndex =
-
-
-
-                        i;
-
-
-
-                }
-
-
-
-            }
+            const nearestIndex = terrainIndex;
 
 
 
@@ -6634,7 +6515,16 @@ function NZBuildingMesh({
 
 
 
-        return (
+        
+    useEffect(() => {
+        return () => {
+            if (geometry) {
+                geometry.dispose();
+            }
+        };
+    }, [geometry]);
+
+    return (
 
 
 
@@ -22867,6 +22757,38 @@ export default function NZDigitalTwin() {
         };
     }, [terrainMeta, terrain]);
 
+    // OPTIMIZATION: Compute nearest terrain vertex index for each building ONCE.
+    // OPTIMIZATION: Spatial Index lookup (O(1) per building instead of O(V)).
+    const buildingTerrainIndices = useMemo(() => {
+        const map = new Map<string, number>();
+        if (!terrain || !buildings || !terrainMeta) return map;
+        const { minX, minY } = terrainMeta;
+        
+        // The terrain is a uniform 481 x 721 grid with 2m spacing.
+        const COLS = 481;
+        const ROWS = 721;
+        const STEP = 2;
+        
+        for (const building of buildings) {
+            const cx = (building.bounds.min_x + building.bounds.max_x) / 2;
+            const cy = (building.bounds.min_y + building.bounds.max_y) / 2;
+            
+            let col = Math.round((cx - minX) / STEP);
+            let row = Math.round((cy - minY) / STEP);
+            
+            if (col < 0) col = 0;
+            if (col >= COLS) col = COLS - 1;
+            if (row < 0) row = 0;
+            if (row >= ROWS) row = ROWS - 1;
+            
+            const index = row * COLS + col;
+            map.set(building.id, index);
+        }
+        return map;
+    }, [terrain, buildings, terrainMeta]);
+
+
+
 
 
 
@@ -22901,7 +22823,7 @@ export default function NZDigitalTwin() {
 
 
 
-        const terrainVertices = terrain.vertices;
+        /* const terrainVertices = terrain.vertices; */
 
 
 
@@ -22913,35 +22835,23 @@ export default function NZDigitalTwin() {
 
 
 
-            const points = building.vertices;
-
-
-
-            const buildingCenterX =
-
-
-
-                points.reduce((sum, point) => sum + point[0], 0) / points.length;
-
-
-
-            const buildingCenterY =
-
-
-
-                points.reduce((sum, point) => sum + point[1], 0) / points.length;
 
 
 
 
+            /* const buildingCenterX =
 
 
 
-            let nearestIndex = 0;
+                points.reduce((sum, point) => sum + point[0], 0) / points.length; */
 
 
 
-            let nearestDistance = Infinity;
+            /* const buildingCenterY =
+
+
+
+                points.reduce((sum, point) => sum + point[1], 0) / points.length; */
 
 
 
@@ -22949,43 +22859,7 @@ export default function NZDigitalTwin() {
 
 
 
-            for (let i = 0; i < terrainVertices.length; i++) {
-
-
-
-                const dx = terrainVertices[i][0] - buildingCenterX;
-
-
-
-                const dy = terrainVertices[i][1] - buildingCenterY;
-
-
-
-                const distance = dx * dx + dy * dy;
-
-
-
-
-
-
-
-                if (distance < nearestDistance) {
-
-
-
-                    nearestDistance = distance;
-
-
-
-                    nearestIndex = i;
-
-
-
-                }
-
-
-
-            }
+            const nearestIndex = buildingTerrainIndices.get(building.id) ?? 0;
 
 
 
@@ -23121,7 +22995,7 @@ export default function NZDigitalTwin() {
 
 
 
-        const terrainVertices = terrain.vertices;
+        /* const terrainVertices = terrain.vertices; */
 
 
 
@@ -23157,47 +23031,7 @@ export default function NZDigitalTwin() {
 
 
 
-            let nearestIndex = 0;
-
-
-
-            let nearestDistSq = Infinity;
-
-
-
-            for (let i = 0; i < terrainVertices.length; i++) {
-
-
-
-                const dx = terrainVertices[i][0] - cx;
-
-
-
-                const dy = terrainVertices[i][1] - cy;
-
-
-
-                const distSq = dx * dx + dy * dy;
-
-
-
-                if (distSq < nearestDistSq) {
-
-
-
-                    nearestDistSq = distSq;
-
-
-
-                    nearestIndex = i;
-
-
-
-                }
-
-
-
-            }
+            const nearestIndex = buildingTerrainIndices.get(building.id) ?? 0;
 
 
 
@@ -26374,7 +26208,7 @@ export default function NZDigitalTwin() {
 
 
 
-                                    building={building}
+                                    building={building} terrainIndex={buildingTerrainIndices.get(building.id) ?? 0}
 
 
 
