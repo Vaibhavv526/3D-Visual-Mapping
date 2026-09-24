@@ -1,0 +1,134 @@
+/* 5. CAPABILITIES SECTION */
+.capabilities-section {
+  max-width: 1640px;
+  margin: 120px auto;
+  padding: 0 48px;
+  color: var(--text-main);
+  background-color: var(--bg-dark);
+}
+
+.capabilities-header {
+  margin-bottom: 64px;
+}
+
+.capabilities-heading {
+  font-family: 'Syne', sans-serif;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 16px;
+  color: var(--text-main);
+}
+
+.capabilities-subheading {
+  font-size: 20px;
+  color: var(--text-muted);
+  max-width: 600px;
+  margin: 0;
+}
+
+.cap-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  /* Very subtle dividers to create the matrix feel */
+  gap: 1px;
+  background-color: var(--border-light);
+  border: 1px solid var(--border-light);
+  /* No rounding or minimal rounding to feel technical */
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.cap-card {
+  /* No glassmorphism or generic saas shadows, flat dark color */
+  background-color: var(--surface-1);
+  padding: 56px 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  transition: background-color 0.3s ease;
+  position: relative;
+  min-height: 320px;
+}
+
+.cap-icon-wrapper {
+  margin-bottom: 40px;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  opacity: 0.8;
+}
+
+.cap-icon {
+  width: 28px;
+  height: 28px;
+  color: var(--text-main);
+  transition: color 0.3s ease;
+}
+
+.cap-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 16px;
+  color: var(--text-main);
+  transition: color 0.3s ease;
+}
+
+.cap-body {
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  margin: 0;
+  margin-bottom: 32px;
+  flex-grow: 1;
+}
+
+.cap-tag {
+  font-size: 11px;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  margin-top: auto;
+}
+
+/* Subtle Hover States */
+.cap-card:hover {
+  background-color: var(--surface-2);
+}
+
+.cap-card:hover .cap-icon-wrapper {
+  transform: translateY(-2px);
+  opacity: 1;
+}
+
+.cap-card:hover .cap-icon {
+  color: var(--accent);
+}
+
+/* RESPONSIVE */
+@media (max-width: 1024px) {
+  .cap-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .capabilities-section {
+    padding: 0 24px;
+    margin: 80px auto;
+  }
+  
+  .cap-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .cap-card {
+    padding: 40px 32px;
+    min-height: auto;
+  }
+  
+  .cap-icon-wrapper {
+    margin-bottom: 32px;
+  }
+}
