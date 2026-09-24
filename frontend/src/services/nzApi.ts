@@ -119,20 +119,29 @@ export interface NZBuildingsData {
 }
 
 
+let cachedTerrainPromise: Promise<NZTerrainData> | null = null;
+
 export async function getNZTerrain(): Promise<NZTerrainData> {
+    if (cachedTerrainPromise) {
+        return cachedTerrainPromise;
+    }
 
-    const t0 = performance.now();
-    const res = await fetch(`${API_BASE_URL}/api/nz/terrain`);
-    const tHeaders = performance.now();
-    const text = await res.text();
-    const tDownload = performance.now();
-    const data = JSON.parse(text);
-    const tParse = performance.now();
+    cachedTerrainPromise = (async () => {
+        const t0 = performance.now();
+        const res = await fetch(`${API_BASE_URL}/api/nz/terrain`);
+        const tHeaders = performance.now();
+        const text = await res.text();
+        const tDownload = performance.now();
+        const data = JSON.parse(text);
+        const tParse = performance.now();
 
-    const sizeBytes = new Blob([text]).size;
-    console.log(`[PERF:API_TERRAIN] Total: ${(tParse - t0).toFixed(2)}ms | TTFB: ${(tHeaders - t0).toFixed(2)}ms | Download: ${(tDownload - tHeaders).toFixed(2)}ms | JSON Parse: ${(tParse - tDownload).toFixed(2)}ms | Payload: ${(sizeBytes / (1024 * 1024)).toFixed(2)} MB (${sizeBytes.toLocaleString()} bytes)`);
+        const sizeBytes = new Blob([text]).size;
+        console.log(`[PERF:API_TERRAIN] Total: ${(tParse - t0).toFixed(2)}ms | TTFB: ${(tHeaders - t0).toFixed(2)}ms | Download: ${(tDownload - tHeaders).toFixed(2)}ms | JSON Parse: ${(tParse - tDownload).toFixed(2)}ms | Payload: ${(sizeBytes / (1024 * 1024)).toFixed(2)} MB (${sizeBytes.toLocaleString()} bytes)`);
 
-    return data;
+        return data;
+    })();
+
+    return cachedTerrainPromise;
 }
 
 
