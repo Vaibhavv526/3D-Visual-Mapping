@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import './LandingPage.css';
 import NZDigitalTwin from '../NZDigitalTwin/NZDigitalTwin';
 import Earth from './Earth/Earth';
+import Capabilities from './Capabilities/Capabilities';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Geographic Earth stops — quaternion approach
@@ -579,6 +580,11 @@ const LandingPage: React.FC = () => {
     }
   };
 
+  const scrollToCapabilities = (e: React.MouseEvent) => {
+    e.preventDefault();
+    document.getElementById('capabilities')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   return (
     <div className="landing-page">
       {/* 1. Fixed NAV */}
@@ -593,6 +599,7 @@ const LandingPage: React.FC = () => {
           </div>
           <span className="logo-text">Visual Mapping</span>
           <span className="subline">Geospatial Digital Twin</span>
+          <a href="#capabilities" className="nav-link" onClick={scrollToCapabilities}>Capabilities</a>
         </div>
         <div className="nav-right">
           <div className="status-indicator">
@@ -758,46 +765,7 @@ const LandingPage: React.FC = () => {
         )}
       
 {/* 5. CAPABILITIES */}
-      <section className="capabilities-section">
-        <div className="cap-grid">
-          <div className="cap-card">
-            <svg className="cap-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
-            <h3 className="cap-title">3D Property Identity</h3>
-            <p className="cap-body">Unify boundaries, terrain, and built structures into a single addressable volume.</p>
-            <span className="cap-tag">Core</span>
-          </div>
-          <div className="cap-card">
-            <svg className="cap-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
-            <h3 className="cap-title">Explainable ML</h3>
-            <p className="cap-body">Transparent machine learning models for detecting dimensional anomalies.</p>
-            <span className="cap-tag">Analytics</span>
-          </div>
-          <div className="cap-card">
-            <svg className="cap-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg>
-            <h3 className="cap-title">Remote Sensing</h3>
-            <p className="cap-body">Accurate structural derivation directly from nationwide LiDAR point clouds.</p>
-            <span className="cap-tag">Data</span>
-          </div>
-          <div className="cap-card">
-            <svg className="cap-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-            <h3 className="cap-title">Spatial Site Analysis</h3>
-            <p className="cap-body">Evaluate shading, sightlines, and setbacks in a true 3D context.</p>
-            <span className="cap-tag">Tools</span>
-          </div>
-          <div className="cap-card">
-            <svg className="cap-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-            <h3 className="cap-title">Human Review Workflow</h3>
-            <p className="cap-body">Streamline verification with priority flagging and comparative tools.</p>
-            <span className="cap-tag">Workflow</span>
-          </div>
-          <div className="cap-card">
-            <svg className="cap-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-            <h3 className="cap-title">Property Dossier</h3>
-            <p className="cap-body">Generate comprehensive structural profiles and contextual site reports.</p>
-            <span className="cap-tag">Output</span>
-          </div>
-        </div>
-      </section>
+      <Capabilities />
 
       {/* 7. FOOTER STRIP */}
       <footer className="footer">
