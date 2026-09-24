@@ -199,6 +199,29 @@ const LandingPage: React.FC = () => {
   const pipelineQuatsRef = useRef<THREE.Quaternion[]>(
     STOP_QUATS.map(q => q.clone())
   );
+
+  const cachedMetrics = useRef({ heroCenter: 0, stepCenters: [0, 0, 0, 0, 0] });
+
+  // Update cached metrics on mount and resize
+  useEffect(() => {
+    const updateMetrics = () => {
+      const hero = heroRef.current;
+      cachedMetrics.current.heroCenter = hero 
+        ? hero.getBoundingClientRect().top + window.scrollY + hero.offsetHeight / 2 
+        : 0;
+      
+      cachedMetrics.current.stepCenters = textRefs.current.map(el => {
+        if (!el) return 0;
+        const rect = el.getBoundingClientRect();
+        return rect.top + window.scrollY + rect.height / 2;
+      });
+    };
+    
+    updateMetrics();
+    window.addEventListener('resize', updateMetrics);
+    return () => window.removeEventListener('resize', updateMetrics);
+  }, []);
+
   // Scroll position where the hero handed control over. Anchor for the
   // scroll-driven handoff blend (0 = no handoff window yet).
   const handoffScrollRef = useRef(0);
@@ -232,16 +255,16 @@ const LandingPage: React.FC = () => {
   useEffect(() => {
     if (reducedMotion) {
       const handleScrollReduced = () => {
-        const centerY = window.innerHeight / 2;
+        const centerY = window.scrollY + window.innerHeight / 2;
         let closestIndex = -1;
-        let minDistance = Infinity;
-        textRefs.current.forEach((el, index) => {
-          if (!el) return;
-          const rect = el.getBoundingClientRect();
-          const elCenter = rect.top + rect.height / 2;
-          const dist = Math.abs(elCenter - centerY);
-          if (dist < minDistance) { minDistance = dist; closestIndex = index; }
-        });
+        
+      let minDistance = Infinity;
+      cachedMetrics.current.stepCenters.forEach((elCenter, index) => {
+        if (elCenter === 0) return;
+        const dist = Math.abs(elCenter - centerY);
+        if (dist < minDistance) { minDistance = dist; closestIndex = index; }
+      });
+
         if (closestIndex !== -1 && minDistance < window.innerHeight) {
           setCurrentStep(closestIndex);
         }
@@ -263,22 +286,16 @@ const LandingPage: React.FC = () => {
         const yCenter = window.scrollY + window.innerHeight / 2;
 
         // Collect exact pixel centers of each key scroll location
-        const heroCenter = heroRef.current 
-          ? heroRef.current.getBoundingClientRect().top + window.scrollY + heroRef.current.offsetHeight / 2 
-          : 0;
+        const heroCenter = cachedMetrics.current.heroCenter;
           
-        const stepCenters = textRefs.current.map(el => {
-          if (!el) return 0;
-          const rect = el.getBoundingClientRect();
-          return rect.top + window.scrollY + rect.height / 2;
-        });
+        const stepCenters = cachedMetrics.current.stepCenters;
 
         let seg = 0;
         let t = 0;
         let inTransition = false;
 
         // 6 control points (Hero + 5 pipeline stops)
-        const points = [heroCenter, ...stepCenters];
+        const points = [heroCenter, stepCenters[0], stepCenters[1], stepCenters[2], stepCenters[3], stepCenters[4]];
         
         // Define transition zone relative to the last pipeline step
         const transStart = points[5];
@@ -520,14 +537,11 @@ const LandingPage: React.FC = () => {
       }
 
       // ── UI: which step text is active ─────────────────────────────────────
-      const centerY = window.innerHeight / 2;
-      let closestIndex = -1;
+            let closestIndex = -1;
       let minDistance = Infinity;
-      textRefs.current.forEach((el, index) => {
-        if (!el) return;
-        const rect = el.getBoundingClientRect();
-        const elCenter = rect.top + rect.height / 2;
-        const dist = Math.abs(elCenter - centerY);
+      cachedMetrics.current.stepCenters.forEach((elCenter, index) => {
+        if (elCenter === 0) return;
+        const dist = Math.abs(elCenter - (window.scrollY + window.innerHeight / 2));
         if (dist < minDistance) { minDistance = dist; closestIndex = index; }
       });
       if (closestIndex !== -1 && minDistance < window.innerHeight) {
