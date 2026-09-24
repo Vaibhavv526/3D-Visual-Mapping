@@ -890,6 +890,8 @@ const HILLSHADE_FLAT_DOT = HILLSHADE_SUN_DIR.y; // 0.6983 for horizontal plane
 
 
 
+let cachedTerrainGeo: THREE.BufferGeometry | null = null;
+
 function NZTerrainMesh({
 
 
@@ -922,6 +924,7 @@ function NZTerrainMesh({
 
 
 
+            if (cachedTerrainGeo) { console.log(`[PERF:TERRAIN_GEO] Returning cached terrain geometry`); return cachedTerrainGeo; }
             const t0 = performance.now();
 
 
