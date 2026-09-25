@@ -5,8 +5,8 @@ const Capabilities: React.FC = () => {
   return (
     <section id="capabilities" className="capabilities-section">
       <div className="capabilities-header">
-        <h2 className="capabilities-heading">CAPABILITIES</h2>
-        <p className="capabilities-subheading">How BhuVista turns spatial data into actionable intelligence.</p>
+        <h2 className="capabilities-heading">Capabilities</h2>
+        <p className="capabilities-subheading">Connecting spatial data, 3D reconstruction, analysis, and property intelligence.</p>
       </div>
       <div className="cap-grid">
         {/* Card 1: 3D Property Identity */}
