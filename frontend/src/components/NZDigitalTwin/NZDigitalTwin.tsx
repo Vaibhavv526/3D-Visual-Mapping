@@ -7422,7 +7422,7 @@ function CameraController({
 
 
 
-    selectedBuilding,
+    focusTargetId,
 
 
 
@@ -7446,7 +7446,7 @@ function CameraController({
 
 
 
-    selectedBuilding: NZBuilding | null;
+    focusTargetId: string | null | undefined;
 
 
 
@@ -7666,11 +7666,11 @@ function CameraController({
 
 
 
-        if (!selectedBuilding) {
+        if (!focusTargetId) {
 
 
 
-            // When inspector is closed (selectedBuilding becomes null):
+            // When inspector is closed (focusTargetId becomes null):
 
 
 
@@ -7694,7 +7694,7 @@ function CameraController({
 
 
 
-        if (selectedBuilding.id === prevBuildingIdRef.current) {
+        if (focusTargetId === prevBuildingIdRef.current) {
 
 
 
@@ -7706,7 +7706,7 @@ function CameraController({
 
 
 
-        prevBuildingIdRef.current = selectedBuilding.id;
+        prevBuildingIdRef.current = focusTargetId;
 
 
 
@@ -7726,7 +7726,7 @@ function CameraController({
 
 
 
-        const info = buildingSceneInfoMap.get(selectedBuilding.id);
+        const info = buildingSceneInfoMap.get(focusTargetId);
 
 
 
@@ -7910,7 +7910,7 @@ function CameraController({
 
 
 
-    }, [selectedBuilding, buildingSceneInfoMap, camera, controlsRef]);
+    }, [focusTargetId, buildingSceneInfoMap, camera, controlsRef]);
 
 
 
@@ -26497,7 +26497,7 @@ export default function NZDigitalTwin() {
 
 
 
-                    selectedBuilding={selectedBuilding}
+                    focusTargetId={activeTool === 'measurement' ? (measureToolPhase === 'pickB' ? measureToolA?.id : (measureToolPhase === 'result' ? measureToolB?.id : null)) : selectedBuilding?.id}
 
 
 
