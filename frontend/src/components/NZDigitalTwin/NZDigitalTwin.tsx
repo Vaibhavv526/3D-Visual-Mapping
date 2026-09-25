@@ -2351,7 +2351,7 @@ function NZTerrainMesh({
     
     useEffect(() => {
         return () => {
-            if (geometry) {
+            if (geometry && geometry !== cachedTerrainGeo) {
                 geometry.dispose();
             }
         };
@@ -6514,11 +6514,6 @@ function NZBuildingMesh({
 
 
 
-    if (isExplodedActive) {
-
-
-
-        
     useEffect(() => {
         return () => {
             if (geometry) {
@@ -6526,6 +6521,8 @@ function NZBuildingMesh({
             }
         };
     }, [geometry]);
+
+    if (isExplodedActive) {
 
     return (
 
