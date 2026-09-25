@@ -1,4 +1,4 @@
-import { generatePropertyId3D, generateVerticalUnitId, calculateIdentityStatistics } from "../../services/propertyIdentity";
+﻿import { generatePropertyId3D, generateVerticalUnitId, calculateIdentityStatistics } from "../../services/propertyIdentity";
 
 
 
@@ -2351,7 +2351,7 @@ function NZTerrainMesh({
     
     useEffect(() => {
         return () => {
-            if (geometry) {
+            if (geometry && geometry !== cachedTerrainGeo) {
                 geometry.dispose();
             }
         };
@@ -6514,11 +6514,6 @@ function NZBuildingMesh({
 
 
 
-    if (isExplodedActive) {
-
-
-
-        
     useEffect(() => {
         return () => {
             if (geometry) {
@@ -6526,6 +6521,8 @@ function NZBuildingMesh({
             }
         };
     }, [geometry]);
+
+    if (isExplodedActive) {
 
     return (
 
@@ -21798,6 +21795,11 @@ export default function NZDigitalTwin() {
 
     const [activeTool, setActiveTool] = useState<"visualization" | "overlays" | "measurement" | null>(null);
 
+    // --- STANDALONE MEASUREMENT TOOL STATE (toolbar panel, independent of selectedBuilding/measureMode) ---
+    const [measureToolPhase, setMeasureToolPhase] = useState<"pickA" | "pickB" | "result">("pickA");
+    const [measureToolA, setMeasureToolA] = useState<NZBuilding | null>(null);
+    const [measureToolB, setMeasureToolB] = useState<NZBuilding | null>(null);
+
 
 
 
@@ -26228,6 +26230,25 @@ export default function NZDigitalTwin() {
 
                                 : matchedBuildingIdSet !== null && !matchedBuildingIdSet.has(building.id);
 
+                            // Tool measurement highlights — independent of selectedBuilding/measureTarget
+                            const isToolA = activeTool === 'measurement' && measureToolA?.id === building.id;
+                            const isToolB = activeTool === 'measurement' && measureToolB?.id === building.id;
+                            const toolIsDeemphasized = activeTool === 'measurement'
+                                ? (measureToolPhase === 'result' ? !isToolA && !isToolB : false)
+                                : isDeemphasized;
+                            const effectiveMeasureMode = activeTool === 'measurement'
+                                ? (measureToolPhase === 'pickB' && building.id !== measureToolA?.id)
+                                : measureMode;
+                            const handleToolMeasurePick = activeTool === 'measurement'
+                                ? (b: NZBuilding) => {
+                                    if (measureToolPhase === 'pickA') {
+                                        setMeasureToolA(b); setMeasureToolB(null); setMeasureToolPhase('pickB');
+                                    } else if (measureToolPhase === 'pickB' && b.id !== measureToolA?.id) {
+                                        setMeasureToolB(b); setMeasureToolPhase('result');
+                                    }
+                                }
+                                : null;
+
 
 
                             return (
@@ -26254,19 +26275,19 @@ export default function NZDigitalTwin() {
 
 
 
-                                    isOrigin={isOrigin}
+                                    isOrigin={activeTool === 'measurement' ? isToolA : isOrigin}
 
 
 
-                                    isTarget={isTarget}
+                                    isTarget={activeTool === 'measurement' ? isToolB : isTarget}
 
 
 
-                                    isDeemphasized={isDeemphasized}
+                                    isDeemphasized={toolIsDeemphasized}
 
 
 
-                                    measureMode={measureMode}
+                                    measureMode={effectiveMeasureMode}
 
 
 
@@ -26299,25 +26320,17 @@ export default function NZDigitalTwin() {
 
 
                                     onSelect={
-
-
-
-                                        handleSelectBuilding
-
-
-
+                                        activeTool === 'measurement'
+                                            ? (measureToolPhase !== 'result' ? handleToolMeasurePick! : () => {/* locked in result phase */})
+                                            : handleSelectBuilding
                                     }
 
 
 
                                     onMeasureSelect={
-
-
-
-                                        setMeasureTarget
-
-
-
+                                        handleToolMeasurePick && measureToolPhase !== 'result'
+                                            ? (b) => { if (b.id !== measureToolA?.id) handleToolMeasurePick(b); }
+                                            : setMeasureTarget
                                     }
 
 
@@ -26403,6 +26416,21 @@ export default function NZDigitalTwin() {
 
 
                 )}
+
+                {/* Tool Measurement Line (toolbar standalone panel) */}
+                {activeTool === 'measurement' && measureToolA && measureToolB && (() => {
+                    const infoA = buildingSceneInfoMap.get(measureToolA.id);
+                    const infoB = buildingSceneInfoMap.get(measureToolB.id);
+                    if (infoA && infoB) {
+                        return (
+                            <SpatialMeasurementLine
+                                centerA={infoA.center}
+                                centerB={infoB.center}
+                            />
+                        );
+                    }
+                    return null;
+                })()}
 
 
 
@@ -26605,7 +26633,19 @@ export default function NZDigitalTwin() {
 
 
 
-                    onClick={() => setActiveTool(activeTool === 'measurement' ? null : 'measurement')}
+                    onClick={() => {
+                        if (activeTool === 'measurement') {
+                            setActiveTool(null);
+                            setMeasureToolA(null);
+                            setMeasureToolB(null);
+                            setMeasureToolPhase("pickA");
+                        } else {
+                            setActiveTool('measurement');
+                            setMeasureToolA(null);
+                            setMeasureToolB(null);
+                            setMeasureToolPhase("pickA");
+                        }
+                    }}
 
 
 
@@ -26955,163 +26995,123 @@ export default function NZDigitalTwin() {
 
                 <div className="nz-toolbar-popup">
 
-
-
                     <div className="nz-popup-title">SPATIAL MEASUREMENT</div>
 
-
-
-                    
-
-
-
                     <div className="nz-measure-section">
-
-
-
-                        {!measureMode ? (
-
-
-
+                        {/* PHASE: pickA — waiting for first building */}
+                        {measureToolPhase === 'pickA' && (
                             <>
-
-
-
-                                <div className="nz-measure-status" style={{marginBottom: '10px'}}>
-
-
-
-                                    Select a building on the map first to measure distance and elevation delta to another structure.
-
-
-
+                                <div className="nz-measure-status" style={{marginBottom: '10px', color: '#f59e0b', fontWeight: 600, fontSize: '11px', letterSpacing: '0.04em'}}>
+                                    ● SELECT BUILDING A
                                 </div>
-
-
-
-                                {selectedBuilding && (
-
-
-
-                                    <button 
-
-
-
-                                        className="nz-btn"
-
-
-
-                                        onClick={() => { setMeasureMode(true); setMeasureTarget(null); }}
-
-
-
-                                    >
-
-
-
-                                        Start Measurement
-
-
-
-                                    </button>
-
-
-
-                                )}
-
-
-
+                                <div className="nz-measure-status" style={{marginBottom: '12px', opacity: 0.7}}>
+                                    Click any building on the map to set the first measurement point.
+                                </div>
                             </>
-
-
-
-                        ) : (
-
-
-
-                            <>
-
-
-
-                                {measureTarget ? (
-
-
-
-                                    <div className="nz-measure-status" style={{marginBottom: '10px'}}>
-
-
-
-                                        Measurement complete.
-
-
-
-                                    </div>
-
-
-
-                                ) : (
-
-
-
-                                    <div className="nz-measure-status" style={{marginBottom: '10px'}}>
-
-
-
-                                        Select a target building on the map.
-
-
-
-                                    </div>
-
-
-
-                                )}
-
-
-
-                                <button 
-
-
-
-                                    className="nz-btn-secondary"
-
-
-
-                                    style={{width: '100%'}}
-
-
-
-                                    onClick={() => { setMeasureMode(false); setMeasureTarget(null); document.body.style.cursor = "auto"; }}
-
-
-
-                                >
-
-
-
-                                    Cancel Measurement
-
-
-
-                                </button>
-
-
-
-                            </>
-
-
-
                         )}
 
+                        {/* PHASE: pickB — waiting for second building */}
+                        {measureToolPhase === 'pickB' && (
+                            <>
+                                <div style={{marginBottom: '8px', padding: '6px 8px', background: 'rgba(245,158,11,0.10)', borderRadius: '4px', border: '1px solid rgba(245,158,11,0.25)'}}>
+                                    <div style={{fontSize: '10px', color: '#f59e0b', letterSpacing: '0.06em', marginBottom: '2px'}}>BUILDING A</div>
+                                    <div style={{fontSize: '11px', color: '#e2e8f0', fontFamily: 'monospace'}}>{measureToolA?.id ?? '—'}</div>
+                                </div>
+                                <div className="nz-measure-status" style={{marginBottom: '10px', color: '#ea580c', fontWeight: 600, fontSize: '11px', letterSpacing: '0.04em'}}>
+                                    ● SELECT BUILDING B
+                                </div>
+                                <div className="nz-measure-status" style={{marginBottom: '12px', opacity: 0.7}}>
+                                    Click a second building to measure distance.
+                                </div>
+                                <button
+                                    className="nz-btn-secondary"
+                                    style={{width: '100%'}}
+                                    onClick={() => { setMeasureToolA(null); setMeasureToolB(null); setMeasureToolPhase('pickA'); }}
+                                >
+                                    ← Back
+                                </button>
+                            </>
+                        )}
 
-
+                        {/* PHASE: result — show measurement results */}
+                        {measureToolPhase === 'result' && measureToolA && measureToolB && (() => {
+                            const cxA = (measureToolA.bounds.min_x + measureToolA.bounds.max_x) / 2;
+                            const cyA = (measureToolA.bounds.min_y + measureToolA.bounds.max_y) / 2;
+                            const cxB = (measureToolB.bounds.min_x + measureToolB.bounds.max_x) / 2;
+                            const cyB = (measureToolB.bounds.min_y + measureToolB.bounds.max_y) / 2;
+                            const horizDist = Math.hypot(cxB - cxA, cyB - cyA);
+                            const groundA = measureToolA.ground_elevation;
+                            const groundB = measureToolB.ground_elevation;
+                            const elevDiff = groundB - groundA;
+                            const dist3D = Math.sqrt(horizDist * horizDist + elevDiff * elevDiff);
+                            const fmtM = (v: number) => Math.abs(v) >= 1000 ? (v / 1000).toFixed(2) + ' km' : v.toFixed(1) + ' m';
+                            const fmtDiff = (v: number) => (v > 0.05 ? '+' : '') + v.toFixed(1) + ' m';
+                            const heightDiff = measureToolA.height - measureToolB.height;
+                            return (
+                                <div style={{fontSize: '12px'}}>
+                                    {/* Building pair */}
+                                    <div style={{display: 'flex', gap: '6px', marginBottom: '10px', alignItems: 'center'}}>
+                                        <div style={{flex:1, padding: '5px 7px', background: 'rgba(245,158,11,0.10)', borderRadius: '4px', border: '1px solid rgba(245,158,11,0.25)'}}>
+                                            <div style={{fontSize: '9px', color: '#f59e0b', letterSpacing: '0.06em', marginBottom: '2px'}}>BUILDING A</div>
+                                            <div style={{fontSize: '10px', color: '#e2e8f0', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>{measureToolA.id}</div>
+                                        </div>
+                                        <div style={{color: '#f59e0b', fontSize: '14px'}}>→</div>
+                                        <div style={{flex:1, padding: '5px 7px', background: 'rgba(234,88,12,0.10)', borderRadius: '4px', border: '1px solid rgba(234,88,12,0.25)'}}>
+                                            <div style={{fontSize: '9px', color: '#ea580c', letterSpacing: '0.06em', marginBottom: '2px'}}>BUILDING B</div>
+                                            <div style={{fontSize: '10px', color: '#e2e8f0', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>{measureToolB.id}</div>
+                                        </div>
+                                    </div>
+                                    {/* Measurement values */}
+                                    <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '10px'}}>
+                                        <div style={{gridColumn: '1 / -1', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.20)', borderRadius: '5px', padding: '7px 10px'}}>
+                                            <div style={{fontSize: '10px', color: '#94a3b8', letterSpacing: '0.05em', marginBottom: '3px'}}>HORIZONTAL DISTANCE</div>
+                                            <div style={{fontSize: '18px', fontWeight: 700, color: '#f59e0b', letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums'}}>{fmtM(horizDist)}</div>
+                                            <div style={{fontSize: '10px', color: '#64748b', marginTop: '2px'}}>Centroid-to-centroid · EPSG:2193</div>
+                                        </div>
+                                        <div style={{background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(51,65,85,0.6)', borderRadius: '5px', padding: '7px 10px'}}>
+                                            <div style={{fontSize: '10px', color: '#94a3b8', letterSpacing: '0.05em', marginBottom: '3px'}}>ELEVATION Δ</div>
+                                            <div style={{fontSize: '15px', fontWeight: 700, color: Math.abs(elevDiff) < 0.5 ? '#94a3b8' : elevDiff > 0 ? '#34d399' : '#f87171', fontVariantNumeric: 'tabular-nums'}}>{fmtDiff(elevDiff)}</div>
+                                            <div style={{fontSize: '10px', color: '#64748b', marginTop: '2px'}}>{elevDiff > 0.5 ? 'B higher' : elevDiff < -0.5 ? 'A higher' : 'Similar level'}</div>
+                                        </div>
+                                        <div style={{background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(51,65,85,0.6)', borderRadius: '5px', padding: '7px 10px'}}>
+                                            <div style={{fontSize: '10px', color: '#94a3b8', letterSpacing: '0.05em', marginBottom: '3px'}}>3D DISTANCE</div>
+                                            <div style={{fontSize: '15px', fontWeight: 700, color: '#e2e8f0', fontVariantNumeric: 'tabular-nums'}}>{fmtM(dist3D)}</div>
+                                            <div style={{fontSize: '10px', color: '#64748b', marginTop: '2px'}}>Incl. elevation</div>
+                                        </div>
+                                        <div style={{gridColumn: '1 / -1', background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(51,65,85,0.6)', borderRadius: '5px', padding: '7px 10px'}}>
+                                            <div style={{fontSize: '10px', color: '#94a3b8', letterSpacing: '0.05em', marginBottom: '3px'}}>HEIGHT DIFFERENCE</div>
+                                            <div style={{fontSize: '13px', fontWeight: 600, color: '#e2e8f0', fontVariantNumeric: 'tabular-nums'}}>
+                                                <span style={{color: Math.abs(heightDiff) < 0.5 ? '#94a3b8' : heightDiff > 0 ? '#34d399' : '#f87171'}}>{fmtDiff(heightDiff)}</span>
+                                            </div>
+                                            <div style={{fontSize: '10px', color: '#64748b', marginTop: '2px'}}>{heightDiff > 0.5 ? 'A is taller' : heightDiff < -0.5 ? 'B is taller' : 'Similar height'}</div>
+                                        </div>
+                                    </div>
+                                    {/* Actions */}
+                                    <div style={{display: 'flex', gap: '6px'}}>
+                                        <button
+                                            className="nz-btn"
+                                            style={{flex: 1, fontSize: '11px', padding: '6px 8px'}}
+                                            onClick={() => { setMeasureToolA(null); setMeasureToolB(null); setMeasureToolPhase('pickA'); }}
+                                        >
+                                            Measure Again
+                                        </button>
+                                        <button
+                                            className="nz-btn-secondary"
+                                            style={{flex: 1, fontSize: '11px', padding: '6px 8px'}}
+                                            onClick={() => { setActiveTool(null); setMeasureToolA(null); setMeasureToolB(null); setMeasureToolPhase('pickA'); }}
+                                        >
+                                            Close
+                                        </button>
+                                    </div>
+                                    <div style={{fontSize: '9px', color: '#475569', marginTop: '8px', lineHeight: '1.4'}}>
+                                        Indicative measurement · NZTM2000 (EPSG:2193) · Not a certified survey
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
 
-
-
                 </div>
-
-
 
             )}
 
