@@ -1,31 +1,43 @@
-# 3D Visual Mapping
+# BhuVista
 
-> **LiDAR + Sentinel-2 based 3D Digital Twin / Urban Mapping Platform**
+### LiDAR + Sentinel-2 based 3D Digital Twin and Property Intelligence Platform
 
-3D Visual Mapping is a geospatial 3D Digital Twin platform that combines **LiDAR point-cloud data** with **Sentinel-2 satellite imagery** to generate and visualize a georeferenced 3D representation of an area.
+BhuVista is an interactive 3D geospatial platform that combines LiDAR point-cloud data, terrain modelling, Sentinel-2 satellite imagery, building reconstruction, cadastral integration, 3D property identity, vertical property mapping, spatial analytics, machine learning, topology validation, human review, evidence tracking, and property reporting.
 
-The current implementation focuses on a **New Zealand AOI** and already contains working geospatial processing, generated terrain/building meshes, satellite-derived RGB/NDVI data, a FastAPI backend, and a React + Three.js frontend.
-
----
-
-## 🚀 Project Vision
-
-The long-term goal is to build an automated Digital Twin platform that can take geospatial datasets and produce an interactive 3D environment containing:
-
-- Terrain
-- Buildings
-- Vegetation
-- Roads and infrastructure
-- Satellite-derived visual information
-- Environmental information such as NDVI
-- Building-level attributes
-- Interactive analysis tools
-
-The intended experience is a **futuristic interactive 3D map / Digital Twin**, where geospatial data is transformed into an understandable 3D environment.
+The current implementation focuses on a New Zealand Area of Interest around the Franklin District, Bombay Hills, and Ramarama area of South Auckland.
 
 ---
 
-# 🧩 Current Architecture
+## 🚀 Project Overview
+
+Traditional property systems primarily represent land and buildings through 2D maps, tables, and separate records.
+
+BhuVista brings these datasets together inside an interactive 3D Digital Twin.
+
+The platform connects:
+
+* LiDAR-derived terrain
+* 3D building geometry
+* Sentinel-2 RGB imagery
+* NDVI
+* Cadastral parcels
+* Property identity
+* Vertical property structure
+* Spatial relationships
+* ML-based property screening
+* Explainable analysis
+* 3D topology validation
+* Human review
+* Evidence and provenance
+* Property dossiers
+
+> **Deep underneath. Simple on top.**
+
+The platform hides complex geospatial processing behind a property-focused interface so users can explore buildings, inspect property information, perform measurements, review analytical results, and generate reports.
+
+---
+
+# 🧩 System Architecture
 
 ```text
                     ┌─────────────────────┐
@@ -42,15 +54,15 @@ The intended experience is a **futuristic interactive 3D map / Digital Twin**, w
                  ┌─────────────┴─────────────┐
                  ▼                           ▼
         ┌─────────────────┐         ┌─────────────────┐
-        │ Terrain Mesh    │         │ Building Mesh   │
-        │ VTP             │         │ VTP             │
+        │ Terrain Model   │         │ Building Model  │
+        │ 2 m DTM         │         │ 56 Buildings    │
         └────────┬────────┘         └────────┬────────┘
                  │                           │
-                 │        Sentinel-2          │
+                 │        Sentinel-2         │
                  │       Satellite Data      │
                  │              │            │
                  │              ▼            │
-                 │      RGB + NDVI Data      │
+                 │       RGB + NDVI          │
                  │              │            │
                  └──────────────┴────────────┘
                                 │
@@ -62,188 +74,174 @@ The intended experience is a **futuristic interactive 3D map / Digital Twin**, w
                                │
                                ▼
                     ┌─────────────────────┐
-                    │    FastAPI Backend  │
-                    │  Metadata / Terrain │
-                    │  / Buildings APIs   │
+                    │ Cadastral Parcels   │
+                    │ LINZ Primary Parcels│
                     └──────────┬──────────┘
                                │
                                ▼
                     ┌─────────────────────┐
-                    │ React + Three.js    │
-                    │ Interactive 3D UI   │
+                    │ 3D Property Identity│
+                    │ + Property Registry │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ Vertical Property   │
+                    │ Mapping             │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ Spatial Analysis    │
+                    │ + ML Screening      │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ Explainable ML      │
+                    │ + Topology Checks   │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ Human Review        │
+                    │ + Evidence          │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ Property Dossier    │
+                    │ + 3D Interactive UI │
                     └─────────────────────┘
 ```
 
 ---
 
-# 🗂️ Repository Structure
-
-The repository contains the following major areas:
+# 🔄 End-to-End Workflow
 
 ```text
-3D-Visual-Mapping/
-│
-├── backend/
-│   └── app/
-│       ├── main.py
-│       ├── routers/
-│       └── ...
-│
-├── frontend/
-│   ├── src/
-│   ├── public/
-│   ├── package.json
-│   └── ...
-│
-├── pipeline/
-│   ├── geospatial processing scripts
-│   ├── LiDAR processing
-│   ├── Sentinel-2 processing
-│   └── fusion scripts
-│
-├── data/
-│   ├── inputs/
-│   │   ├── lidar/
-│   │   └── sentinel2/
-│   │
-│   └── outputs/
-│       ├── nz_lidar/
-│       ├── satellite/
-│       └── terrain/
-│
-├── New Zealand data/
-│
-├── ml/
-│   ├── dataset/              # NOT stored in Git
-│   └── requirements.txt
-│
-├── lidar_data/
-│
-├── requirements.txt
-├── .gitignore
-├── .gitattributes
-├── PROJECT_CONTEXT.md
-└── README.md
-```
-
-The exact file structure may contain additional files. Inspect the repository before modifying it.
-
----
-
-# 🌍 New Zealand Dataset
-
-The current primary Digital Twin implementation uses New Zealand LiDAR and Sentinel-2 data.
-
-## LiDAR
-
-Four LAZ tiles are currently used.
-
-Total LiDAR point count:
-
-```text
-21,138,016 points
-```
-
-CRS:
-
-```text
-EPSG:2193
-```
-
-Vertical datum:
-
-```text
-NZVD2016
-```
-
-AOI approximately:
-
-```text
-X: 1774720 – 1775680
-Y: 5882640 – 5884080
+LINZ Parcel
+     ↓
+LiDAR Building
+     ↓
+3D Property ID
+     ↓
+Vertical Units
+     ↓
+Automated Analysis
+     ↓
+ML Screening
+     ↓
+Explainable ML
+     ↓
+3D Topology Validation
+     ↓
+Human Review
+     ↓
+Evidence & Provenance
+     ↓
+Property Dossier
 ```
 
 ---
 
-# ⛰️ Terrain
+# 🌍 Dataset
 
-Terrain generation has already been completed.
+The current Digital Twin implementation uses real New Zealand LiDAR, Sentinel-2, and cadastral data.
 
-Current terrain:
+### Study Area
+
+```text
+Franklin District
+Bombay Hills
+Ramarama
+South Auckland, New Zealand
+```
+
+### LiDAR
+
+```text
+LiDAR points: 21,138,016
+Tiles: 4 contiguous LAZ tiles
+CRS: EPSG:2193
+Vertical datum: NZVD2016
+Study area: approximately 960 m × 1,440 m
+```
+
+---
+
+# ⛰️ Terrain Model
+
+Terrain generation uses LiDAR ground points to create a 2 m Digital Terrain Model.
 
 ```text
 Vertices: 346,801
 Triangles: 691,200
 Grid resolution: 2 m
+Elevation range: approximately 69.7 m to 155.8 m
+Terrain relief: approximately 86.1 m
+Mean elevation: approximately 108.3 m
 ```
 
-Important outputs:
+The 3D viewer uses approximately 1.5× vertical exaggeration to improve visual interpretation of terrain variation.
 
-```text
-data/outputs/nz_lidar/terrain.vtp
-data/outputs/nz_lidar/terrain_fused.vtp
-data/outputs/nz_lidar/terrain_layers.vtp
-```
+### Available Terrain Views
 
-The terrain is georeferenced and generated from the NZ LiDAR data.
+* Elevation
+* Slope
+* Relative elevation
+* Analytical hillshade
+* RGB
+* NDVI
+* RGB + hillshade
+* Buildings
 
 ---
 
-# 🏢 Building Detection
+# 🏢 3D Building Reconstruction
 
-The current pipeline detects:
+The current dataset contains:
 
 ```text
 56 buildings
 ```
 
-The building mesh generation was changed from a problematic raw-point Delaunay approach to a more stable approach using:
+Building geometry is derived from classified LiDAR data and processed into 3D meshes.
 
-1. Building LiDAR points
-2. Regular XY grid
-3. Inverse-distance roof elevation interpolation
-4. Clean triangulation
-5. Building walls
-6. Building base/bottom geometry
+Each building includes information such as:
 
-Current building mesh:
+* Building geometry
+* Ground elevation
+* Roof elevation
+* Structural roof elevation
+* Building height
+* Estimated footprint
+* Width
+* Depth
+* Centroid
+* RGB
+* NDVI
+* Local ground elevation
+* Local terrain context
 
-```text
-Points: 12,852
-Cells: 21,634
-```
-
-Important outputs:
-
-```text
-data/outputs/nz_lidar/building_points.vtp
-data/outputs/nz_lidar/building_mesh.vtp
-data/outputs/nz_lidar/building_fused.vtp
-```
+Building bases are positioned using local terrain information to keep the 3D buildings aligned with the surrounding terrain.
 
 ---
 
-# 🛰️ Sentinel-2
+# 🛰️ Sentinel-2 Integration
 
-The current NZ fusion workflow uses Sentinel-2 tile:
+BhuVista integrates Sentinel-2 satellite imagery with the LiDAR-derived 3D model.
 
-```text
-T60HUD
-```
-
-Scene:
+### Current Dataset
 
 ```text
-S2C_MSIL2A_20260805T222541_N0512_R029_T60HUD_20260806T022813
+Tile: T60HUD
+Resolution: 10 m
+Source CRS: EPSG:32760
+Processed CRS: EPSG:2193
 ```
 
-Cloud coverage:
-
-```text
-0.01%
-```
-
-Primary 10 m bands:
+### Bands
 
 ```text
 B02
@@ -252,19 +250,710 @@ B04
 B08
 ```
 
-Source CRS:
+### Generated Products
 
 ```text
-EPSG:32760
+RGB
+NDVI
 ```
 
-Reprojected CRS:
+The RGB layer uses display calibration for visualization.
+
+NDVI provides vegetation and environmental context around properties.
+
+---
+
+# 🔗 LiDAR + Sentinel-2 Data Fusion
+
+LiDAR and Sentinel-2 data are spatially aligned using EPSG:2193.
+
+The fused building representation contains attributes such as:
 
 ```text
-EPSG:2193
+Building ID
+Ground Elevation
+Height
+Roof Elevation
+RGB
+NDVI
 ```
 
-Processed outputs:
+This allows users to inspect structural building information alongside satellite-derived environmental information.
+
+---
+
+# 🏠 Property Intelligence
+
+Selecting a building opens a property-level intelligence interface.
+
+### Property Identity
+
+* Building ID
+* Project-defined 3D Property ID
+* LINZ primary parcel
+* Secondary or intersecting parcels
+* Identity status
+* Vertical unit IDs
+
+### Geometry
+
+* Centroid
+* Estimated footprint
+* Estimated width
+* Estimated depth
+* Estimated footprint area
+* Bounding dimensions
+
+### Elevation
+
+* Ground elevation
+* Roof elevation
+* Structural roof elevation
+* Building height
+* Relative elevation
+* Local terrain context
+
+### Environmental Information
+
+* LiDAR-derived structural information
+* LiDAR point count
+* Sentinel-2 RGB
+* NDVI
+* Vegetation interpretation
+
+### Spatial Context
+
+* Nearby buildings
+* Local averages
+* Height ranking
+* Nearest building
+* Building-to-building relationships
+
+---
+
+# 🆔 3D Property Identity
+
+BhuVista connects cadastral parcels, buildings, and vertical units through a project-defined 3D property identity model.
+
+```text
+LINZ Parcel
+     ↓
+Building
+     ↓
+3D Property
+     ↓
+Vertical Units
+```
+
+Example:
+
+```text
+3DP-4734388-NZ-B035
+```
+
+Vertical units use the same property identity:
+
+```text
+3DP-4734388-NZ-B035-L01
+3DP-4734388-NZ-B035-L02
+3DP-4734388-NZ-B035-L03
+3DP-4734388-NZ-B035-L04
+```
+
+The identity system supports:
+
+* Building-linked property identities
+* Vertical unit identities
+* Multi-parcel buildings
+* Multiple intersecting parcels
+* Identity validation
+* Vacant parcel handling
+
+> Project-defined 3D Property IDs demonstrate a ULPIN-style workflow. They are not official ULPINs.
+
+---
+
+# 🗺️ Cadastral Integration
+
+The platform integrates cadastral parcel information from the LINZ New Zealand Primary Parcels dataset.
+
+```text
+Dataset: LINZ NZ Primary Parcels
+Layer: 50772
+CRS: EPSG:2193
+```
+
+The workflow is:
+
+```text
+LINZ Parcel Data
+       ↓
+Parcel Geometry
+       ↓
+Building–Parcel Association
+       ↓
+3D Property Identity
+       ↓
+Vertical Property Mapping
+```
+
+The system supports:
+
+* Parcel geometry
+* Parcel boundaries
+* Primary parcel identity
+* Secondary parcels
+* Building-to-parcel associations
+* Occupied parcels
+* Vacant parcels
+* Multi-parcel buildings
+
+The current processed dataset contains:
+
+| Category               | Count |
+| ---------------------- | ----: |
+| Parcels within AOI     |    31 |
+| Parcels with buildings |    14 |
+| Vacant parcels         |    17 |
+| Associated buildings   |    56 |
+| Multi-parcel buildings |     1 |
+
+---
+
+# 🧱 Vertical Property Mapping
+
+BhuVista provides an estimated vertical representation of buildings using LiDAR-derived structural information.
+
+Supported properties include:
+
+* Estimated floor count
+* Vertical levels
+* Vertical unit IDs
+* Base elevation
+* Top elevation
+* Level height
+* Estimated dimensions
+* Height above building base
+* Level-specific property information
+
+Example:
+
+```text
+Building
+   │
+   ├── Level 01
+   ├── Level 02
+   ├── Level 03
+   └── Level 04
+```
+
+Users can enter a dedicated vertical exploration mode and inspect estimated levels individually.
+
+The default floor-height assumption is approximately:
+
+```text
+3.2 m / floor
+```
+
+This represents an analytical estimation parameter.
+
+The generated levels are not:
+
+* Architectural floor plans
+* BIM models
+* Interior building models
+* Survey-certified floor boundaries
+* Official cadastral floor units
+
+---
+
+# 📐 Spatial Analysis
+
+BhuVista provides multiple spatial analysis tools.
+
+### Site Analysis
+
+A selected property can be evaluated using:
+
+* Local ground elevation
+* Local slope
+* Relative elevation
+* Nearby building count
+* Nearest building distance
+* Vegetation context
+* Composite contextual indicators
+
+### Local Comparison
+
+Buildings can be compared using:
+
+* Building height
+* Estimated footprint
+* Ground elevation
+* Height ranking
+* Nearest-neighbour relationships
+
+### Building Measurements
+
+The measurement system supports:
+
+* Horizontal distance
+* Ground elevation difference
+* Building height difference
+* 3D straight-line distance
+
+### Spatial Queries
+
+Buildings can be filtered using:
+
+```text
+All
+Steep
+Tall
+High Context
+Isolated
+```
+
+---
+
+# 🌱 Environmental Intelligence
+
+NDVI provides environmental context around buildings.
+
+Current interpretation thresholds include:
+
+| NDVI           | Interpretation          |
+| -------------- | ----------------------- |
+| `< 0.12`       | Impervious              |
+| `0.12 to 0.22` | Built / Low Canopy      |
+| `0.22 to 0.35` | Mixed / Canopy Overhang |
+| `≥ 0.35`       | Vegetated               |
+
+These categories are intended for contextual visualization rather than formal land-cover classification.
+
+---
+
+# 🤖 ML-Based Property Screening
+
+BhuVista includes an unsupervised machine learning workflow for identifying structurally unusual buildings within the available LiDAR building population.
+
+The current implementation uses a Mahalanobis-distance-based screening approach.
+
+### Features
+
+* Estimated floor count
+* Building height
+* Ground elevation
+* Roof elevation
+* Estimated footprint area
+* Estimated width
+* Estimated depth
+
+### Screening Categories
+
+```text
+Typical
+Moderately unusual
+Highly unusual
+```
+
+These results are combined with deterministic validation into:
+
+```text
+NORMAL
+REVIEW
+PRIORITY REVIEW
+```
+
+### Current Screening Summary
+
+| Status          | Count |
+| --------------- | ----: |
+| NORMAL          |    42 |
+| REVIEW          |     8 |
+| PRIORITY REVIEW |     6 |
+| TOTAL           |    56 |
+
+The ML system prioritizes properties for human inspection.
+
+An unusual ML result does not establish that a property is unsafe, illegal, incorrect, fraudulent, or structurally defective.
+
+---
+
+# 🔍 Explainable ML
+
+BhuVista provides property-level explanations for ML screening results.
+
+The explanation uses leave-one-feature-out analysis.
+
+The system removes one feature at a time and recalculates the anomaly score. The resulting score change estimates the contribution of each feature.
+
+The interface provides:
+
+* Top contributing features
+* Contribution magnitude
+* Direction relative to the dataset mean
+* Property-specific explanations
+
+---
+
+# 🧩 3D Topology Validation
+
+The platform performs internal consistency checks across the 3D property model.
+
+### Geometry Validation
+
+* Building geometry
+* Bounding dimensions
+* Building association state
+
+### Vertical Validation
+
+* Floor index continuity
+* Level labels
+* Base and top ordering
+* Upward progression
+* Level overlap
+* Vertical unit IDs
+* Structural roof alignment
+
+### Identity Validation
+
+* Project-defined property ID format
+* Vertical unit ID format
+* Identity chain consistency
+
+### Validation States
+
+```text
+VALID
+WARNING
+ERROR
+UNAVAILABLE
+```
+
+These checks represent internal 3D property consistency validation.
+
+---
+
+# 👤 Human Review
+
+BhuVista includes a human-in-the-loop review workflow.
+
+Automated screening identifies properties requiring attention, while human review provides the operational review state.
+
+### Review States
+
+```text
+UNREVIEWED
+IN REVIEW
+REVIEWED
+```
+
+Users can:
+
+* Start Review
+* Add reviewer notes
+* Mark Reviewed
+* Reopen Review
+* View review history
+
+Review actions do not modify the underlying ML screening result.
+
+---
+
+# 🧾 Evidence & Provenance
+
+The platform distinguishes between source information and derived information.
+
+### Source Information
+
+Examples include:
+
+* LINZ cadastral data
+* LiDAR
+* Digital Terrain Model
+* Sentinel-2
+* Dataset metadata
+
+### Derived Information
+
+Examples include:
+
+* Building measurements
+* Vertical structure
+* Spatial analysis
+* ML screening
+* Explainable ML
+* Topology validation
+
+This separation helps users understand where each property-level result originated.
+
+---
+
+# ⏳ Temporal Intelligence
+
+The platform includes a temporal intelligence framework.
+
+The currently available New Zealand dataset represents the current observation.
+
+Historical reference data is not included in the current dataset.
+
+Therefore:
+
+* Current observations are supported
+* Historical observations are not fabricated
+* Historical deltas are unavailable
+* Change detection requires comparable historical data
+
+---
+
+# 📋 Property Registry
+
+The Property Registry provides a searchable index of property records.
+
+Users can search by:
+
+* Building ID
+* LINZ parcel ID
+* Project-defined 3D Property ID
+* Vertical unit ID
+
+Example:
+
+```text
+3DP-4734388-NZ-B035-L02
+```
+
+### Registry Filters
+
+```text
+All
+Normal
+Review
+Priority
+Multi-parcel
+Vacant
+```
+
+Vacant parcels are represented without fabricated building identities.
+
+---
+
+# 📝 Review Queue
+
+The Review Queue provides an operational view of properties requiring attention.
+
+Each review item can contain:
+
+* Building ID
+* Primary parcel
+* Project-defined 3D Property ID
+* Secondary parcels
+* ML screening status
+* Human review status
+* Topology status
+* ML explanation
+* Property actions
+
+---
+
+# 📄 Property Dossier
+
+BhuVista supports client-side generation of property-level PDF dossiers.
+
+A dossier can include:
+
+### Property Identity
+
+* Project-defined 3D Property ID
+* LINZ primary parcel
+* Building ID
+* Vertical unit IDs
+
+### Geometry
+
+* Footprint
+* Width
+* Depth
+* Area
+* Centroid
+
+### Elevation
+
+* Ground elevation
+* Roof elevation
+* Building height
+* Structural roof information
+
+### Environmental Information
+
+* LiDAR information
+* RGB
+* NDVI
+* Terrain context
+
+### Local Comparison
+
+* Local building statistics
+* Relative property measurements
+
+### Measurements
+
+* Horizontal distance
+* Elevation difference
+* Height difference
+* 3D distance
+
+### ML Analysis
+
+* Screening classification
+* Anomaly score
+* Feature contributions
+
+### Topology
+
+* Internal validation results
+
+### Human Review
+
+* Review state
+* Reviewer notes
+* Review history
+
+### Evidence & Provenance
+
+* Data sources
+* Derived information
+* Supporting evidence
+
+---
+
+# ⚡ Backend Performance
+
+The backend includes caching and response optimization for large terrain and building payloads.
+
+The implementation includes:
+
+* In-memory terrain caching
+* In-memory building caching
+* Pre-serialized JSON responses
+* GZip-compressed responses
+* FastAPI startup cache warming
+* Cache invalidation after relevant processing
+
+---
+
+# 🖥️ Technology Stack
+
+## Frontend
+
+* React
+* TypeScript
+* Vite
+* Three.js
+* React Three Fiber
+* Drei
+* Axios
+
+## Backend
+
+* Python
+* FastAPI
+* Uvicorn
+* PyVista
+* VTK
+* NumPy
+* Laspy
+* Lazrs
+* PyProj
+* Rasterio
+* SciPy
+* Shapely
+
+## Geospatial Data
+
+* LiDAR LAZ
+* Sentinel-2
+* LINZ Primary Parcels
+* Digital Terrain Model
+* 3D building meshes
+
+---
+
+# 🔌 API
+
+The FastAPI backend provides NZ-specific services including:
+
+```text
+/api/nz/metadata
+/api/nz/terrain
+/api/nz/buildings
+/api/nz/parcels
+/api/nz/ml/buildings
+/api/nz/review/buildings
+```
+
+Review persistence is handled through review-specific endpoints implemented in `api.py`.
+
+---
+
+# 🗂️ Project Structure
+
+```text
+3D-Visual-Mapping/
+│
+├── api.py
+├── requirements.txt
+├── PROJECT_CONTEXT.md
+├── .gitignore
+├── .gitattributes
+│
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   │   └── NZDigitalTwin/
+│   │   ├── services/
+│   │   │   ├── nzApi.ts
+│   │   │   ├── propertyIdentity.ts
+│   │   │   ├── topologyValidation.ts
+│   │   │   ├── temporalChange.ts
+│   │   │   ├── evidence.ts
+│   │   │   └── dossierPdf.ts
+│   │   └── App.tsx
+│   └── package.json
+│
+├── pipeline/
+│   ├── acquire_linz_parcels.py
+│   ├── process_nz_parcels.py
+│   ├── vertical_structure.py
+│   └── ...
+│
+├── data/
+│   ├── inputs/
+│   │   └── parcels/
+│   └── outputs/
+│       └── nz_lidar/
+│
+└── README.md
+```
+
+---
+
+# 📦 Important Generated Data
+
+### Terrain and Building Outputs
+
+```text
+data/outputs/nz_lidar/terrain.vtp
+data/outputs/nz_lidar/terrain_fused.vtp
+data/outputs/nz_lidar/terrain_layers.vtp
+data/outputs/nz_lidar/building_points.vtp
+data/outputs/nz_lidar/building_mesh.vtp
+data/outputs/nz_lidar/building_fused.vtp
+```
+
+### Sentinel-2 Outputs
 
 ```text
 data/outputs/nz_lidar/sentinel2/B02_10m_epsg2193.tif
@@ -277,330 +966,16 @@ data/outputs/nz_lidar/sentinel2/NDVI_10m_epsg2193.tif
 
 ---
 
-# 🔗 LiDAR + Sentinel-2 Fusion
-
-The fusion pipeline is:
-
-```text
-pipeline/fuse_sentinel_buildings.py
-```
-
-The resulting fused building mesh contains attributes including:
-
-```text
-BuildingID
-GroundElevation
-Height
-RoofElevation
-RGB
-NDVI
-```
-
-Output:
-
-```text
-data/outputs/nz_lidar/building_fused.vtp
-```
-
-This is the foundation for building-aware Digital Twin visualization.
-
----
-
-# 🖥️ Backend
-
-The backend uses:
-
-- Python
-- FastAPI
-- Uvicorn
-- PyVista
-- VTK
-- NumPy
-- Laspy
-- Lazrs
-- PyProj
-- Rasterio
-- SciPy
-- Shapely
-
-Main dependency file:
-
-```text
-requirements.txt
-```
-
-Current requirements:
-
-```text
-fastapi==0.141.1
-uvicorn==0.52.4
-numpy==2.5.1
-pyvista==0.48.4
-vtk==9.6.2
-laspy
-lazrs
-pyproj
-rasterio
-scipy
-shapely
-```
-
----
-
-# 🔌 Current API
-
-The FastAPI backend currently provides NZ endpoints including:
-
-```text
-/api/nz/metadata
-/api/nz/terrain
-/api/nz/buildings
-```
-
-Before changing response formats, inspect both the backend routers and the frontend API calls.
-
----
-
-# 🎨 Frontend
-
-The frontend uses:
-
-- React
-- TypeScript
-- Vite
-- Three.js
-- @react-three/fiber
-- @react-three/drei
-- Axios
-
-Frontend dependencies are defined in:
-
-```text
-frontend/package.json
-```
-
-Run:
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Build:
-
-```bash
-npm run build
-```
-
-Lint:
-
-```bash
-npm run lint
-```
-
----
-
-# ⚠️ CURRENT PROBLEMS / DEVELOPMENT STATUS
-
-## 1. Major issue: Frontend 3D rendering performance
-
-This is the **main current problem**.
-
-The NZ terrain contains approximately:
-
-```text
-346,801 vertices
-691,200 triangles
-```
-
-The current frontend approach can become extremely memory-heavy when the complete terrain geometry is loaded into the browser.
-
-This can cause:
-
-- high browser memory usage
-- slow rendering
-- slow camera movement
-- large JavaScript/Three.js memory allocation
-- possible browser instability
-- unnecessary duplication of large geometry/data structures
-
-### What should NOT be done immediately
-
-Do not simply rebuild the entire terrain pipeline.
-
-Do not immediately throw away the existing 346k-vertex terrain.
-
-Do not rerun all LiDAR processing just to solve a frontend rendering problem.
-
-### What should be investigated first
-
-Inspect how the frontend currently:
-
-```text
-API response
-      ↓
-data conversion
-      ↓
-React state
-      ↓
-Three.js geometry
-      ↓
-GPU rendering
-```
-
-Then investigate:
-
-- BufferGeometry
-- indexed geometry
-- geometry reuse
-- React memoization
-- avoiding large objects in React state
-- resource disposal
-- terrain chunking
-- spatial tiling
-- level of detail (LOD)
-- progressive loading
-- frustum-based loading
-- server-side terrain chunks
-- binary formats
-- Web Workers where appropriate
-
-The preferred solution is the **least invasive performance improvement that preserves visual quality**.
-
----
-
-# 2. Frontend is not yet a complete Digital Twin
-
-The current frontend is a working foundation, but the full Digital Twin experience still needs development.
-
-Future UI capabilities include:
-
-- building selection
-- building information panel
-- building height
-- ground elevation
-- roof elevation
-- RGB information
-- NDVI information
-- terrain controls
-- layer toggles
-- vegetation visualization
-- better camera/navigation
-- measurement tools
-- coordinate display
-- additional urban layers
-
----
-
-# 3. Large geospatial datasets
-
-The repository contains several GB of large files.
-
-Git LFS is already configured.
-
-Do not remove Git LFS.
-
-The following file types are tracked using LFS:
-
-```text
-*.laz
-*.las
-*.jp2
-*.tif
-*.tiff
-*.vtp
-*.ply
-*.npz
-*.pth
-*.pt
-*.h5
-*.keras
-*.zip
-*.npy
-```
-
----
-
-# 4. ML dataset is intentionally excluded
-
-The ML dataset is approximately:
-
-```text
-27 GB
-```
-
-Location:
-
-```text
-ml/dataset/
-```
-
-It is intentionally excluded from Git.
-
-**Never run `git add` in a way that causes this dataset to be committed.**
-
-The project should work without committing this dataset.
-
-ML dependencies are separate:
-
-```text
-ml/requirements.txt
-```
-
----
-
-# 5. Existing processed data should be preserved
-
-Several outputs were expensive to generate.
-
-Do not delete them unnecessarily.
-
-Important baseline outputs include:
-
-```text
-terrain.vtp
-terrain_fused.vtp
-terrain_layers.vtp
-building_points.vtp
-building_mesh.vtp
-building_fused.vtp
-RGB_10m_epsg2193.tif
-NDVI_10m_epsg2193.tif
-```
-
-When experimenting with new algorithms, prefer creating alternative output files rather than overwriting the baseline immediately.
-
----
-
-# ⚠️ Sentinel-2 Processing Warning
-
-The script:
-
-```text
-pipeline/process_sentinel2.py
-```
-
-should **not be run casually**.
-
-Sentinel-2 processing has already been completed for the current baseline.
-
-Use the existing processed outputs unless a task specifically requires regeneration.
-
----
-
 # 🧪 Installation
 
-## Clone repository
-
-Because the project uses Git LFS:
+## 1. Clone the Repository
 
 ```bash
 git clone https://github.com/Vaibhavv526/3D-Visual-Mapping.git
 cd 3D-Visual-Mapping
 ```
 
-Install Git LFS:
+The repository uses Git LFS for large files.
 
 ```bash
 git lfs install
@@ -609,282 +984,305 @@ git lfs pull
 
 ---
 
-## Backend setup
+## 2. Backend Setup
 
-Create a Python environment:
+Create a Python virtual environment.
 
-```bash
-python3 -m venv myvenv
-source myvenv/bin/activate
+### Windows PowerShell
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
 ```
 
 Install dependencies:
 
-```bash
+```powershell
 pip install -r requirements.txt
 ```
 
-Inspect:
+Start the backend:
 
-```text
-backend/app/main.py
+```powershell
+python -m uvicorn api:app --reload
 ```
 
-before choosing the Uvicorn module path.
+Backend:
 
-A typical command may be:
-
-```bash
-uvicorn backend.app.main:app --reload
+```text
+http://127.0.0.1:8000
 ```
 
 ---
 
-## Frontend setup
+## 3. Frontend Setup
 
-```bash
+Open another terminal:
+
+```powershell
 cd frontend
 npm install
 npm run dev
 ```
 
----
+The frontend is normally available at:
 
-# 🔬 Validation
-
-Backend syntax check:
-
-```bash
-python -m py_compile <changed_file.py>
+```text
+http://localhost:5173
 ```
 
-Frontend:
+---
 
-```bash
+# 🔐 LINZ API Configuration
+
+The cadastral acquisition pipeline uses a LINZ Data Service API key.
+
+The key should never be committed to Git.
+
+The acquisition script is:
+
+```text
+pipeline/acquire_linz_parcels.py
+```
+
+The script requests the NZ Primary Parcels dataset for the project's existing Area of Interest.
+
+---
+
+# 🧠 ML Architecture
+
+The current structural screening system uses a Mahalanobis-distance-based approach.
+
+The feature vector contains:
+
+```text
+Estimated floors
+Height
+Ground elevation
+Roof elevation
+Footprint area
+Footprint width
+Footprint depth
+```
+
+The model compares each building against the available NZ building population.
+
+Explainability uses leave-one-feature-out analysis.
+
+---
+
+# 🧪 Testing
+
+### Backend Syntax
+
+```powershell
+python -m py_compile api.py pipeline/vertical_structure.py
+```
+
+### Frontend Build
+
+```powershell
+cd frontend
 npm run build
 ```
 
-Lint:
+### Lint
 
-```bash
+```powershell
 npm run lint
 ```
 
-After major changes, verify the application manually.
+Important workflows to verify after major changes:
+
+* 3D rendering
+* Building selection
+* Building focus
+* Terrain layers
+* Cadastral parcel display
+* Property identity
+* Property Registry
+* Vertical exploration
+* Vertical unit search
+* Spatial measurements
+* Spatial queries
+* ML screening
+* Explainable ML
+* Topology validation
+* Human review
+* Evidence and provenance
+* PDF generation
 
 ---
 
-# 🧠 Recommended Development Workflow
+# 📊 Current Dataset Summary
 
-For every task:
+| Category                 |            Value |
+| ------------------------ | ---------------: |
+| LiDAR points             |       21,138,016 |
+| LiDAR tiles              |                4 |
+| Buildings                |               56 |
+| Terrain vertices         |          346,801 |
+| Terrain triangles        |          691,200 |
+| DTM resolution           |              2 m |
+| Study extent             | ~960 m × 1,440 m |
+| Survey area              |        ~138.2 ha |
+| CRS                      |        EPSG:2193 |
+| LINZ parcels             |               31 |
+| Parcels with buildings   |               14 |
+| Vacant parcels           |               17 |
+| Multi-parcel buildings   |                1 |
+| Generated vertical units |              104 |
+| Sentinel-2 tile          |           T60HUD |
+| Sentinel-2 resolution    |             10 m |
+
+---
+
+# 🎯 Project Workflow
 
 ```text
-1. Read PROJECT_CONTEXT.md
-        ↓
-2. Inspect existing implementation
-        ↓
-3. Identify the smallest required change
-        ↓
-4. Implement
-        ↓
-5. Run validation
-        ↓
-6. Test the application
-        ↓
-7. Document what changed
+                    BhuVista
+                       │
+                       ▼
+              ┌─────────────────┐
+              │  3D Digital Twin│
+              └────────┬────────┘
+                       │
+        ┌──────────────┼──────────────┐
+        ▼              ▼              ▼
+     Terrain       Buildings       Parcels
+        │              │              │
+        └──────────────┼──────────────┘
+                       ▼
+              Property Identity
+                       │
+                       ▼
+             Vertical Properties
+                       │
+                       ▼
+              Spatial Intelligence
+                       │
+              ┌────────┴────────┐
+              ▼                 ▼
+          ML Screening      Measurements
+              │                 │
+              ▼                 │
+        Explainable ML          │
+              │                 │
+              └────────┬────────┘
+                       ▼
+               Topology Checks
+                       │
+                       ▼
+                 Human Review
+                       │
+                       ▼
+             Evidence & Provenance
+                       │
+                       ▼
+               Property Dossier
 ```
 
-Do not make unrelated changes.
-
 ---
 
-# 🗺️ Development Roadmap
+# 🎯 SIH Relevance
 
-## Phase 1 — Current
+BhuVista demonstrates a 3D geospatial workflow for property identification and vertical property mapping.
 
-### Stabilize frontend rendering
-
-Priority:
-
-**HIGH**
-
-Goal:
-
-Render the existing NZ terrain and buildings smoothly without excessive browser memory consumption.
-
----
-
-## Phase 2 — Digital Twin interaction
-
-Priority:
-
-**HIGH**
-
-Add:
-
-- building selection
-- building metadata
-- layer controls
-- RGB/NDVI display
-- terrain controls
-
----
-
-## Phase 3 — Geospatial visualization
-
-Add:
-
-- vegetation layer
-- NDVI heatmap
-- RGB visualization
-- terrain analysis
-- building highlighting
-- coordinate tools
-- measurements
-
----
-
-## Phase 4 — Urban Digital Twin
-
-Potentially add:
-
-- roads
-- infrastructure
-- trees/vegetation objects
-- additional structures
-- semantic layers
-
----
-
-## Phase 5 — Scalability
-
-Potential future architecture:
+The platform connects:
 
 ```text
-Large geospatial datasets
-        ↓
-Spatial tiling
-        ↓
-Chunked/binary data
-        ↓
-FastAPI / storage layer
-        ↓
-Progressive frontend loading
-        ↓
-Three.js Digital Twin
+LiDAR
+  ↓
+3D Terrain + Buildings
+  ↓
+Cadastral Parcels
+  ↓
+3D Property Identity
+  ↓
+Vertical Property Mapping
+  ↓
+Spatial Intelligence
+  ↓
+ML Screening
+  ↓
+Explainable Analysis
+  ↓
+3D Topology Validation
+  ↓
+Human Review
+  ↓
+Evidence
+  ↓
+Property Dossier
 ```
 
-Only introduce this complexity when the MVP requires it.
+This approach moves beyond conventional 2D mapping by connecting geospatial geometry with property identity, vertical structure, cadastral context, spatial analysis, automated screening, validation, human review, and reporting.
 
 ---
 
-# 🎯 Definition of a Successful MVP
+# ⚠️ Limitations
 
-The MVP should allow a user to:
+### LiDAR-Derived Vertical Structure
 
-1. Open the web application.
-2. See the New Zealand terrain.
-3. See the 3D buildings.
-4. Navigate around the scene.
-5. Select a building.
-6. Inspect building attributes.
-7. View RGB information.
-8. View NDVI/vegetation information.
-9. Toggle layers.
-10. Use the application without severe browser memory/performance problems.
+Vertical levels are estimates based on available LiDAR-derived structural information.
+
+They are not architectural floor plans, BIM models, interior building models, survey-certified floor boundaries, or official cadastral floor units.
+
+### Property Identity
+
+Project-defined 3D Property IDs demonstrate a ULPIN-style workflow.
+
+They are not official legal ULPINs.
+
+### Cadastral Data
+
+Cadastral information comes from the LINZ Primary Parcels dataset.
+
+The system performs spatial associations and internal checks. It does not establish legal ownership, legal title, legal parcel boundaries, or regulatory compliance.
+
+### Machine Learning
+
+The ML system provides dataset-relative screening.
+
+It does not determine structural safety, legal status, ownership, regulatory compliance, or building correctness.
+
+### Temporal Analysis
+
+Historical reference data is not included in the current dataset.
+
+Historical change detection therefore requires comparable historical data.
+
+### Dataset Scope
+
+The current implementation uses a specific New Zealand dataset.
+
+Applying the workflow to another region requires suitable geospatial, cadastral, satellite, and elevation datasets.
 
 ---
 
-# 🤖 For AI Coding Agents
+# 📄 Documentation
 
-If this repository is opened in **Antigravity or another AI coding environment**, read:
+Important project documentation includes:
 
 ```text
 PROJECT_CONTEXT.md
-```
-
-first.
-
-`PROJECT_CONTEXT.md` contains the detailed engineering handoff and AI instructions.
-
-The README provides the project overview.
-
-The context file provides the deeper implementation guidance.
-
-### Most important instruction
-
-> **Continue the existing project. Do not rebuild it from scratch.**
-
-The current geospatial processing and data generation are valuable completed work.
-
-The immediate engineering problem is **frontend 3D rendering performance**, followed by completion of the interactive Digital Twin experience.
-
----
-
-# 📌 Project Status Summary
-
-| Component | Status |
-|---|---|
-| NZ LiDAR integration | ✅ Complete |
-| LiDAR preprocessing | ✅ Complete |
-| Terrain generation | ✅ Complete |
-| Building detection | ✅ Complete |
-| Building mesh generation | ✅ Complete |
-| Sentinel-2 integration | ✅ Complete |
-| RGB generation | ✅ Complete |
-| NDVI generation | ✅ Complete |
-| CRS alignment | ✅ Complete |
-| LiDAR + Sentinel-2 fusion | ✅ Complete |
-| FastAPI backend | ✅ Working |
-| NZ metadata API | ✅ Working |
-| NZ terrain API | ✅ Working |
-| NZ building API | ✅ Working |
-| React frontend | 🟡 In development |
-| Three.js visualization | 🟡 In development |
-| Large terrain rendering | ⚠️ Performance issue |
-| Building interaction UI | 🔜 Next |
-| Layer controls | 🔜 Next |
-| Full Digital Twin UX | 🔜 Future |
-| Roads/infrastructure | 🔜 Future |
-| Production scalability | 🔜 Future |
-
----
-
-# 📄 Related Documentation
-
-Primary AI handoff document:
-
-```text
-PROJECT_CONTEXT.md
-```
-
-Dependency files:
-
-```text
 requirements.txt
 ml/requirements.txt
 frontend/package.json
-```
-
-Git configuration:
-
-```text
 .gitignore
 .gitattributes
 ```
 
 ---
 
-# 👨‍💻 Handoff Note
+# ⚖️ Disclaimer
 
-This repository is an **active development baseline**, not a blank starter project.
+BhuVista is a geospatial visualization, property intelligence, and analytical prototype.
 
-The core geospatial work has already been completed.
+LiDAR-derived building heights and vertical levels are estimates based on available spatial data.
 
-The next developer/AI agent should focus on:
+Machine learning outputs support screening and human review. An unusual result does not establish that a property is unsafe, illegal, incorrect, fraudulent, or defective.
 
-**understanding → optimizing → extending**
+Cadastral and property-related conclusions require authoritative data and appropriate verification.
 
-rather than:
-
-**deleting → rebuilding → regenerating**.
+Project-defined 3D property identifiers demonstrate a ULPIN-style workflow and should not be interpreted as official legal ULPINs.
