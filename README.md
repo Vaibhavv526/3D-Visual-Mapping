@@ -113,7 +113,7 @@ The platform hides complex geospatial processing behind a property-focused inter
                     │ Property Dossier    │
                     │ + 3D Interactive UI │
                     └─────────────────────┘
-```
+````
 
 ---
 
@@ -514,6 +514,20 @@ High Context
 Isolated
 ```
 
+The cadastral acquisition pipeline is:
+
+```text
+pipeline/acquire_linz_parcels.py
+```
+
+Parcel processing is handled through:
+
+```text
+pipeline/process_nz_parcels.py
+```
+
+The current implementation requires access to the LINZ Data Service for authoritative parcel acquisition.
+
 ---
 
 # 🌱 Environmental Intelligence
@@ -577,6 +591,27 @@ PRIORITY REVIEW
 The ML system prioritizes properties for human inspection.
 
 An unusual ML result does not establish that a property is unsafe, illegal, incorrect, fraudulent, or structurally defective.
+
+Current screening summary:
+
+| Screening Status | Count |
+| ---------------- | ----: |
+| NORMAL           |    42 |
+| REVIEW           |     8 |
+| PRIORITY REVIEW  |     6 |
+| TOTAL            |    56 |
+
+The purpose of ML screening is to prioritize properties for human inspection.
+
+An unusual ML result does not mean that a property is:
+
+* Unsafe
+* Illegal
+* Incorrect
+* Fraudulent
+* Structurally defective
+
+The ML output is a relative analytical signal based on the available dataset.
 
 ---
 
@@ -705,6 +740,23 @@ Therefore:
 * Historical observations are not fabricated
 * Historical deltas are unavailable
 * Change detection requires comparable historical data
+
+An exact vertical unit search opens the parent property and requested level.
+
+## Registry Filters
+
+```text
+All
+Normal
+Review
+Priority
+Multi-parcel
+Vacant
+```
+
+The registry includes both property records and vacant parcel records.
+
+Vacant parcels are explicitly represented without assigning fabricated building identities.
 
 ---
 
@@ -966,7 +1018,7 @@ data/outputs/nz_lidar/sentinel2/NDVI_10m_epsg2193.tif
 
 ---
 
-# 🧪 Installation
+# 🧪 Setup
 
 ## 1. Clone the Repository
 
@@ -1047,7 +1099,7 @@ pipeline/acquire_linz_parcels.py
 
 The script requests the NZ Primary Parcels dataset for the project's existing Area of Interest.
 
----
+Do not regenerate expensive geospatial outputs unnecessarily.
 
 # 🧠 ML Architecture
 
@@ -1069,7 +1121,7 @@ The model compares each building against the available NZ building population.
 
 Explainability uses leave-one-feature-out analysis.
 
----
+The current workflow combines:
 
 # 🧪 Testing
 
